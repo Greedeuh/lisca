@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Kokoro TTS model with built-in tokenizer.
+use super::phonemizer::Phonemizer;
+
+/// Kokoro TTS model with phonemizer.
 pub struct KokoroModel {
     session: ort::session::Session,
     vocab: HashMap<char, i64>,
-    voices: Vec<Vec<f32>>,  // Each voice is 256-dim style vector
+    voices: Vec<Vec<f32>>,
+    phonemizer: Phonemizer,
     sample_rate: u32,
 }
 
@@ -33,6 +36,7 @@ impl KokoroModel {
             session,
             vocab,
             voices,
+            phonemizer: Phonemizer::new(),
             sample_rate: 24000,
         })
     }
@@ -110,15 +114,49 @@ impl KokoroModel {
         let mut tokens = Vec::new();
 
         for ch in text.chars() {
+            // Direct mapping
             if let Some(&id) = self.vocab.get(&ch) {
                 tokens.push(id);
-            } else {
-                // Try lowercase
-                let lower = ch.to_lowercase().next().unwrap_or(ch);
-                if let Some(&id) = self.vocab.get(&lower) {
-                    tokens.push(id);
-                }
-                // Skip unknown characters
+                continue;
+            }
+
+            // Try lowercase
+            let lower = ch.to_lowercase().next().unwrap_or(ch);
+            if let Some(&id) = self.vocab.get(&lower) {
+                tokens.push(id);
+                continue;
+            }
+
+            // Basic English phoneme approximation for common patterns
+            // This is very simplified - proper implementation needs misaki
+            match ch {
+                'A' | 'a' => tokens.push(43),  // /a/
+                'B' | 'b' => tokens.push(44),  // /b/
+                'C' | 'c' => tokens.push(45),  // /k/ or /s/
+                'D' | 'd' => tokens.push(46),  // /d/
+                'E' | 'e' => tokens.push(47),  // /e/
+                'F' | 'f' => tokens.push(48),  // /f/
+                'G' | 'g' => tokens.push(92),  // /ɡ/
+                'H' | 'h' => tokens.push(50),  // /h/
+                'I' | 'i' => tokens.push(51),  // /i/
+                'J' | 'j' => tokens.push(52),  // /dʒ/
+                'K' | 'k' => tokens.push(53),  // /k/
+                'L' | 'l' => tokens.push(54),  // /l/
+                'M' | 'm' => tokens.push(55),  // /m/
+                'N' | 'n' => tokens.push(56),  // /n/
+                'O' | 'o' => tokens.push(57),  // /o/
+                'P' | 'p' => tokens.push(58),  // /p/
+                'Q' | 'q' => tokens.push(59),  // /k/
+                'R' | 'r' => tokens.push(60),  // /r/
+                'S' | 's' => tokens.push(61),  // /s/
+                'T' | 't' => tokens.push(62),  // /t/
+                'U' | 'u' => tokens.push(63),  // /u/
+                'V' | 'v' => tokens.push(64),  // /v/
+                'W' | 'w' => tokens.push(65),  // /w/
+                'X' | 'x' => tokens.push(66),  // /ks/
+                'Y' | 'y' => tokens.push(67),  // /j/
+                'Z' | 'z' => tokens.push(68),  // /z/
+                _ => {} // Skip unknown
             }
         }
 
@@ -127,11 +165,18 @@ impl KokoroModel {
 
     /// Synthesize audio from text.
     pub fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
-        let tokens = self.tokenize(text);
+        // Convert text to IPA phonemes first
+        let phonemes = self.phonemizer.phonemize(text);
+        eprintln!("Text: {}", text);
+        eprintln!("Phonemes: {}", phonemes);
+
+        let tokens = self.tokenize(&phonemes);
 
         if tokens.is_empty() {
             return Err("No tokens generated from text".into());
         }
+
+        eprintln!("Tokens ({}): {:?}", tokens.len(), &tokens[..tokens.len().min(20)]);
 
         // Max context length is 510 (512 - 2 for pad tokens)
         let tokens = if tokens.len() > 510 {

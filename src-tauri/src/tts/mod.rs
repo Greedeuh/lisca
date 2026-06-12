@@ -1,4 +1,5 @@
 mod kokoro;
+mod phonemizer;
 mod session;
 
 use std::sync::Arc;
