@@ -37,5 +37,9 @@ Tauri process model: Rust core process + WebView. Frontend communicates with bac
 ## Key config
 
 - `tauri.conf.json` — `devUrl: http://localhost:1420`, `beforeDevCommand: "bun run dev"`
-- `src-tauri/capabilities/default.json` — permissions: `core:default`, `opener:default`, `global-shortcut:allow-register`, `global-shortcut:allow-unregister`
+- `src-tauri/capabilities/default.json` — permissions: `core:default`, `opener:default`, `global-shortcut:allow-register`, `global-shortcut:allow-unregister`, `clipboard-manager:allow-read-text`
 - CSP is disabled (`"csp": null`)
+
+## Tauri gotcha
+
+`generate_handler![module::function]` registers the command as `"function"` (not `"module::function"`). Use prefixed names (`hotkey_set`, `tts_speak`) to avoid conflicts.
