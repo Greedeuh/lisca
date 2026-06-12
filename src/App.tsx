@@ -1,49 +1,139 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [shortcut, setShortcut] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [status, setStatus] = useState("");
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  const [rate, setRate] = useState(200);
+  const [volume, setVolume] = useState(100);
+  const [voices, setVoices] = useState<string[]>([]);
+  const [voice, setVoice] = useState("");
+  const [testText, setTestText] = useState("");
+  const [speaking, setSpeaking] = useState(false);
+
+  useEffect(() => {
+    invoke<string | null>("load_hotkey").then((saved) => {
+      if (saved) {
+        setShortcut(saved);
+        invoke("set_hotkey", { shortcut: saved }).catch(console.error);
+      }
+    });
+    invoke<string[]>("list_voices").then((v) => {
+      setVoices(v);
+      if (v.length > 0 && !voice) setVoice(v[0]);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!recording) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const parts: string[] = [];
+      if (e.ctrlKey) parts.push("Control");
+      if (e.shiftKey) parts.push("Shift");
+      if (e.altKey) parts.push("Alt");
+      if (e.metaKey) parts.push("Super");
+
+      const key = e.key;
+      if (!["Control", "Shift", "Alt", "Super"].includes(key)) {
+        parts.push(key.length === 1 ? key.toUpperCase() : key);
+        const combo = parts.join("+");
+        setShortcut(combo);
+        setRecording(false);
+        invoke("set_hotkey", { shortcut: combo })
+          .then(() => setStatus("Saved: " + combo))
+          .catch((err) => setStatus("Error: " + err));
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [recording]);
+
+  async function handleSaveConfig() {
+    try {
+      await invoke("update_tts_config", { rate, volume, voice });
+      setStatus("Config saved");
+    } catch (err) {
+      setStatus("Error: " + err);
+    }
+  }
+
+  async function handleTestSpeak() {
+    if (!testText.trim()) return;
+    setSpeaking(true);
+    try {
+      await invoke("speak_text", { text: testText });
+    } catch (err) {
+      setStatus("Error: " + err);
+    } finally {
+      setSpeaking(false);
+    }
+  }
+
+  async function handleStop() {
+    await invoke("stop_speaking").catch(() => {});
+    setSpeaking(false);
   }
 
   return (
     <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+      <h1>Lisca - Text to Speech</h1>
 
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+      <section className="section">
+        <h2>Hotkey</h2>
+        <div className="row">
+          <button onClick={() => { setRecording(!recording); setStatus(""); }}>
+            {recording ? "Press keys..." : "Record Hotkey"}
+          </button>
+          {shortcut && <span className="badge">{shortcut}</span>}
+        </div>
+        {recording && <p className="hint">Press your key combination...</p>}
+      </section>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+      <section className="section">
+        <h2>Voice</h2>
+        <select value={voice} onChange={(e) => setVoice(e.target.value)}>
+          {voices.map((v) => (
+            <option key={v} value={v}>{v}</option>
+          ))}
+        </select>
+        <label className="slider-label">
+          Rate: {rate}
+          <input type="range" min="50" max="400" value={rate}
+            onChange={(e) => setRate(Number(e.target.value))} />
+        </label>
+        <label className="slider-label">
+          Volume: {volume}
+          <input type="range" min="0" max="100" value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))} />
+        </label>
+        <button onClick={handleSaveConfig}>Save Config</button>
+      </section>
+
+      <section className="section">
+        <h2>Test</h2>
+        <textarea
+          placeholder="Type text to speak..."
+          value={testText}
+          onChange={(e) => setTestText(e.target.value)}
+          rows={3}
         />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+        <div className="row">
+          <button onClick={handleTestSpeak} disabled={speaking || !testText.trim()}>
+            {speaking ? "Speaking..." : "Speak"}
+          </button>
+          {speaking && <button onClick={handleStop}>Stop</button>}
+        </div>
+      </section>
+
+      {status && <p className="status">{status}</p>}
     </main>
   );
 }
