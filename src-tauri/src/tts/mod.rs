@@ -18,11 +18,28 @@ impl TtsManager {
     pub fn new(app_handle: AppHandle) -> Result<Self, String> {
         let engine = tts::Tts::default().map_err(|e| format!("Failed to init system TTS: {}", e))?;
 
-        Ok(Self {
+        let manager = Self {
             backend: Mutex::new(None),
             system_tts: Mutex::new(engine),
             _app_handle: app_handle,
-        })
+        };
+
+        Ok(manager)
+    }
+
+    /// Try to auto-load default model from models/ directory.
+    pub async fn auto_load(&self) {
+        let model_path = std::path::Path::new("models/kokoro-q8.onnx");
+        let voice_path = std::path::Path::new("models/voices/af.bin");
+
+        if model_path.exists() && voice_path.exists() {
+            let mp = model_path.display().to_string();
+            let vp = voice_path.display().to_string();
+            match self.load_model(&mp, &vp).await {
+                Ok(()) => eprintln!("Auto-loaded Kokoro model"),
+                Err(e) => eprintln!("Auto-load failed: {}", e),
+            }
+        }
     }
 
     /// Load a Kokoro ONNX model and voice file.
@@ -125,4 +142,11 @@ pub async fn tts_load_model(
 ) -> Result<(), String> {
     let tts = app.state::<Arc<TtsManager>>();
     tts.load_model(&model_path, &voice_path).await
+}
+
+#[tauri::command]
+pub async fn tts_model_loaded(app: AppHandle) -> Result<bool, String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    let backend = tts.backend.lock().await;
+    Ok(backend.is_some())
 }

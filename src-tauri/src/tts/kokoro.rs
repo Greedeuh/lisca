@@ -153,7 +153,7 @@ impl KokoroModel {
         let t_input_ids = ort::value::Tensor::from_array(([1, input_ids.len()], input_ids))
             .map_err(|e| format!("Tensor input_ids: {}", e))?;
 
-        let t_style = ort::value::Tensor::from_array(([1, 1, 256], ref_s.clone()))
+        let t_style = ort::value::Tensor::from_array(([1, 256], ref_s.clone()))
             .map_err(|e| format!("Tensor style: {}", e))?;
 
         let t_speed = ort::value::Tensor::from_array(([1], vec![speed]))

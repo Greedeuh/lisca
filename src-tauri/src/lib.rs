@@ -15,7 +15,14 @@ pub fn run() {
         .setup(|app| {
             let tts_manager =
                 TtsManager::new(app.handle().clone()).map_err(|e| format!("TTS init: {}", e))?;
-            app.manage(Arc::new(tts_manager));
+            let tts = Arc::new(tts_manager);
+            app.manage(tts.clone());
+
+            // Auto-load default model if present
+            tauri::async_runtime::spawn(async move {
+                tts.auto_load().await;
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -24,6 +31,7 @@ pub fn run() {
             tts::tts_speak,
             tts::tts_stop,
             tts::tts_load_model,
+            tts::tts_model_loaded,
             clipboard::read_selected_text
         ])
         .run(tauri::generate_context!())
