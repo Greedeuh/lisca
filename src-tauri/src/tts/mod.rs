@@ -29,20 +29,23 @@ impl TtsManager {
 
     /// Try to auto-load default model from models/ directory.
     pub async fn auto_load(&self) {
-        // Find project root by walking up from executable looking for Cargo.toml
-        let project_root = Self::find_project_root();
-        let models_dir = project_root.join("models");
+        let models_dir = Self::find_project_root().join("models");
 
         let model_path = models_dir.join("kokoro-q8.onnx");
         let voice_path = models_dir.join("voices/af.bin");
+
+        eprintln!("Looking for model at: {}", model_path.display());
+        eprintln!("Looking for voice at: {}", voice_path.display());
 
         if model_path.exists() && voice_path.exists() {
             let mp = model_path.display().to_string();
             let vp = voice_path.display().to_string();
             match self.load_model(&mp, &vp).await {
-                Ok(()) => eprintln!("Auto-loaded Kokoro model from {}", mp),
+                Ok(()) => eprintln!("Auto-loaded Kokoro model"),
                 Err(e) => eprintln!("Auto-load failed: {}", e),
             }
+        } else {
+            eprintln!("Model files not found, skipping auto-load");
         }
     }
 

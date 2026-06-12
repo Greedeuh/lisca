@@ -8,15 +8,18 @@ export function ModelLoader() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Check if model was auto-loaded
-    invoke<boolean>("tts_model_loaded").then(setLoaded).catch(() => {});
+    invoke<boolean>("tts_model_loaded").then((isLoaded) => {
+      setLoaded(isLoaded);
+      if (isLoaded) setStatus("Auto-loaded");
+    }).catch(() => {});
   }, []);
 
   async function handleLoad() {
     if (!modelPath.trim() || !voicePath.trim()) return;
+    setStatus("Loading...");
     try {
       await invoke("tts_load_model", { modelPath, voicePath });
-      setStatus("Model loaded");
+      setStatus("Loaded");
       setLoaded(true);
     } catch (err) {
       setStatus("Error: " + err);
@@ -26,7 +29,6 @@ export function ModelLoader() {
   return (
     <section className="section">
       <h2>Kokoro Model</h2>
-      {loaded && <p className="hint">Model loaded</p>}
       <input
         type="text"
         placeholder="Path to .onnx model file"
@@ -40,7 +42,7 @@ export function ModelLoader() {
         onChange={(e) => setVoicePath(e.target.value)}
       />
       <button onClick={handleLoad} disabled={!modelPath.trim() || !voicePath.trim()}>
-        {loaded ? "Reload" : "Load Model"}
+        {loaded ? "Reload" : "Load"}
       </button>
       {status && <p className="status">{status}</p>}
     </section>
