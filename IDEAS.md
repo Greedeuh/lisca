@@ -46,6 +46,19 @@ Feature ideas for Lisca — Text to Speech app.
 - **Browser extension**: Send text from browser to Lisca
 - **API server**: Local HTTP API for other apps to trigger TTS
 
+## Performance
+
+- **Model preloading**: Load model on app startup in background thread (like Handy's `initiate_model_load`)
+- **Idle unload**: Unload model after N seconds of inactivity to free memory (like Handy's idle watcher)
+- **Streaming synthesis**: Start audio playback before full synthesis completes (chunk-based processing)
+- **G2P caching**: Cache phoneme results for repeated phrases
+- **Parallel G2P + model load**: Run phonemizer and model loading in parallel on first use
+- **GPU acceleration**: Enable CUDA/DirectML execution providers for faster inference
+- **Model warmup**: Run a dummy inference on load to pre-compile kernels
+- **Audio buffer pooling**: Reuse rodio buffers instead of allocating new ones
+- **Tokio blocking pool**: Run ORT inference on dedicated blocking threads
+- **Pre-registered hotkey**: Register hotkey immediately on startup, not waiting for user to set it
+
 ## Advanced
 
 - **SSML support**: Prosody tags for fine-grained control
