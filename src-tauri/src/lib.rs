@@ -1,5 +1,4 @@
 mod clipboard;
-mod commands;
 mod hotkey;
 mod tts;
 
@@ -20,13 +19,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::set_hotkey,
-            commands::load_hotkey,
-            commands::update_tts_config,
-            commands::speak_text,
-            commands::stop_speaking,
-            commands::list_voices,
-            commands::read_selected_text
+            hotkey::set,
+            hotkey::get,
+            tts::update_config,
+            tts::speak,
+            tts::stop,
+            tts::list_voices,
+            clipboard::read_selected_text
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

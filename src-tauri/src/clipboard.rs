@@ -7,3 +7,8 @@ pub fn read_text(app: &AppHandle) -> Result<String, String> {
         .map_err(|e| format!("Clipboard read failed: {}", e))
         .map(|s| s.to_string())
 }
+
+#[tauri::command]
+pub fn read_selected_text(app: AppHandle) -> Result<String, String> {
+    read_text(&app)
+}

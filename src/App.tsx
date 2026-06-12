@@ -15,13 +15,13 @@ function App() {
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => {
-    invoke<string | null>("load_hotkey").then((saved) => {
+    invoke<string | null>("hotkey_get").then((saved) => {
       if (saved) {
         setShortcut(saved);
-        invoke("set_hotkey", { shortcut: saved }).catch(console.error);
+        invoke("hotkey_set", { shortcut: saved }).catch(console.error);
       }
     });
-    invoke<string[]>("list_voices").then((v) => {
+    invoke<string[]>("tts_list_voices").then((v) => {
       setVoices(v);
       if (v.length > 0 && !voice) setVoice(v[0]);
     });
@@ -46,7 +46,7 @@ function App() {
         const combo = parts.join("+");
         setShortcut(combo);
         setRecording(false);
-        invoke("set_hotkey", { shortcut: combo })
+        invoke("hotkey_set", { shortcut: combo })
           .then(() => setStatus("Saved: " + combo))
           .catch((err) => setStatus("Error: " + err));
       }
@@ -58,7 +58,7 @@ function App() {
 
   async function handleSaveConfig() {
     try {
-      await invoke("update_tts_config", { rate, volume, voice });
+      await invoke("tts_update_config", { rate, volume, voice });
       setStatus("Config saved");
     } catch (err) {
       setStatus("Error: " + err);
@@ -69,7 +69,7 @@ function App() {
     if (!testText.trim()) return;
     setSpeaking(true);
     try {
-      await invoke("speak_text", { text: testText });
+      await invoke("tts_speak", { text: testText });
     } catch (err) {
       setStatus("Error: " + err);
     } finally {
@@ -78,7 +78,7 @@ function App() {
   }
 
   async function handleStop() {
-    await invoke("stop_speaking").catch(() => {});
+    await invoke("tts_stop").catch(() => {});
     setSpeaking(false);
   }
 

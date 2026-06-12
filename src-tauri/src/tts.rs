@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use tauri::AppHandle;
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone)]
@@ -76,4 +77,42 @@ impl TtsManager {
             .map_err(|e| format!("Failed to list voices: {}", e))?;
         Ok(voices.into_iter().map(|v| v.name()).collect())
     }
+}
+
+#[tauri::command]
+pub async fn update_config(
+    app: AppHandle,
+    rate: Option<f32>,
+    volume: Option<f32>,
+    voice: Option<String>,
+) -> Result<(), String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    let current = {
+        let cfg = tts.config.lock().await;
+        TtsConfig {
+            rate: rate.unwrap_or(cfg.rate),
+            volume: volume.unwrap_or(cfg.volume),
+            voice: voice.unwrap_or_else(|| cfg.voice.clone()),
+        }
+    };
+    tts.update_config(current).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn speak(app: AppHandle, text: String) -> Result<(), String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.speak(&text).await
+}
+
+#[tauri::command]
+pub async fn stop(app: AppHandle) -> Result<(), String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.stop().await
+}
+
+#[tauri::command]
+pub async fn list_voices(app: AppHandle) -> Result<Vec<String>, String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.list_voices().await
 }
