@@ -19,12 +19,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            hotkey::set,
-            hotkey::get,
-            tts::update_config,
-            tts::speak,
-            tts::stop,
-            tts::list_voices,
+            hotkey::hotkey_set,
+            hotkey::hotkey_get,
+            tts::tts_update_config,
+            tts::tts_speak,
+            tts::tts_stop,
+            tts::tts_list_voices,
             clipboard::read_selected_text
         ])
         .run(tauri::generate_context!())

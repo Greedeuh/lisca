@@ -80,7 +80,7 @@ impl TtsManager {
 }
 
 #[tauri::command]
-pub async fn update_config(
+pub async fn tts_update_config(
     app: AppHandle,
     rate: Option<f32>,
     volume: Option<f32>,
@@ -100,19 +100,19 @@ pub async fn update_config(
 }
 
 #[tauri::command]
-pub async fn speak(app: AppHandle, text: String) -> Result<(), String> {
+pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
     let tts = app.state::<Arc<TtsManager>>();
     tts.speak(&text).await
 }
 
 #[tauri::command]
-pub async fn stop(app: AppHandle) -> Result<(), String> {
+pub async fn tts_stop(app: AppHandle) -> Result<(), String> {
     let tts = app.state::<Arc<TtsManager>>();
     tts.stop().await
 }
 
 #[tauri::command]
-pub async fn list_voices(app: AppHandle) -> Result<Vec<String>, String> {
+pub async fn tts_list_voices(app: AppHandle) -> Result<Vec<String>, String> {
     let tts = app.state::<Arc<TtsManager>>();
     tts.list_voices().await
 }

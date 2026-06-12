@@ -86,7 +86,7 @@ fn parse(shortcut: &str) -> Result<(Modifiers, Code), String> {
 }
 
 #[tauri::command]
-pub fn set(app: AppHandle, shortcut: String) -> Result<(), String> {
+pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
     app.global_shortcut()
         .unregister_all()
         .map_err(|e| e.to_string())?;
@@ -119,6 +119,6 @@ pub fn set(app: AppHandle, shortcut: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get(app: AppHandle) -> Result<Option<String>, String> {
+pub fn hotkey_get(app: AppHandle) -> Result<Option<String>, String> {
     load_config(&app)
 }
