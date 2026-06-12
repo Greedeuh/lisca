@@ -1,10 +1,13 @@
 # CLAUDE.md
 
 Lisca is Text To Speech app.
+An app that read the text you select.
 
 ## Architecture
 
 Tauri app (Rust & Typescript React)
+
+It uses bun.
 
 ### Tauri Project Structure
 
