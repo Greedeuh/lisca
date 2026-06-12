@@ -29,17 +29,45 @@ impl TtsManager {
 
     /// Try to auto-load default model from models/ directory.
     pub async fn auto_load(&self) {
-        let model_path = std::path::Path::new("models/kokoro-q8.onnx");
-        let voice_path = std::path::Path::new("models/voices/af.bin");
+        // Find project root by walking up from executable looking for Cargo.toml
+        let project_root = Self::find_project_root();
+        let models_dir = project_root.join("models");
+
+        let model_path = models_dir.join("kokoro-q8.onnx");
+        let voice_path = models_dir.join("voices/af.bin");
 
         if model_path.exists() && voice_path.exists() {
             let mp = model_path.display().to_string();
             let vp = voice_path.display().to_string();
             match self.load_model(&mp, &vp).await {
-                Ok(()) => eprintln!("Auto-loaded Kokoro model"),
+                Ok(()) => eprintln!("Auto-loaded Kokoro model from {}", mp),
                 Err(e) => eprintln!("Auto-load failed: {}", e),
             }
         }
+    }
+
+    fn find_project_root() -> std::path::PathBuf {
+        // Start from current working directory (project root in dev mode)
+        let cwd = std::env::current_dir().unwrap_or_default();
+
+        // Check if cwd has models/ directory
+        if cwd.join("models").exists() {
+            return cwd;
+        }
+
+        // Check parent directories
+        let mut path = cwd.clone();
+        for _ in 0..5 {
+            if path.join("models").exists() {
+                return path;
+            }
+            if !path.pop() {
+                break;
+            }
+        }
+
+        // Fallback: current directory
+        cwd
     }
 
     /// Load a Kokoro ONNX model and voice file.
