@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::phonemizer::Phonemizer;
-
-/// Kokoro TTS model with phonemizer.
+/// Kokoro TTS model with misaki-rs phonemizer.
 pub struct KokoroModel {
     session: ort::session::Session,
     vocab: HashMap<char, i64>,
     voices: Vec<Vec<f32>>,
-    phonemizer: Phonemizer,
+    g2p: misaki_rs::G2P,
     sample_rate: u32,
 }
 
@@ -22,29 +20,26 @@ impl KokoroModel {
             return Err(format!("Voice not found: {}", voice_path.display()));
         }
 
-        // Create ORT session
         let session = super::session::create_session(model_path)
             .map_err(|e| format!("Session: {}", e))?;
 
-        // Load vocabulary
         let vocab = Self::load_vocab();
-
-        // Load voice embeddings
         let voices = Self::load_voice(voice_path)?;
+
+        // Initialize misaki G2P for US English
+        let g2p = misaki_rs::G2P::new(misaki_rs::Language::EnglishUS);
 
         Ok(Self {
             session,
             vocab,
             voices,
-            phonemizer: Phonemizer::new(),
+            g2p,
             sample_rate: 24000,
         })
     }
 
-    /// Load the Kokoro vocabulary (phoneme → token ID).
     fn load_vocab() -> HashMap<char, i64> {
         let mut vocab = HashMap::new();
-        // Generated from hexgrad/Kokoro-82M config.json
         let pairs = &[
             (';', 1), (':', 2), (',', 3), ('.', 4), ('!', 5), ('?', 6),
             ('—', 9), ('…', 10), ('"', 11), ('(', 12), (')', 13),
@@ -77,8 +72,6 @@ impl KokoroModel {
         vocab
     }
 
-    /// Load voice embeddings from a .bin file.
-    /// Format: raw f32 values, reshaped to (N, 256) where N >= max_token_len.
     fn load_voice(path: &Path) -> Result<Vec<Vec<f32>>, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("Read voice: {}", e))?;
         if bytes.len() % 4 != 0 {
@@ -90,7 +83,6 @@ impl KokoroModel {
             .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect();
 
-        // Reshape to (N, 256)
         if floats.len() % 256 != 0 {
             return Err(format!(
                 "Voice file has {} floats, not divisible by 256",
@@ -106,71 +98,26 @@ impl KokoroModel {
         Ok(voices)
     }
 
-    /// Convert text to token IDs using the vocabulary.
-    ///
-    /// This is a simplified tokenizer. For production, use misaki for
-    /// proper phonemization. This handles basic ASCII and common phonemes.
+    /// Convert text to token IDs using misaki G2P and vocabulary.
     pub fn tokenize(&self, text: &str) -> Vec<i64> {
-        let mut tokens = Vec::new();
+        let (phonemes, _tokens) = self.g2p.g2p(text).unwrap_or_else(|e| {
+            eprintln!("G2P error: {}", e);
+            (text.to_string(), vec![])
+        });
+        eprintln!("Phonemes: {}", phonemes);
 
-        for ch in text.chars() {
-            // Direct mapping
+        let mut ids = Vec::new();
+        for ch in phonemes.chars() {
             if let Some(&id) = self.vocab.get(&ch) {
-                tokens.push(id);
-                continue;
-            }
-
-            // Try lowercase
-            let lower = ch.to_lowercase().next().unwrap_or(ch);
-            if let Some(&id) = self.vocab.get(&lower) {
-                tokens.push(id);
-                continue;
-            }
-
-            // Basic English phoneme approximation for common patterns
-            // This is very simplified - proper implementation needs misaki
-            match ch {
-                'A' | 'a' => tokens.push(43),  // /a/
-                'B' | 'b' => tokens.push(44),  // /b/
-                'C' | 'c' => tokens.push(45),  // /k/ or /s/
-                'D' | 'd' => tokens.push(46),  // /d/
-                'E' | 'e' => tokens.push(47),  // /e/
-                'F' | 'f' => tokens.push(48),  // /f/
-                'G' | 'g' => tokens.push(92),  // /ɡ/
-                'H' | 'h' => tokens.push(50),  // /h/
-                'I' | 'i' => tokens.push(51),  // /i/
-                'J' | 'j' => tokens.push(52),  // /dʒ/
-                'K' | 'k' => tokens.push(53),  // /k/
-                'L' | 'l' => tokens.push(54),  // /l/
-                'M' | 'm' => tokens.push(55),  // /m/
-                'N' | 'n' => tokens.push(56),  // /n/
-                'O' | 'o' => tokens.push(57),  // /o/
-                'P' | 'p' => tokens.push(58),  // /p/
-                'Q' | 'q' => tokens.push(59),  // /k/
-                'R' | 'r' => tokens.push(60),  // /r/
-                'S' | 's' => tokens.push(61),  // /s/
-                'T' | 't' => tokens.push(62),  // /t/
-                'U' | 'u' => tokens.push(63),  // /u/
-                'V' | 'v' => tokens.push(64),  // /v/
-                'W' | 'w' => tokens.push(65),  // /w/
-                'X' | 'x' => tokens.push(66),  // /ks/
-                'Y' | 'y' => tokens.push(67),  // /j/
-                'Z' | 'z' => tokens.push(68),  // /z/
-                _ => {} // Skip unknown
+                ids.push(id);
             }
         }
-
-        tokens
+        ids
     }
 
     /// Synthesize audio from text.
     pub fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
-        // Convert text to IPA phonemes first
-        let phonemes = self.phonemizer.phonemize(text);
-        eprintln!("Text: {}", text);
-        eprintln!("Phonemes: {}", phonemes);
-
-        let tokens = self.tokenize(&phonemes);
+        let tokens = self.tokenize(text);
 
         if tokens.is_empty() {
             return Err("No tokens generated from text".into());
@@ -178,23 +125,19 @@ impl KokoroModel {
 
         eprintln!("Tokens ({}): {:?}", tokens.len(), &tokens[..tokens.len().min(20)]);
 
-        // Max context length is 510 (512 - 2 for pad tokens)
         let tokens = if tokens.len() > 510 {
             &tokens[..510]
         } else {
             &tokens
         };
 
-        // Select style vector based on token count
         let style_idx = (tokens.len() - 1).min(self.voices.len() - 1);
         let ref_s = &self.voices[style_idx];
 
-        // Build input: add pad token (0) at start and end
         let mut input_ids = vec![0i64];
         input_ids.extend_from_slice(tokens);
         input_ids.push(0);
 
-        // Create tensors
         let t_input_ids = ort::value::Tensor::from_array(([1, input_ids.len()], input_ids))
             .map_err(|e| format!("Tensor input_ids: {}", e))?;
 
@@ -204,7 +147,6 @@ impl KokoroModel {
         let t_speed = ort::value::Tensor::from_array(([1], vec![speed]))
             .map_err(|e| format!("Tensor speed: {}", e))?;
 
-        // Run inference
         let outputs = self
             .session
             .run(ort::inputs![
@@ -214,16 +156,13 @@ impl KokoroModel {
             ])
             .map_err(|e| format!("Inference: {}", e))?;
 
-        // Extract audio
-        let (shape, data) = outputs[0]
+        let (_shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("Output: {}", e))?;
 
-        eprintln!("Kokoro output shape: {:?}", shape);
         Ok(data.to_vec())
     }
 
-    /// Get the model's sample rate.
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate
     }
