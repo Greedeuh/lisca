@@ -25,6 +25,7 @@ pub fn run() {
             tts::tts_speak,
             tts::tts_stop,
             tts::tts_list_voices,
+            tts::tts_load_model,
             clipboard::read_selected_text
         ])
         .run(tauri::generate_context!())

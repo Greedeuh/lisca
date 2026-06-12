@@ -13,6 +13,7 @@ function App() {
   const [voice, setVoice] = useState("");
   const [testText, setTestText] = useState("");
   const [speaking, setSpeaking] = useState(false);
+  const [modelPath, setModelPath] = useState("");
 
   useEffect(() => {
     invoke<string | null>("hotkey_get").then((saved) => {
@@ -82,6 +83,16 @@ function App() {
     setSpeaking(false);
   }
 
+  async function handleLoadModel() {
+    if (!modelPath.trim()) return;
+    try {
+      await invoke("tts_load_model", { modelPath });
+      setStatus("Model loaded: " + modelPath);
+    } catch (err) {
+      setStatus("Error: " + err);
+    }
+  }
+
   return (
     <main className="container">
       <h1>Lisca - Text to Speech</h1>
@@ -131,6 +142,19 @@ function App() {
           </button>
           {speaking && <button onClick={handleStop}>Stop</button>}
         </div>
+      </section>
+
+      <section className="section">
+        <h2>ONNX Model (optional)</h2>
+        <input
+          type="text"
+          placeholder="Path to .onnx model file"
+          value={modelPath}
+          onChange={(e) => setModelPath(e.target.value)}
+        />
+        <button onClick={handleLoadModel} disabled={!modelPath.trim()}>
+          Load Model
+        </button>
       </section>
 
       {status && <p className="status">{status}</p>}
