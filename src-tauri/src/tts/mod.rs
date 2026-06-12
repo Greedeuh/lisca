@@ -8,25 +8,6 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tokio::sync::Mutex;
 
-#[derive(Debug, Clone)]
-pub struct TtsConfig {
-    pub rate: f32,
-    pub volume: f32,
-    pub voice: String,
-    pub model_path: Option<String>,
-}
-
-impl Default for TtsConfig {
-    fn default() -> Self {
-        Self {
-            rate: 200.0,
-            volume: 1.0,
-            voice: String::new(),
-            model_path: None,
-        }
-    }
-}
-
 enum TtsBackend {
     System(tts::Tts),
     Onnx(TtsModel),
@@ -34,7 +15,6 @@ enum TtsBackend {
 
 pub struct TtsManager {
     backend: Mutex<TtsBackend>,
-    pub config: Arc<Mutex<TtsConfig>>,
     _app_handle: AppHandle,
 }
 
@@ -44,7 +24,6 @@ impl TtsManager {
 
         Ok(Self {
             backend: Mutex::new(TtsBackend::System(engine)),
-            config: Arc::new(Mutex::new(TtsConfig::default())),
             _app_handle: app_handle,
         })
     }
@@ -55,31 +34,6 @@ impl TtsManager {
         let tts_model = TtsModel::load(path)?;
         *self.backend.lock().await = TtsBackend::Onnx(tts_model);
         Ok(())
-    }
-
-    pub async fn update_config(&self, config: TtsConfig) {
-        // Load model if path changed
-        if let Some(ref path) = config.model_path {
-            if let Ok(model) = TtsModel::load(std::path::Path::new(path)) {
-                *self.backend.lock().await = TtsBackend::Onnx(model);
-            }
-        }
-
-        // Apply settings to system backend if that's what's active
-        let mut backend = self.backend.lock().await;
-        if let TtsBackend::System(ref mut engine) = *backend {
-            let _ = engine.set_rate(config.rate);
-            let _ = engine.set_volume(config.volume);
-            if !config.voice.is_empty() {
-                if let Ok(voices) = engine.voices() {
-                    if let Some(v) = voices.iter().find(|v| v.name() == config.voice) {
-                        let _ = engine.set_voice(v);
-                    }
-                }
-            }
-        }
-        drop(backend);
-        *self.config.lock().await = config;
     }
 
     pub async fn speak(&self, text: &str) -> Result<(), String> {
@@ -113,41 +67,6 @@ impl TtsManager {
             TtsBackend::Onnx(_) => Ok(()),
         }
     }
-
-    pub async fn list_voices(&self) -> Result<Vec<String>, String> {
-        let backend = self.backend.lock().await;
-        match *backend {
-            TtsBackend::System(ref engine) => {
-                let voices = engine
-                    .voices()
-                    .map_err(|e| format!("Failed to list voices: {}", e))?;
-                Ok(voices.into_iter().map(|v| v.name()).collect())
-            }
-            TtsBackend::Onnx(_) => Ok(vec!["default".into()]),
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn tts_update_config(
-    app: AppHandle,
-    rate: Option<f32>,
-    volume: Option<f32>,
-    voice: Option<String>,
-    model_path: Option<String>,
-) -> Result<(), String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    let current = {
-        let cfg = tts.config.lock().await;
-        TtsConfig {
-            rate: rate.unwrap_or(cfg.rate),
-            volume: volume.unwrap_or(cfg.volume),
-            voice: voice.unwrap_or_else(|| cfg.voice.clone()),
-            model_path: model_path.or_else(|| cfg.model_path.clone()),
-        }
-    };
-    tts.update_config(current).await;
-    Ok(())
 }
 
 #[tauri::command]
@@ -160,12 +79,6 @@ pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
 pub async fn tts_stop(app: AppHandle) -> Result<(), String> {
     let tts = app.state::<Arc<TtsManager>>();
     tts.stop().await
-}
-
-#[tauri::command]
-pub async fn tts_list_voices(app: AppHandle) -> Result<Vec<String>, String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.list_voices().await
 }
 
 #[tauri::command]

@@ -6,11 +6,6 @@ function App() {
   const [shortcut, setShortcut] = useState("");
   const [recording, setRecording] = useState(false);
   const [status, setStatus] = useState("");
-
-  const [rate, setRate] = useState(200);
-  const [volume, setVolume] = useState(100);
-  const [voices, setVoices] = useState<string[]>([]);
-  const [voice, setVoice] = useState("");
   const [testText, setTestText] = useState("");
   const [speaking, setSpeaking] = useState(false);
   const [modelPath, setModelPath] = useState("");
@@ -21,10 +16,6 @@ function App() {
         setShortcut(saved);
         invoke("hotkey_set", { shortcut: saved }).catch(console.error);
       }
-    });
-    invoke<string[]>("tts_list_voices").then((v) => {
-      setVoices(v);
-      if (v.length > 0 && !voice) setVoice(v[0]);
     });
   }, []);
 
@@ -56,15 +47,6 @@ function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [recording]);
-
-  async function handleSaveConfig() {
-    try {
-      await invoke("tts_update_config", { rate, volume, voice });
-      setStatus("Config saved");
-    } catch (err) {
-      setStatus("Error: " + err);
-    }
-  }
 
   async function handleTestSpeak() {
     if (!testText.trim()) return;
@@ -106,26 +88,6 @@ function App() {
           {shortcut && <span className="badge">{shortcut}</span>}
         </div>
         {recording && <p className="hint">Press your key combination...</p>}
-      </section>
-
-      <section className="section">
-        <h2>Voice</h2>
-        <select value={voice} onChange={(e) => setVoice(e.target.value)}>
-          {voices.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
-        <label className="slider-label">
-          Rate: {rate}
-          <input type="range" min="50" max="400" value={rate}
-            onChange={(e) => setRate(Number(e.target.value))} />
-        </label>
-        <label className="slider-label">
-          Volume: {volume}
-          <input type="range" min="0" max="100" value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))} />
-        </label>
-        <button onClick={handleSaveConfig}>Save Config</button>
       </section>
 
       <section className="section">
