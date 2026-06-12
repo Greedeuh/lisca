@@ -73,10 +73,30 @@ impl TtsManager {
         cwd
     }
 
+    fn resolve_path(path: &str, project_root: &std::path::Path) -> String {
+        let p = std::path::Path::new(path);
+        if p.is_absolute() && p.exists() {
+            return path.to_string();
+        }
+        // Try relative to project root
+        let resolved = project_root.join(path);
+        if resolved.exists() {
+            return resolved.display().to_string();
+        }
+        // Return as-is and let the loader report the error
+        path.to_string()
+    }
+
     /// Load a Kokoro ONNX model and voice file.
     pub async fn load_model(&self, model_path: &str, voice_path: &str) -> Result<(), String> {
-        let model_path = model_path.to_string();
-        let voice_path = voice_path.to_string();
+        let project_root = Self::find_project_root();
+
+        // Resolve relative paths against project root
+        let model_path = Self::resolve_path(model_path, &project_root);
+        let voice_path = Self::resolve_path(voice_path, &project_root);
+
+        eprintln!("Loading model: {}", model_path);
+        eprintln!("Loading voice: {}", voice_path);
 
         let model = tokio::task::spawn_blocking(move || {
             KokoroModel::load(
