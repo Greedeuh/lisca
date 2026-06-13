@@ -145,6 +145,8 @@ impl TtsManager {
             return Err("No text to speak".into());
         }
 
+        let t0 = std::time::Instant::now();
+
         // Try Kokoro first
         let (audio, sample_rate) = {
             let mut backend = self.backend.lock().unwrap();
@@ -157,8 +159,12 @@ impl TtsManager {
             }
         };
 
+        let t1 = std::time::Instant::now();
+
         if let Some(audio) = audio {
+            eprintln!("Synthesis: {}ms", t0.elapsed().as_millis());
             self.play_audio(&audio, sample_rate).await?;
+            eprintln!("Total (synthesis+playback): {}ms", t1.elapsed().as_millis());
             return Ok(());
         }
 
