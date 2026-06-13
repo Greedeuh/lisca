@@ -315,7 +315,8 @@ impl TtsManager {
                 .ok();
 
             let auto_read = config.auto_read;
-            self.emit_event(QueueEvent::QueueUpdated { items, auto_read });
+            let show_overlay = config.show_overlay;
+            self.emit_event(QueueEvent::QueueUpdated { items, auto_read, show_overlay });
 
             (item, was_empty)
         };
@@ -324,6 +325,8 @@ impl TtsManager {
             self.spawn_processor_if_needed();
             self.notify.notify_one();
         }
+
+        self.sync_overlay(true);
 
         Ok(item)
     }
@@ -339,6 +342,7 @@ impl TtsManager {
         self.emit_event(QueueEvent::QueueUpdated {
             items,
             auto_read: config.auto_read,
+            show_overlay: config.show_overlay,
         });
     }
 
@@ -365,6 +369,7 @@ impl TtsManager {
         self.emit_event(QueueEvent::QueueUpdated {
             items,
             auto_read: config.auto_read,
+            show_overlay: config.show_overlay,
         });
     }
 
@@ -383,6 +388,7 @@ impl TtsManager {
         self.emit_event(QueueEvent::QueueUpdated {
             items: vec![],
             auto_read: config.auto_read,
+            show_overlay: config.show_overlay,
         });
         self.emit_event(QueueEvent::PlaybackStopped);
     }
@@ -400,6 +406,7 @@ impl TtsManager {
             playback,
             current: None,
             auto_read: config.auto_read,
+            show_overlay: config.show_overlay,
         }
     }
 
@@ -437,6 +444,29 @@ impl TtsManager {
     }
 
     // --- Internal ---
+
+    fn is_main_window_visible(&self) -> bool {
+        self.app_handle
+            .get_webview_window("main")
+            .map(|w| w.is_visible().unwrap_or(true))
+            .unwrap_or(true)
+    }
+
+    fn sync_overlay(&self, has_items: bool) {
+        if self.is_main_window_visible() {
+            return;
+        }
+        let show = self.queue_config.lock().unwrap().show_overlay;
+        if !show {
+            crate::overlay::hide_overlay(&self.app_handle);
+            return;
+        }
+        if has_items {
+            crate::overlay::show_overlay(&self.app_handle);
+        } else {
+            crate::overlay::hide_overlay(&self.app_handle);
+        }
+    }
 
     fn emit_event(&self, event: QueueEvent) {
         self.app_handle.emit("tts-queue-event", &event).ok();
@@ -501,7 +531,17 @@ impl TtsManager {
                             app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
                                 items,
                                 auto_read: config.auto_read,
+                                show_overlay: config.show_overlay,
                             }).ok();
+                            if config.show_overlay {
+                                let main_visible = app_handle
+                                    .get_webview_window("main")
+                                    .map(|w| w.is_visible().unwrap_or(true))
+                                    .unwrap_or(true);
+                                if !main_visible {
+                                    crate::overlay::hide_overlay(&app_handle);
+                                }
+                            }
                             break 'outer true;
                         }
                     };
@@ -512,6 +552,7 @@ impl TtsManager {
                         app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
                             items,
                             auto_read: config.auto_read,
+                            show_overlay: config.show_overlay,
                         }).ok();
                     }
 
@@ -635,10 +676,21 @@ impl TtsManager {
                                 app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
                                     items,
                                     auto_read: config.auto_read,
+                                    show_overlay: config.show_overlay,
                                 }).ok();
                             }
 
                             if !queue_config.lock().unwrap().auto_read {
+                                let cfg = queue_config.lock().unwrap().clone();
+                                if cfg.show_overlay {
+                                    let main_visible = app_handle
+                                        .get_webview_window("main")
+                                        .map(|w| w.is_visible().unwrap_or(true))
+                                        .unwrap_or(true);
+                                    if !main_visible {
+                                        crate::overlay::hide_overlay(&app_handle);
+                                    }
+                                }
                                 break 'outer true;
                             }
                         }
@@ -659,6 +711,7 @@ impl TtsManager {
                                 app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
                                     items,
                                     auto_read: config.auto_read,
+                                    show_overlay: config.show_overlay,
                                 }).ok();
                             }
                             continue;

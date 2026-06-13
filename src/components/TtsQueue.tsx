@@ -8,6 +8,7 @@ export function TtsQueue() {
     current,
     playback,
     autoRead,
+    showOverlay,
     remove,
     moveItem,
     clear,
@@ -15,6 +16,7 @@ export function TtsQueue() {
     resume,
     stop,
     toggleAutoRead,
+    toggleShowOverlay,
   } = useTtsQueue();
 
   return (
@@ -23,7 +25,9 @@ export function TtsQueue() {
       <QueueControls
         playback={playback}
         autoRead={autoRead}
+        showOverlay={showOverlay}
         onToggleAutoRead={toggleAutoRead}
+        onToggleShowOverlay={toggleShowOverlay}
         onPause={pause}
         onResume={resume}
         onStop={stop}

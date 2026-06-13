@@ -3,7 +3,9 @@ import type { PlaybackState } from "../types/queue";
 interface QueueControlsProps {
   playback: PlaybackState;
   autoRead: boolean;
+  showOverlay: boolean;
   onToggleAutoRead: () => void;
+  onToggleShowOverlay: () => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -14,7 +16,9 @@ interface QueueControlsProps {
 export function QueueControls({
   playback,
   autoRead,
+  showOverlay,
   onToggleAutoRead,
+  onToggleShowOverlay,
   onPause,
   onResume,
   onStop,
@@ -44,14 +48,24 @@ export function QueueControls({
           Clear
         </button>
       </div>
-      <label className="queue-auto-read">
-        <input
-          type="checkbox"
-          checked={autoRead}
-          onChange={onToggleAutoRead}
-        />
-        Auto-read
-      </label>
+      <div className="queue-toggles">
+        <label className="queue-auto-read">
+          <input
+            type="checkbox"
+            checked={autoRead}
+            onChange={onToggleAutoRead}
+          />
+          Auto-read
+        </label>
+        <label className="queue-auto-read">
+          <input
+            type="checkbox"
+            checked={showOverlay}
+            onChange={onToggleShowOverlay}
+          />
+          Show overlay
+        </label>
+      </div>
     </div>
   );
 }

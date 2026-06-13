@@ -1,4 +1,5 @@
 mod hotkey;
+mod overlay;
 mod tts;
 
 use std::sync::Arc;
@@ -25,6 +26,8 @@ pub fn run() {
             let piper_manager = Arc::new(tokio::sync::Mutex::new(piper_manager));
             app.manage(piper_manager);
 
+            overlay::create_overlay(app.handle());
+
             let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
@@ -32,10 +35,12 @@ pub fn run() {
             let window = app.get_webview_window("main").unwrap();
 
             let win = window.clone();
+            let app_handle = app.handle().clone();
             window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = win.hide();
+                    overlay::show_overlay(&app_handle);
                 }
             });
             drop(window);
@@ -47,6 +52,7 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "show" => {
+                        overlay::hide_overlay(app);
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
                             let _ = w.set_focus();
@@ -63,6 +69,7 @@ pub fn run() {
                     } = event
                     {
                         let app = tray.app_handle();
+                        overlay::hide_overlay(app);
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
                             let _ = w.set_focus();

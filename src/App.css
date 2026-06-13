@@ -479,6 +479,11 @@ button.secondary:hover:not(:disabled) {
   cursor: pointer;
 }
 
+.queue-toggles {
+  display: flex;
+  gap: 12px;
+}
+
 .queue-list {
   border: 1px solid var(--color-border);
   border-radius: 6px;

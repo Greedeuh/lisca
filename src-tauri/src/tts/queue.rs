@@ -15,6 +15,7 @@ pub struct QueueItem {
 pub struct QueueConfig {
     pub max_size: usize,
     pub auto_read: bool,
+    pub show_overlay: bool,
 }
 
 impl Default for QueueConfig {
@@ -22,6 +23,7 @@ impl Default for QueueConfig {
         Self {
             max_size: 50,
             auto_read: true,
+            show_overlay: true,
         }
     }
 }
@@ -40,6 +42,7 @@ pub struct QueueSnapshot {
     pub playback: PlaybackState,
     pub current: Option<QueueItem>,
     pub auto_read: bool,
+    pub show_overlay: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +60,7 @@ pub enum QueueEvent {
     QueueUpdated {
         items: Vec<QueueItem>,
         auto_read: bool,
+        show_overlay: bool,
     },
     Error {
         id: Option<u32>,

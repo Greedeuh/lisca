@@ -13,6 +13,7 @@ export function useTtsQueue() {
   const [current, setCurrent] = useState<QueueItem | null>(null);
   const [playback, setPlayback] = useState<PlaybackState>("idle");
   const [autoRead, setAutoRead] = useState(true);
+  const [showOverlay, setShowOverlay] = useState(true);
 
   useEffect(() => {
     invoke<QueueSnapshot>("tts_queue_state").then((snap) => {
@@ -20,6 +21,7 @@ export function useTtsQueue() {
       setCurrent(snap.current);
       setPlayback(snap.playback);
       setAutoRead(snap.auto_read);
+      setShowOverlay(snap.show_overlay);
     });
   }, []);
 
@@ -30,6 +32,7 @@ export function useTtsQueue() {
         case "queue_updated":
           setItems(e.items);
           setAutoRead(e.auto_read);
+          setShowOverlay(e.show_overlay);
           break;
         case "playback_started":
           setCurrent(e.item);
@@ -93,18 +96,31 @@ export function useTtsQueue() {
     setAutoRead(newValue);
     try {
       await invoke("tts_set_queue_config", {
-        config: { max_size: 50, auto_read: newValue },
+        config: { max_size: 50, auto_read: newValue, show_overlay: showOverlay },
       });
     } catch {
       setAutoRead(!newValue);
     }
-  }, [autoRead]);
+  }, [autoRead, showOverlay]);
+
+  const toggleShowOverlay = useCallback(async () => {
+    const newValue = !showOverlay;
+    setShowOverlay(newValue);
+    try {
+      await invoke("tts_set_queue_config", {
+        config: { max_size: 50, auto_read: autoRead, show_overlay: newValue },
+      });
+    } catch {
+      setShowOverlay(!newValue);
+    }
+  }, [showOverlay, autoRead]);
 
   return {
     items,
     current,
     playback,
     autoRead,
+    showOverlay,
     addItem,
     remove,
     moveItem,
@@ -113,5 +129,6 @@ export function useTtsQueue() {
     resume,
     stop,
     toggleAutoRead,
+    toggleShowOverlay,
   };
 }
