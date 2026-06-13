@@ -28,3 +28,8 @@ dist-ssr
 
 # Reference repos
 Handy/
+
+# Models & binaries
+models/
+ort/
+transcribe-rs/

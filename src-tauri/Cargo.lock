@@ -2391,6 +2391,7 @@ dependencies = [
  "misaki-rs",
  "ndarray 0.16.1",
  "ort",
+ "regex",
  "rodio",
  "serde",
  "serde_json",
