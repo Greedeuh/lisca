@@ -15,6 +15,8 @@ Feature ideas for Lisca — Text to Speech app.
 - **Speed control**: Adjustable speech rate slider
 - **Model download**: Auto-download model from HuggingFace on first run
 - **Multi-language**: Load language-specific models
+- **Multi-binding**: Multiple hotkeys mapped to different languages/models — e.g. Ctrl+Shift+1 for English, Ctrl+Shift+2 for French
+- **Auto-detect language**: Use text heuristics (character ranges, common words) or a lightweight classifier to pick the right voice automatically
 
 ## Audio
 
@@ -24,7 +26,6 @@ Feature ideas for Lisca — Text to Speech app.
 ## Settings
 
 - **Auto-start**: Launch on system login
-- **Language selection**: Support en-us, en-gb, and other languages
 
 ## UI/UX
 
