@@ -1,22 +1,23 @@
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Manager;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
-use crate::clipboard;
 use crate::tts::TtsManager;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct HotkeyConfig {
-    shortcut: String,
+fn read_clipboard_text(app: &AppHandle) -> Result<String, String> {
+    app.clipboard()
+        .read_text()
+        .map_err(|e| format!("Clipboard read failed: {}", e))
+        .map(|s| s.to_string())
 }
 
 fn settings_path(app: &AppHandle) -> PathBuf {
     let dir = app.path().app_data_dir().expect("no app data dir");
-    dir.join("lisca").join("settings.json")
+    dir.join("lisca").join("hotkey.txt")
 }
 
 fn save_config(app: &AppHandle, shortcut: &str) -> Result<(), String> {
@@ -24,11 +25,7 @@ fn save_config(app: &AppHandle, shortcut: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let json = serde_json::to_string_pretty(&HotkeyConfig {
-        shortcut: shortcut.to_string(),
-    })
-    .map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    fs::write(path, shortcut).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -38,8 +35,11 @@ fn load_config(app: &AppHandle) -> Result<Option<String>, String> {
         return Ok(None);
     }
     let data = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let config: HotkeyConfig = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-    Ok(Some(config.shortcut))
+    let shortcut = data.trim().to_string();
+    if shortcut.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(shortcut))
 }
 
 fn parse(shortcut: &str) -> Result<(Modifiers, Code), String> {
@@ -101,7 +101,7 @@ pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
                 let tts = tts.clone();
                 let app_handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    match clipboard::read_text(&app_handle) {
+                    match read_clipboard_text(&app_handle) {
                         Ok(text) if !text.is_empty() => {
                             if let Err(e) = tts.speak(&text).await {
                                 eprintln!("TTS error: {}", e);

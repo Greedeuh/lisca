@@ -7,7 +7,6 @@ pub struct KokoroModel {
     vocab: HashMap<char, i64>,
     voices: Vec<Vec<f32>>,
     g2p: misaki_rs::G2P,
-    sample_rate: u32,
 }
 
 impl KokoroModel {
@@ -34,7 +33,6 @@ impl KokoroModel {
             vocab,
             voices,
             g2p,
-            sample_rate: 24000,
         };
 
         // Warmup: run dummy inference to compile ONNX kernels
@@ -109,15 +107,11 @@ impl KokoroModel {
         Ok(voices)
     }
 
-    /// Convert text to token IDs using misaki G2P and vocabulary.
-    pub fn tokenize(&self, text: &str) -> Vec<i64> {
-        let t0 = std::time::Instant::now();
+    fn tokenize(&self, text: &str) -> Vec<i64> {
         let (phonemes, _tokens) = self.g2p.g2p(text).unwrap_or_else(|e| {
             eprintln!("G2P error: {}", e);
             (text.to_string(), vec![])
         });
-        let t1 = std::time::Instant::now();
-        eprintln!("Phonemes ({}ms): {}", t0.elapsed().as_millis(), phonemes);
 
         let mut ids = Vec::new();
         for ch in phonemes.chars() {
@@ -125,22 +119,11 @@ impl KokoroModel {
                 ids.push(id);
             }
         }
-        let t2 = std::time::Instant::now();
-        eprintln!("Tokenize: g2p={}ms, map={}ms, total={}tokens",
-            t1.duration_since(t0).as_millis(),
-            t2.duration_since(t1).as_millis(),
-            ids.len()
-        );
         ids
     }
 
-    /// Synthesize audio from text.
-    pub fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
-        let t0 = std::time::Instant::now();
-
+    pub(crate) fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
         let tokens = self.tokenize(text);
-
-        let t1 = std::time::Instant::now();
 
         if tokens.is_empty() {
             return Err("No tokens generated from text".into());
@@ -168,8 +151,6 @@ impl KokoroModel {
         let t_speed = ort::value::Tensor::from_array(([1], vec![speed]))
             .map_err(|e| format!("Tensor speed: {}", e))?;
 
-        let t2 = std::time::Instant::now();
-
         let outputs = self
             .session
             .run(ort::inputs![
@@ -179,27 +160,11 @@ impl KokoroModel {
             ])
             .map_err(|e| format!("Inference: {}", e))?;
 
-        let t3 = std::time::Instant::now();
-
         let (_shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("Output: {}", e))?;
 
-        let t4 = std::time::Instant::now();
-
-        eprintln!(
-            "Synthesize: tokenize={}ms, tensors={}ms, inference={}ms, extract={}ms",
-            t1.duration_since(t0).as_millis(),
-            t2.duration_since(t1).as_millis(),
-            t3.duration_since(t2).as_millis(),
-            t4.duration_since(t3).as_millis(),
-        );
-
         Ok(data.to_vec())
-    }
-
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate
     }
 
     /// Run dummy inference to compile ONNX kernels ahead of time.

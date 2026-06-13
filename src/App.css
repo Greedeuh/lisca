@@ -16,7 +16,6 @@
 }
 
 h1 { text-align: center; margin-bottom: 32px; }
-h2 { margin-bottom: 12px; font-size: 1.1em; }
 
 .section {
   width: 100%;
@@ -46,55 +45,24 @@ h2 { margin-bottom: 12px; font-size: 1.1em; }
   font-weight: 500;
 }
 
-button, input, select, textarea {
+button {
   border-radius: 8px;
-  border: 1px solid #ccc;
-  padding: 8px 12px;
+  border: none;
+  padding: 8px 16px;
   font-size: 1em;
   font-family: inherit;
-  color: #0f0f0f;
-  background: #fff;
-}
-
-input, select, textarea {
-  width: 100%;
-  margin-bottom: 8px;
-  box-sizing: border-box;
-}
-
-textarea { resize: vertical; }
-
-button {
   cursor: pointer;
   background: #396cd8;
   color: #fff;
-  border: none;
-  padding: 8px 16px;
 }
 
 button:hover:not(:disabled) { background: #2b5ab8; }
 button:disabled { background: #aaa; cursor: not-allowed; }
 
-.slider-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.9em;
-}
-
-.slider-label input[type="range"] {
-  flex: 1;
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-
 @media (prefers-color-scheme: dark) {
   :root { color: #f6f6f6; background: #2f2f2f; }
   button { color: #fff; background: #396cd8; }
   button:disabled { background: #555; }
-  input, select, textarea { color: #fff; background: #1a1a1a; border-color: #444; }
   .badge { background: #444; }
   .hint { color: #5b8def; }
   .status { color: #6cbf6c; }

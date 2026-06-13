@@ -19,25 +19,32 @@ Uses **bun**, not npm or yarn. The lockfile is `bun.lock`.
 
 ## Rust backend
 
-- `src-tauri/src/lib.rs` — all Tauri commands defined here (save_hotkey, load_hotkey, register_hotkey, unregister_hotkey, greet)
-- `src-tauri/src/main.rs` — entrypoint, just calls `lisca_lib::run()`
+- `src-tauri/src/lib.rs` — Tauri setup and command registration
+- `src-tauri/src/main.rs` — entrypoint, calls `lisca_lib::run()`
+- `src-tauri/src/hotkey.rs` — global hotkey register/save/load, clipboard read
+- `src-tauri/src/tts/mod.rs` — TtsManager: speak, stop, preload (Kokoro ORT + rodio playback)
+- `src-tauri/src/tts/kokoro.rs` — Kokoro ONNX model: load, tokenize, synthesize
+- `src-tauri/src/tts/session.rs` — ONNX session creation with XNNPACK or CPU fallback
 - `time` crate pinned to `=0.3.47` due to Tauri upstream conflict (see Cargo.toml TODO)
 
 ## Frontend
 
 - React 18 + TypeScript + Vite
 - Entry: `src/main.tsx` → `src/App.tsx`
+- Single component: `HotkeyRecorder` (record/set global hotkey)
 - Uses `@tauri-apps/api/core` `invoke()` to call Rust commands
-- `@tauri-apps/plugin-opener` and `@tauri-apps/plugin-global-shortcut` plugins registered
+- `@tauri-apps/plugin-global-shortcut` registered
 
 ## Architecture
 
-Tauri process model: Rust core process + WebView. Frontend communicates with backend via `invoke()` (IPC). Settings stored at `{app_data_dir}/lisca/settings.json`. Global hotkey uses `tauri-plugin-global-shortcut`.
+Tauri process model: Rust core process + WebView. Frontend communicates with backend via `invoke()` (IPC). Hotkey config stored as plain text at `{app_data_dir}/lisca/hotkey.txt`. Global hotkey uses `tauri-plugin-global-shortcut`.
+
+Core flow: user selects text → presses hotkey → Rust reads clipboard → Kokoro synthesizes audio → rodio plays it.
 
 ## Key config
 
 - `tauri.conf.json` — `devUrl: http://localhost:1420`, `beforeDevCommand: "bun run dev"`
-- `src-tauri/capabilities/default.json` — permissions: `core:default`, `opener:default`, `global-shortcut:allow-register`, `global-shortcut:allow-unregister`, `clipboard-manager:allow-read-text`
+- `src-tauri/capabilities/default.json` — permissions: `core:default`, `global-shortcut:allow-register`, `global-shortcut:allow-unregister`
 - CSP is disabled (`"csp": null`)
 
 ## Tauri gotcha
