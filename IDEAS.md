@@ -8,6 +8,14 @@ Feature ideas for Lisca — Text to Speech app.
 - **Selection reading**: Use accessibility APIs to read selected text directly without clipboard (no Ctrl+C needed)
 - **Stop on re-press**: Press hotkey again to interrupt current speech
 
+## Queue System
+
+- **TTS Queue**: Queue multiple text snippets for sequential playback instead of interrupting the current speech
+- **Queue UI**: Visual queue list showing pending texts, with reorder, remove, and play/pause controls
+- **Auto-read ON/OFF**: Toggle to automatically read queued items, or hold them until manually triggered
+- **Queue persistence**: Save queue across app restarts
+- **Queue limit**: Configurable max queue size to prevent memory issues
+
 ## Voice & Model
 
 - **Voice picker UI**: List available Kokoro voices (af_*, am_*, bf_*, bm_*) with preview
