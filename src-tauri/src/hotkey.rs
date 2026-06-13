@@ -103,8 +103,8 @@ pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
                 tauri::async_runtime::spawn(async move {
                     match read_clipboard_text(&app_handle) {
                         Ok(text) if !text.is_empty() => {
-                            if let Err(e) = tts.speak(&text).await {
-                                eprintln!("TTS error: {}", e);
+                            if let Err(e) = tts.queue_add(text).await {
+                                eprintln!("Queue error: {}", e);
                             }
                         }
                         Ok(_) => eprintln!("Clipboard is empty"),

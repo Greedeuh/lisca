@@ -1,5 +1,6 @@
 import { HotkeyRecorder } from "./components/HotkeyRecorder";
 import { ModelConfig } from "./components/ModelConfig";
+import { TtsQueue } from "./components/TtsQueue";
 import "./App.css";
 
 function App() {
@@ -8,6 +9,7 @@ function App() {
       <h1>Lisca - Text to Speech</h1>
       <HotkeyRecorder />
       <ModelConfig />
+      <TtsQueue />
     </main>
   );
 }

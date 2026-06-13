@@ -15,7 +15,7 @@ pub fn run() {
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir().expect("no app data dir");
             let resource_dir = app.path().resource_dir().expect("no resource dir");
-            let tts = Arc::new(TtsManager::new(app_data_dir.clone(), resource_dir));
+            let tts = Arc::new(TtsManager::new(app_data_dir.clone(), resource_dir, app.handle().clone()));
             app.manage(tts.clone());
             tts.preload();
 
@@ -85,6 +85,15 @@ pub fn run() {
             tts::piper_download_model,
             tts::piper_list_installed,
             tts::piper_delete_model,
+            tts::tts_queue_add,
+            tts::tts_queue_remove,
+            tts::tts_queue_move,
+            tts::tts_queue_clear,
+            tts::tts_queue_state,
+            tts::tts_pause,
+            tts::tts_resume,
+            tts::tts_set_queue_config,
+            tts::tts_get_queue_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

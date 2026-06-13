@@ -444,6 +444,112 @@ button.secondary:hover:not(:disabled) {
   border-radius: 4px;
 }
 
+/* Queue styles */
+.queue-section h3 {
+  margin: 0 0 12px 0;
+}
+
+.queue-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.queue-controls-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.queue-controls-buttons button {
+  padding: 6px 12px;
+  font-size: 0.85em;
+}
+
+.queue-auto-read {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.queue-auto-read input {
+  cursor: pointer;
+}
+
+.queue-list {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.queue-empty {
+  text-align: center;
+  padding: 24px;
+  color: #888;
+  margin: 0;
+}
+
+.queue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.queue-item:last-child {
+  border-bottom: none;
+}
+
+.queue-item-playing {
+  background: var(--color-bg-surface);
+  border-left: 3px solid var(--color-primary);
+}
+
+.queue-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.queue-now-playing {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.queue-item-index {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+  min-width: 20px;
+}
+
+.queue-item-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-item-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.queue-item-btn,
+.queue-item-remove {
+  padding: 4px 8px;
+  font-size: 0.75em;
+}
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -502,4 +608,10 @@ button.secondary:hover:not(:disabled) {
   .progress-bar { background: var(--color-border); }
   .tab-section h4 { color: var(--color-text-muted); }
   .voice-size, .download-size, .download-voice, .installed-language { color: #888; }
+  .queue-list { border-color: var(--color-border); }
+  .queue-item { border-color: var(--color-border-subtle); }
+  .queue-item-playing { background: var(--color-bg-surface); border-left-color: var(--color-primary-dark); }
+  .queue-item-text { color: #f6f6f6; }
+  .queue-empty { color: #888; }
+  .queue-auto-read { color: var(--color-text-muted); }
 }
