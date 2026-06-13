@@ -203,6 +203,9 @@ pub fn run_processor(
                                 .ok();
                             emit_queue_updated(&app_handle, &q_ref, &config);
                         }
+                        app_handle.emit("tts-queue-event", &QueueEvent::ItemCompleted {
+                            id: item.id,
+                        }).ok();
 
                         if !queue_config.lock().unwrap().auto_read {
                             let cfg = queue_config.lock().unwrap().clone();

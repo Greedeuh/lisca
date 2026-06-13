@@ -13,6 +13,7 @@ const DEFAULT_MAX_ITEMS = 50;
 
 export function useTtsQueue() {
   const [items, setItems] = useState<QueueItem[]>([]);
+  const [current, setCurrent] = useState<QueueItem | null>(null);
   const [playback, setPlayback] = useState<PlaybackState>("idle");
   const [autoRead, setAutoRead] = useState(true);
   const [showOverlay, setShowOverlay] = useState(true);
@@ -36,10 +37,12 @@ export function useTtsQueue() {
           setShowOverlay(e.show_overlay);
           break;
         case "playback_started":
+          setCurrent(e.item);
           setPlayback("playing");
           setItems((prev) => prev.filter((i) => i.id !== e.item.id));
           break;
         case "item_completed":
+          setCurrent(null);
           setPlayback("idle");
           break;
         case "playback_paused":
@@ -49,6 +52,7 @@ export function useTtsQueue() {
           setPlayback("playing");
           break;
         case "playback_stopped":
+          setCurrent(null);
           setPlayback("idle");
           break;
         case "error":
@@ -115,6 +119,7 @@ export function useTtsQueue() {
 
   return {
     items,
+    current,
     playback,
     autoRead,
     showOverlay,
