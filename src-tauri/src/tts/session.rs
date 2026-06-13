@@ -1,5 +1,6 @@
 use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
+use ort::value::{TensorElementType, ValueType};
 use std::path::Path;
 
 /// Create an ONNX session with optimized settings.
@@ -15,11 +16,16 @@ pub fn create_session(path: &Path) -> Result<Session, ort::Error> {
         eprintln!("Trying DirectML execution provider...");
         if let Ok(mut session) = try_create_session(path, num_cpus, true) {
             eprintln!("DirectML session created, testing inference...");
-            if test_inference(&mut session).is_ok() {
-                eprintln!("DirectML inference OK");
-                return Ok(session);
+            match test_inference(&mut session) {
+                Ok(()) => {
+                    eprintln!("DirectML inference OK");
+                    return Ok(session);
+                }
+                Err(e) => {
+                    eprintln!("DirectML inference failed: {}", e);
+                    eprintln!("Note: q8 quantized models may be incompatible with DirectML. Try using the fp32 model (kokoro-82m-v1.0.onnx).");
+                }
             }
-            eprintln!("DirectML inference failed, falling back to CPU");
         }
     }
 
@@ -65,19 +71,38 @@ fn try_create_session(path: &Path, num_cpus: usize, directml: bool) -> Result<Se
 
 /// Test inference with a dummy input to verify the session works.
 fn test_inference(session: &mut Session) -> Result<(), String> {
-    let t_input_ids = ort::value::Tensor::from_array(([1, 1], vec![0i64]))
-        .map_err(|e| format!("Tensor: {}", e))?;
-    let t_style = ort::value::Tensor::from_array(([1, 256], vec![0.0f32; 256]))
-        .map_err(|e| format!("Tensor: {}", e))?;
-    let t_speed = ort::value::Tensor::from_array(([1], vec![1.0f32]))
-        .map_err(|e| format!("Tensor: {}", e))?;
+    let mut named_inputs: Vec<(std::borrow::Cow<str>, ort::session::SessionInputValue)> = Vec::new();
+    for input in session.inputs() {
+        let name = input.name().to_string();
+        let dtype = input.dtype();
+        let shape = match dtype {
+            ValueType::Tensor { shape, .. } => shape.iter().map(|&d| if d < 0 { 1usize } else { d as usize }).collect::<Vec<_>>(),
+            _ => return Err(format!("Input '{}' is not a tensor", name)),
+        };
+        let elem = match dtype {
+            ValueType::Tensor { ty, .. } => *ty,
+            _ => unreachable!(),
+        };
+        eprintln!("  test input: name={}, elem={:?}, shape={:?}", name, elem, shape);
+        match elem {
+            TensorElementType::Float32 => {
+                let data: Vec<f32> = vec![0.0; shape.iter().product()];
+                let tensor = ort::value::Tensor::from_array((shape.as_slice(), data))
+                    .map_err(|e| format!("Tensor {}: {}", name, e))?;
+                named_inputs.push((name.into(), tensor.into_dyn().into()));
+            }
+            TensorElementType::Int64 => {
+                let data: Vec<i64> = vec![0; shape.iter().product()];
+                let tensor = ort::value::Tensor::from_array((shape.as_slice(), data))
+                    .map_err(|e| format!("Tensor {}: {}", name, e))?;
+                named_inputs.push((name.into(), tensor.into_dyn().into()));
+            }
+            other => return Err(format!("Unsupported input dtype {:?} for '{}'", other, name)),
+        }
+    }
 
     let _outputs = session
-        .run(ort::inputs![
-            "input_ids" => t_input_ids.into_dyn(),
-            "style" => t_style.into_dyn(),
-            "speed" => t_speed.into_dyn(),
-        ])
+        .run(named_inputs)
         .map_err(|e| format!("Inference: {}", e))?;
 
     Ok(())
