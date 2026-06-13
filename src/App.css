@@ -73,6 +73,37 @@ h1 { text-align: center; margin-bottom: 32px; }
   font-weight: 500;
 }
 
+.advanced-section {
+  margin-top: 16px;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 12px;
+}
+
+.advanced-section summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #666;
+  font-size: 0.9em;
+}
+
+.advanced-section summary:hover {
+  color: #333;
+}
+
+@media (prefers-color-scheme: dark) {
+  .advanced-section {
+    border-top-color: #555;
+  }
+
+  .advanced-section summary {
+    color: #aaa;
+  }
+
+  .advanced-section summary:hover {
+    color: #ddd;
+  }
+}
+
 button {
   border-radius: 8px;
   border: none;
@@ -105,4 +136,401 @@ button.secondary:hover:not(:disabled) {
   .badge { background: #444; }
   .hint { color: #5b8def; }
   .status { color: #6cbf6c; }
+}
+
+/* Piper Model Picker Styles */
+.piper-model-picker {
+  width: 100%;
+}
+
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.picker-header h3 {
+  margin: 0;
+}
+
+.picker-error {
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.picker-error p {
+  margin: 0 0 8px 0;
+  color: #c00;
+}
+
+.picker-body {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.tab-section {
+  margin-bottom: 24px;
+}
+
+.tab-section:last-child {
+  margin-bottom: 0;
+}
+
+.tab-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 1em;
+  color: #666;
+}
+
+/* Voice Browser */
+.voice-browser {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.search-box {
+  margin-bottom: 12px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9em;
+  box-sizing: border-box;
+}
+
+.voice-group {
+  margin-bottom: 8px;
+}
+
+.voice-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.voice-group-header:hover {
+  background: #eee;
+}
+
+.expand-icon {
+  font-size: 0.8em;
+  width: 12px;
+}
+
+.family-name {
+  font-weight: 600;
+}
+
+.family-code {
+  color: #888;
+  font-size: 0.9em;
+}
+
+.voice-group-content {
+  padding-left: 20px;
+  margin-top: 8px;
+}
+
+.locale-group {
+  margin-bottom: 12px;
+}
+
+.locale-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.9em;
+}
+
+.locale-code {
+  font-weight: 500;
+  font-family: monospace;
+}
+
+.locale-name {
+  color: #666;
+}
+
+.locale-voices {
+  padding-left: 12px;
+}
+
+/* Voice Row */
+.voice-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.voice-row:last-child {
+  border-bottom: none;
+}
+
+.voice-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.voice-name {
+  font-weight: 500;
+}
+
+.voice-size {
+  color: #888;
+  font-size: 0.85em;
+}
+
+.quality-badge {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.quality-x_low { background: #e0e0e0; color: #555; }
+.quality-low { background: #d4e4f7; color: #2a5a8a; }
+.quality-medium { background: #c8e6c9; color: #2a7d2a; }
+.quality-high { background: #fff9c4; color: #8a6d00; }
+
+.speaker-badge {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  color: #666;
+}
+
+.voice-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.download-button,
+.use-button {
+  padding: 4px 12px;
+  font-size: 0.85em;
+  border-radius: 4px;
+}
+
+.use-button {
+  background: #28a745;
+  color: white;
+}
+
+.use-button:hover {
+  background: #218838;
+}
+
+/* Installed Models */
+.installed-empty {
+  text-align: center;
+  padding: 24px;
+  color: #888;
+}
+
+.installed-empty p {
+  margin: 0 0 8px 0;
+}
+
+.installed-models {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.installed-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.installed-row.active {
+  border-color: #396cd8;
+  background: #f0f7ff;
+}
+
+.installed-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.installed-name {
+  font-weight: 500;
+}
+
+.installed-language {
+  font-size: 0.85em;
+  color: #666;
+  font-family: monospace;
+}
+
+.active-badge {
+  font-size: 0.75em;
+  padding: 2px 6px;
+  background: #396cd8;
+  color: white;
+  border-radius: 4px;
+}
+
+.installed-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.delete-button {
+  padding: 4px 12px;
+  font-size: 0.85em;
+  border-radius: 4px;
+  background: #dc3545;
+  color: white;
+}
+
+.delete-button:hover {
+  background: #c82333;
+}
+
+/* Download Progress */
+.download-progress {
+  background: #f0f7ff;
+  border: 1px solid #396cd8;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.download-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.download-voice {
+  font-weight: 500;
+}
+
+.download-size {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #396cd8;
+  transition: width 0.2s;
+  border-radius: 4px;
+}
+
+/* Dark mode additions */
+@media (prefers-color-scheme: dark) {
+  .picker-body {
+    border-color: #555;
+  }
+
+  .picker-error {
+    background: #3a1a1a;
+    border-color: #5a2a2a;
+  }
+
+  .picker-error p {
+    color: #f88;
+  }
+
+  .search-box input {
+    background: #3a3a3a;
+    border-color: #555;
+    color: #f6f6f6;
+  }
+
+  .voice-group-header {
+    background: #444;
+  }
+
+  .voice-group-header:hover {
+    background: #555;
+  }
+
+  .quality-x_low { background: #555; color: #ccc; }
+  .quality-low { background: #2a3a4a; color: #8ac; }
+  .quality-medium { background: #2a3a2a; color: #8c8; }
+  .quality-high { background: #3a3a2a; color: #cc8; }
+
+  .speaker-badge {
+    background: #555;
+    color: #ccc;
+  }
+
+  .voice-row {
+    border-color: #555;
+  }
+
+  .installed-row {
+    border-color: #555;
+  }
+
+  .installed-row.active {
+    background: #1a2a3a;
+  }
+
+  .installed-empty {
+    color: #888;
+  }
+
+  .use-button {
+    background: #28a745;
+    color: white;
+  }
+
+  .delete-button {
+    background: #dc3545;
+    color: white;
+  }
+
+  .download-progress {
+    background: #1a2a3a;
+    border-color: #5b8def;
+  }
+
+  .progress-bar {
+    background: #555;
+  }
+
+  .tab-section h4 {
+    color: #aaa;
+  }
+
+  .voice-size,
+  .download-size,
+  .download-voice,
+  .installed-language {
+    color: #888;
+  }
 }

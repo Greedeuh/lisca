@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { PiperModelPicker } from "./PiperModelPicker";
 
 interface KokoroConfig {
   type: "kokoro";
@@ -73,7 +74,6 @@ export function ModelConfig() {
   return (
     <section className="section">
       <h2>Model</h2>
-      <p className="hint">Relative paths resolve from the app resource directory.</p>
       <div className="field">
         <label>Backend</label>
         <select
@@ -84,48 +84,66 @@ export function ModelConfig() {
           <option value="kokoro">Kokoro</option>
         </select>
       </div>
-      <div className="field">
-        <label>Model Path</label>
-        <input
-          type="text"
-          value={modelPath}
-          onChange={(e) => setModelPath(e.target.value)}
-          placeholder={
-            backendType === "piper"
-              ? "models/en_US-lessac-medium.onnx"
-              : "models/kokoro-q8.onnx"
-          }
+
+      {backendType === "piper" && (
+        <PiperModelPicker
+          currentModelPath={modelPath}
+          onSelectModel={(newModelPath, newConfigPath) => {
+            setModelPath(newModelPath);
+            setConfigPath(newConfigPath);
+            setStatus("Model selected");
+            setTimeout(() => setStatus(""), 2000);
+          }}
         />
-      </div>
-      {backendType === "kokoro" ? (
-        <div className="field">
-          <label>Voice Path</label>
-          <input
-            type="text"
-            value={voicePath}
-            onChange={(e) => setVoicePath(e.target.value)}
-            placeholder="models/voices/af.bin"
-          />
-        </div>
-      ) : (
-        <div className="field">
-          <label>Config Path</label>
-          <input
-            type="text"
-            value={configPath}
-            onChange={(e) => setConfigPath(e.target.value)}
-            placeholder="models/en_US-lessac-medium.onnx.json"
-          />
-        </div>
       )}
-      <div className="row">
-        <button onClick={handleSave} disabled={loading}>
-          {loading ? "Loading..." : "Save & Reload"}
-        </button>
-        <button onClick={() => invoke("tts_open_resource_dir")} className="secondary">
-          Open Folder
-        </button>
-      </div>
+
+      <details className="advanced-section">
+        <summary>Advanced (Manual Path Configuration)</summary>
+        <p className="hint">Relative paths resolve from the app resource directory.</p>
+        <div className="field">
+          <label>Model Path</label>
+          <input
+            type="text"
+            value={modelPath}
+            onChange={(e) => setModelPath(e.target.value)}
+            placeholder={
+              backendType === "piper"
+                ? "models/en_US-lessac-medium.onnx"
+                : "models/kokoro-q8.onnx"
+            }
+          />
+        </div>
+        {backendType === "kokoro" ? (
+          <div className="field">
+            <label>Voice Path</label>
+            <input
+              type="text"
+              value={voicePath}
+              onChange={(e) => setVoicePath(e.target.value)}
+              placeholder="models/voices/af.bin"
+            />
+          </div>
+        ) : (
+          <div className="field">
+            <label>Config Path</label>
+            <input
+              type="text"
+              value={configPath}
+              onChange={(e) => setConfigPath(e.target.value)}
+              placeholder="models/en_US-lessac-medium.onnx.json"
+            />
+          </div>
+        )}
+        <div className="row">
+          <button onClick={handleSave} disabled={loading}>
+            {loading ? "Loading..." : "Save & Reload"}
+          </button>
+          <button onClick={() => invoke("tts_open_resource_dir")} className="secondary">
+            Open Folder
+          </button>
+        </div>
+      </details>
+
       {status && <p className="status">{status}</p>}
     </section>
   );

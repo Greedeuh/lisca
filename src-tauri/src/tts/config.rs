@@ -36,11 +36,11 @@ impl BackendConfig {
     }
 }
 
-pub fn config_path(app_data_dir: &PathBuf) -> PathBuf {
+pub fn config_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("lisca").join("config.json")
 }
 
-pub fn load_config(app_data_dir: &PathBuf) -> BackendConfig {
+pub fn load_config(app_data_dir: &Path) -> BackendConfig {
     let path = config_path(app_data_dir);
     if !path.exists() {
         return BackendConfig::default();
@@ -52,7 +52,7 @@ pub fn load_config(app_data_dir: &PathBuf) -> BackendConfig {
     serde_json::from_str(&data).unwrap_or_default()
 }
 
-pub fn save_config(app_data_dir: &PathBuf, config: &BackendConfig) -> Result<(), String> {
+pub fn save_config(app_data_dir: &Path, config: &BackendConfig) -> Result<(), String> {
     let path = config_path(app_data_dir);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;

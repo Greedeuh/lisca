@@ -1,21 +1,32 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::{LazyLock, Mutex};
 use unicode_normalization::UnicodeNormalization;
 
 use super::TtsBackend;
 
-static ESPEAK_INITIALIZED: std::sync::Once = std::sync::Once::new();
+static INSTALLED_LANGUAGES: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+static DATA_DIR_SET: std::sync::Once = std::sync::Once::new();
 
-fn ensure_espeak_data(resource_dir: &Path) {
-    ESPEAK_INITIALIZED.call_once(|| {
-        let data_dir = resource_dir.join("espeak-ng-data");
-        if !data_dir.exists() {
-            if let Err(e) = espeak_ng::install_bundled_languages(&data_dir, &["en"]) {
-                eprintln!("Failed to install espeak-ng data: {}", e);
-            }
-        }
+fn ensure_espeak_data(resource_dir: &Path, language: &str) {
+    let data_dir = resource_dir.join("espeak-ng-data");
+
+    DATA_DIR_SET.call_once(|| {
         std::env::set_var("ESPEAK_DATA_PATH", &data_dir);
     });
+
+    let lang_code = language.split('-').next().unwrap_or("fr");
+
+    let mut installed = INSTALLED_LANGUAGES.lock().unwrap();
+    if !installed.contains(lang_code) {
+        if let Err(e) = espeak_ng::install_bundled_languages(&data_dir, &[lang_code]) {
+            eprintln!("Failed to install espeak-ng data for {}: {}", lang_code, e);
+        } else {
+            eprintln!("Installed espeak-ng data for language: {}", lang_code);
+            installed.insert(lang_code.to_string());
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -24,7 +35,19 @@ struct PiperConfig {
     inference: PiperInference,
     #[serde(default)]
     audio: PiperAudio,
+    #[serde(default)]
+    espeak: PiperEspeak,
     phoneme_id_map: HashMap<String, Vec<i64>>,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct PiperEspeak {
+    #[serde(default = "default_espeak_voice")]
+    voice: String,
+}
+
+fn default_espeak_voice() -> String {
+    "en-us".into()
 }
 
 #[derive(serde::Deserialize)]
@@ -74,8 +97,6 @@ pub struct PiperModel {
 
 impl PiperModel {
     pub fn load(model_path: &Path, config_path: &Path, resource_dir: &Path) -> Result<Self, String> {
-        ensure_espeak_data(resource_dir);
-
         if !model_path.exists() {
             return Err(format!("Model not found: {}", model_path.display()));
         }
@@ -87,6 +108,9 @@ impl PiperModel {
             .map_err(|e| format!("Read config: {}", e))?;
         let config: PiperConfig = serde_json::from_str(&config_str)
             .map_err(|e| format!("Parse config: {}", e))?;
+
+        // Initialize espeak-ng with the correct language from config
+        ensure_espeak_data(resource_dir, &config.espeak.voice);
 
         let session = super::session::create_session(model_path)
             .map_err(|e| format!("Session: {}", e))?;
@@ -117,10 +141,12 @@ impl PiperModel {
     }
 
     fn text_to_phoneme_ids(&self, text: &str) -> Vec<i64> {
-        let ipa = match espeak_ng::text_to_ipa("en", text) {
+        // Extract language code from espeak voice (e.g., "en-us" -> "en")
+        let lang_code = self.config.espeak.voice.split('-').next().unwrap_or("en");
+        let ipa = match espeak_ng::text_to_ipa(lang_code, text) {
             Ok(ipa) => ipa,
             Err(e) => {
-                eprintln!("espeak IPA error: {}", e);
+                eprintln!("espeak IPA error for {}: {}", lang_code, e);
                 return Vec::new();
             }
         };

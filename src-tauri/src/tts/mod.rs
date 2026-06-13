@@ -2,6 +2,7 @@ mod kokoro;
 mod piper;
 mod session;
 pub mod config;
+pub mod piper_models;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -13,6 +14,8 @@ use kokoro::KokoroModel;
 use piper::PiperModel;
 
 use self::config::BackendConfig;
+
+type PiperManager = Arc<tokio::sync::Mutex<piper_models::PiperModelManager>>;
 
 pub trait TtsBackend: Send {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String>;
@@ -271,7 +274,7 @@ pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn tts_stop(app: AppHandle) {
+pub fn tts_stop(app: AppHandle) {
     let tts = app.state::<Arc<TtsManager>>();
     tts.stop();
 }
@@ -316,4 +319,35 @@ pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper_models::VoiceCatalog, String> {
+    let manager = app.state::<PiperManager>();
+    let mut manager = manager.lock().await;
+    manager.fetch_voices().await.cloned()
+}
+
+#[tauri::command]
+pub async fn piper_download_model(
+    app: AppHandle,
+    voice_key: String,
+) -> Result<piper_models::InstalledModel, String> {
+    let manager = app.state::<PiperManager>();
+    let manager = manager.lock().await;
+    manager.download_voice(&voice_key, &app).await
+}
+
+#[tauri::command]
+pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper_models::InstalledModel>, String> {
+    let manager = app.state::<PiperManager>();
+    let manager = manager.lock().await;
+    Ok(manager.list_installed())
+}
+
+#[tauri::command]
+pub async fn piper_delete_model(app: AppHandle, voice_key: String) -> Result<(), String> {
+    let manager = app.state::<PiperManager>();
+    let manager = manager.lock().await;
+    manager.delete_model(&voice_key)
 }
