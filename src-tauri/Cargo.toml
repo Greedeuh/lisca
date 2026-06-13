@@ -24,7 +24,7 @@ ort-xnnpack = ["onnx", "ort/xnnpack"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-clipboard-manager = "2"
 rodio = "0.20"
