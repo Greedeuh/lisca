@@ -3,6 +3,12 @@ use std::path::Path;
 
 use super::TtsBackend;
 
+const MAX_TOKENS: usize = 510;
+const VOICE_STYLE_DIM: usize = 256;
+const KOKORO_SAMPLE_RATE: u32 = 24000;
+const TOKEN_BOS: i64 = 0;
+const TOKEN_EOS: i64 = 0;
+
 /// Kokoro TTS model with misaki-rs phonemizer.
 pub struct KokoroModel {
     session: ort::session::Session,
@@ -25,7 +31,7 @@ impl KokoroModel {
             .map_err(|e| format!("Session: {}", e))?;
 
         let vocab = Self::load_vocab();
-        let voices = Self::load_voice(voice_path)?;
+        let voices = Self::load_voices(voice_path)?;
 
         // Initialize misaki G2P for US English
         let g2p = misaki_rs::G2P::new(misaki_rs::Language::EnglishUS);
@@ -49,6 +55,7 @@ impl KokoroModel {
         Ok(model)
     }
 
+    /// Phoneme-to-ID mapping from the Kokoro model's vocab.txt.
     fn load_vocab() -> HashMap<char, i64> {
         let mut vocab = HashMap::new();
         let pairs = &[
@@ -83,7 +90,7 @@ impl KokoroModel {
         vocab
     }
 
-    fn load_voice(path: &Path) -> Result<Vec<Vec<f32>>, String> {
+    fn load_voices(path: &Path) -> Result<Vec<Vec<f32>>, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("Read voice: {}", e))?;
         if bytes.len() % 4 != 0 {
             return Err("Invalid voice file size".into());
@@ -94,16 +101,17 @@ impl KokoroModel {
             .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect();
 
-        if floats.len() % 256 != 0 {
+        if floats.len() % VOICE_STYLE_DIM != 0 {
             return Err(format!(
-                "Voice file has {} floats, not divisible by 256",
-                floats.len()
+                "Voice file has {} floats, not divisible by {}",
+                floats.len(),
+                VOICE_STYLE_DIM
             ));
         }
 
-        let n = floats.len() / 256;
+        let n = floats.len() / VOICE_STYLE_DIM;
         let voices = (0..n)
-            .map(|i| floats[i * 256..(i + 1) * 256].to_vec())
+            .map(|i| floats[i * VOICE_STYLE_DIM..(i + 1) * VOICE_STYLE_DIM].to_vec())
             .collect();
 
         Ok(voices)
@@ -126,22 +134,21 @@ impl KokoroModel {
 
     /// Run dummy inference to compile ONNX kernels ahead of time.
     fn warmup(&mut self) -> Result<(), String> {
-        // Minimal input: single token
-        let t_input_ids = ort::value::Tensor::from_array(([1, 1], vec![0i64]))
+        let input_ids_tensor = ort::value::Tensor::from_array(([1, 1], vec![0i64]))
             .map_err(|e| format!("Warmup tensor: {}", e))?;
 
-        let t_style = ort::value::Tensor::from_array(([1, 256], vec![0.0f32; 256]))
+        let style_tensor = ort::value::Tensor::from_array(([1, VOICE_STYLE_DIM], vec![0.0f32; VOICE_STYLE_DIM]))
             .map_err(|e| format!("Warmup tensor: {}", e))?;
 
-        let t_speed = ort::value::Tensor::from_array(([1], vec![1.0f32]))
+        let speed_tensor = ort::value::Tensor::from_array(([1], vec![1.0f32]))
             .map_err(|e| format!("Warmup tensor: {}", e))?;
 
         let _outputs = self
             .session
             .run(ort::inputs![
-                "input_ids" => t_input_ids.into_dyn(),
-                "style" => t_style.into_dyn(),
-                "speed" => t_speed.into_dyn(),
+                "input_ids" => input_ids_tensor.into_dyn(),
+                "style" => style_tensor.into_dyn(),
+                "speed" => speed_tensor.into_dyn(),
             ])
             .map_err(|e| format!("Warmup inference: {}", e))?;
 
@@ -157,34 +164,34 @@ impl TtsBackend for KokoroModel {
             return Err("No tokens generated from text".into());
         }
 
-        let tokens = if tokens.len() > 510 {
-            &tokens[..510]
+        let tokens = if tokens.len() > MAX_TOKENS {
+            &tokens[..MAX_TOKENS]
         } else {
             &tokens
         };
 
         let style_idx = (tokens.len() - 1).min(self.voices.len() - 1);
-        let ref_s = &self.voices[style_idx];
+        let voice_style = &self.voices[style_idx];
 
-        let mut input_ids = vec![0i64];
+        let mut input_ids = vec![TOKEN_BOS];
         input_ids.extend_from_slice(tokens);
-        input_ids.push(0);
+        input_ids.push(TOKEN_EOS);
 
-        let t_input_ids = ort::value::Tensor::from_array(([1, input_ids.len()], input_ids))
+        let input_ids_tensor = ort::value::Tensor::from_array(([1, input_ids.len()], input_ids))
             .map_err(|e| format!("Tensor input_ids: {}", e))?;
 
-        let t_style = ort::value::Tensor::from_array(([1, 256], ref_s.clone()))
+        let style_tensor = ort::value::Tensor::from_array(([1, VOICE_STYLE_DIM], voice_style.clone()))
             .map_err(|e| format!("Tensor style: {}", e))?;
 
-        let t_speed = ort::value::Tensor::from_array(([1], vec![speed]))
+        let speed_tensor = ort::value::Tensor::from_array(([1], vec![speed]))
             .map_err(|e| format!("Tensor speed: {}", e))?;
 
         let outputs = self
             .session
             .run(ort::inputs![
-                "input_ids" => t_input_ids.into_dyn(),
-                "style" => t_style.into_dyn(),
-                "speed" => t_speed.into_dyn(),
+                "input_ids" => input_ids_tensor.into_dyn(),
+                "style" => style_tensor.into_dyn(),
+                "speed" => speed_tensor.into_dyn(),
             ])
             .map_err(|e| format!("Inference: {}", e))?;
 
@@ -196,6 +203,6 @@ impl TtsBackend for KokoroModel {
     }
 
     fn sample_rate(&self) -> u32 {
-        24000
+        KOKORO_SAMPLE_RATE
     }
 }

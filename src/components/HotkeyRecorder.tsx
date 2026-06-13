@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
+const MODIFIER_KEYS = new Set(["Control", "Shift", "Alt", "Super"]);
+
 export function HotkeyRecorder() {
-  const [shortcut, setShortcut] = useState("");
+  const [hotkey, setHotkey] = useState("");
   const [recording, setRecording] = useState(false);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
     invoke<string | null>("hotkey_get").then((saved) => {
       if (saved) {
-        setShortcut(saved);
+        setHotkey(saved);
         invoke("hotkey_set", { shortcut: saved }).catch(console.error);
       }
     });
@@ -29,10 +31,10 @@ export function HotkeyRecorder() {
       if (e.metaKey) parts.push("Super");
 
       const key = e.key;
-      if (!["Control", "Shift", "Alt", "Super"].includes(key)) {
+      if (!MODIFIER_KEYS.has(key)) {
         parts.push(key.length === 1 ? key.toUpperCase() : key);
         const combo = parts.join("+");
-        setShortcut(combo);
+        setHotkey(combo);
         setRecording(false);
         invoke("hotkey_set", { shortcut: combo })
           .then(() => setStatus("Saved: " + combo))
@@ -51,7 +53,7 @@ export function HotkeyRecorder() {
         <button onClick={() => { setRecording(!recording); setStatus(""); }}>
           {recording ? "Press keys..." : "Record Hotkey"}
         </button>
-        {shortcut && <span className="badge">{shortcut}</span>}
+        {hotkey && <span className="badge">{hotkey}</span>}
       </div>
       {recording && <p className="hint">Press your key combination...</p>}
       {status && <p className="status">{status}</p>}

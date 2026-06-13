@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { usePiperModels } from "../hooks/usePiperModels";
 import { VoiceBrowser } from "./VoiceBrowser";
 import { InstalledModels } from "./InstalledModels";
@@ -28,10 +27,10 @@ export function PiperModelPicker({
 
   // Fetch catalog on mount
   useEffect(() => {
-    if (!catalog && !loading) {
+    if (!catalog && !loading && !error) {
       fetchCatalog();
     }
-  }, [catalog, loading, fetchCatalog]);
+  }, [catalog, loading, error, fetchCatalog]);
 
   // Create set of downloaded voice keys for quick lookup
   const downloadedVoices = useMemo(
@@ -39,26 +38,14 @@ export function PiperModelPicker({
     [installed]
   );
 
-  const handleSelectModel = async (model: { voice_key: string; model_path: string; config_path: string }) => {
+  const handleSelectModel = (model: { voice_key: string; model_path: string; config_path: string }) => {
     onSelectModel(model.model_path, model.config_path);
-    // Save the config
-    try {
-      await invoke("tts_set_config", {
-        config: {
-          type: "piper",
-          model_path: model.model_path,
-          config_path: model.config_path,
-        },
-      });
-    } catch (err) {
-      console.error("Failed to save config:", err);
-    }
   };
 
   return (
     <div className="piper-model-picker">
       <div className="picker-header">
-        <h3>Voice Models</h3>
+        <h3>Voices</h3>
         <button
           className="refresh-button secondary"
           onClick={fetchCatalog}
@@ -85,7 +72,7 @@ export function PiperModelPicker({
 
       <div className="picker-body">
           <div className="tab-section">
-            <h4>Downloaded Models</h4>
+            <h4>Installed Voices</h4>
             <InstalledModels
               models={installed}
               activeModelPath={currentModelPath}

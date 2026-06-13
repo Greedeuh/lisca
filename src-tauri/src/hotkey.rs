@@ -15,13 +15,13 @@ fn read_clipboard_text(app: &AppHandle) -> Result<String, String> {
         .map(|s| s.to_string())
 }
 
-fn settings_path(app: &AppHandle) -> PathBuf {
+fn hotkey_path(app: &AppHandle) -> PathBuf {
     let dir = app.path().app_data_dir().expect("no app data dir");
     dir.join("lisca").join("hotkey.txt")
 }
 
-fn save_config(app: &AppHandle, shortcut: &str) -> Result<(), String> {
-    let path = settings_path(app);
+fn save_hotkey(app: &AppHandle, shortcut: &str) -> Result<(), String> {
+    let path = hotkey_path(app);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -29,8 +29,8 @@ fn save_config(app: &AppHandle, shortcut: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn load_config(app: &AppHandle) -> Result<Option<String>, String> {
-    let path = settings_path(app);
+fn load_hotkey(app: &AppHandle) -> Result<Option<String>, String> {
+    let path = hotkey_path(app);
     if !path.exists() {
         return Ok(None);
     }
@@ -42,7 +42,7 @@ fn load_config(app: &AppHandle) -> Result<Option<String>, String> {
     Ok(Some(shortcut))
 }
 
-fn parse(shortcut: &str) -> Result<(Modifiers, Code), String> {
+fn parse_shortcut(shortcut: &str) -> Result<(Modifiers, Code), String> {
     let parts: Vec<&str> = shortcut.split('+').collect();
     let mut mods = Modifiers::empty();
     let mut key = "";
@@ -91,7 +91,7 @@ pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
         .unregister_all()
         .map_err(|e| e.to_string())?;
 
-    let (mods, code) = parse(&shortcut)?;
+    let (mods, code) = parse_shortcut(&shortcut)?;
     let sc = Shortcut::new(Some(mods), code);
 
     let tts = app.state::<Arc<TtsManager>>().inner().clone();
@@ -115,10 +115,10 @@ pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
         })
         .map_err(|e| e.to_string())?;
 
-    save_config(&app, &shortcut)
+    save_hotkey(&app, &shortcut)
 }
 
 #[tauri::command]
 pub fn hotkey_get(app: AppHandle) -> Result<Option<String>, String> {
-    load_config(&app)
+    load_hotkey(&app)
 }

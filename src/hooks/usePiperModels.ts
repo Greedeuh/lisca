@@ -50,7 +50,7 @@ export function usePiperModels() {
       const result = await invoke<VoiceCatalog>("piper_fetch_voices");
       setCatalog(result);
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -72,7 +72,7 @@ export function usePiperModels() {
     try {
       await invoke<InstalledModel>("piper_download_model", { voiceKey });
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : String(err));
       setDownloading(null);
       setDownloadProgress(null);
     }
@@ -83,7 +83,7 @@ export function usePiperModels() {
       await invoke("piper_delete_model", { voiceKey });
       setInstalled((prev) => prev.filter((m) => m.voice_key !== voiceKey));
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : String(err));
     }
   }, []);
 

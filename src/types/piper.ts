@@ -1,3 +1,5 @@
+export type VoiceQuality = "x_low" | "low" | "medium" | "high";
+
 export interface VoiceCatalog {
   [key: string]: VoiceEntry;
 }
@@ -6,7 +8,7 @@ export interface VoiceEntry {
   key: string;
   name: string;
   language: VoiceLanguage;
-  quality: string;
+  quality: VoiceQuality;
   num_speakers: number;
   speaker_id_map: Record<string, number>;
   files: Record<string, VoiceFile>;
@@ -32,7 +34,7 @@ export interface InstalledModel {
   model_path: string;
   config_path: string;
   language: VoiceLanguage;
-  quality: string;
+  quality: VoiceQuality;
   name: string;
 }
 

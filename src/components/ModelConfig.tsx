@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { PiperModelPicker } from "./PiperModelPicker";
+
+const STATUS_DURATION = 2000;
 
 interface KokoroConfig {
   type: "kokoro";
@@ -24,20 +26,29 @@ export function ModelConfig() {
   const [configPath, setConfigPath] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const statusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    invoke<BackendConfig>("tts_get_config").then((cfg) => {
-      setConfig(cfg);
-      setBackendType(cfg.type);
-      if (cfg.type === "kokoro") {
-        setModelPath(cfg.model_path);
-        setVoicePath(cfg.voice_path);
-      } else if (cfg.type === "piper") {
-        setModelPath(cfg.model_path);
-        setConfigPath(cfg.config_path);
-      }
-      setLoading(false);
-    });
+    invoke<BackendConfig>("tts_get_config")
+      .then((cfg) => {
+        setConfig(cfg);
+        setBackendType(cfg.type);
+        if (cfg.type === "kokoro") {
+          setModelPath(cfg.model_path);
+          setVoicePath(cfg.voice_path);
+        } else if (cfg.type === "piper") {
+          setModelPath(cfg.model_path);
+          setConfigPath(cfg.config_path);
+        }
+      })
+      .catch((err) => setStatus("Failed to load config: " + err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimeout.current) clearTimeout(statusTimeout.current);
+    };
   }, []);
 
   function handleSave() {
@@ -63,7 +74,8 @@ export function ModelConfig() {
       .then(() => {
         setConfig(newConfig);
         setStatus("Saved & backend reloaded");
-        setTimeout(() => setStatus(""), 2000);
+        if (statusTimeout.current) clearTimeout(statusTimeout.current);
+        statusTimeout.current = setTimeout(() => setStatus(""), STATUS_DURATION);
       })
       .catch((err) => setStatus("Error: " + err))
       .finally(() => setLoading(false));
@@ -92,7 +104,8 @@ export function ModelConfig() {
             setModelPath(newModelPath);
             setConfigPath(newConfigPath);
             setStatus("Model selected");
-            setTimeout(() => setStatus(""), 2000);
+            if (statusTimeout.current) clearTimeout(statusTimeout.current);
+            statusTimeout.current = setTimeout(() => setStatus(""), STATUS_DURATION);
           }}
         />
       )}

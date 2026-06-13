@@ -15,7 +15,11 @@ use piper::PiperModel;
 
 use self::config::BackendConfig;
 
-type PiperManager = Arc<tokio::sync::Mutex<piper_models::PiperModelManager>>;
+const AUDIO_CHANNEL_BUFFER: usize = 8;
+const DEFAULT_SAMPLE_RATE: u32 = 24000;
+const I16_SAMPLE_SCALE: f32 = 32767.0;
+
+type SharedPiperModelManager = Arc<tokio::sync::Mutex<piper_models::PiperModelManager>>;
 
 pub trait TtsBackend: Send {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String>;
@@ -24,13 +28,11 @@ pub trait TtsBackend: Send {
 
 enum AudioChunk {
     Samples(Vec<f32>),
-    Done,
+    Eof,
 }
 
 struct AudioState {
     sink: rodio::Sink,
-    #[allow(dead_code)]
-    cancel_tx: tokio::sync::mpsc::Sender<AudioChunk>,
 }
 
 pub struct TtsManager {
@@ -155,7 +157,7 @@ impl TtsManager {
         });
     }
 
-    pub fn switch_backend(&self, config: BackendConfig) -> Result<(), String> {
+    pub fn set_backend(&self, config: BackendConfig) -> Result<(), String> {
         self.stop();
 
         let new_backend = Self::load_backend_from_config(&config, &self.resource_dir)
@@ -175,8 +177,7 @@ impl TtsManager {
             return Err("No text to speak".into());
         }
 
-        let (audio_tx, mut audio_rx) = tokio::sync::mpsc::channel::<AudioChunk>(8);
-        let cancel_tx = audio_tx.clone();
+        let (audio_tx, mut audio_rx) = tokio::sync::mpsc::channel::<AudioChunk>(AUDIO_CHANNEL_BUFFER);
 
         let backend = self.backend.clone();
         let text = text.to_string();
@@ -186,7 +187,7 @@ impl TtsManager {
                 Some(m) => m,
                 None => {
                     drop(backend_guard);
-                    let _ = audio_tx.blocking_send(AudioChunk::Done);
+                    let _ = audio_tx.blocking_send(AudioChunk::Eof);
                     return;
                 }
             };
@@ -206,12 +207,12 @@ impl TtsManager {
                 }
             }
             drop(backend_guard);
-            let _ = audio_tx.blocking_send(AudioChunk::Done);
+            let _ = audio_tx.blocking_send(AudioChunk::Eof);
         });
 
         let sample_rate = {
             let guard = self.backend.lock().unwrap();
-            guard.as_ref().map(|b| b.sample_rate()).unwrap_or(24000)
+            guard.as_ref().map(|b| b.sample_rate()).unwrap_or(DEFAULT_SAMPLE_RATE)
         };
 
         let audio = self.audio.clone();
@@ -225,7 +226,7 @@ impl TtsManager {
 
             {
                 let mut guard = audio.lock().unwrap();
-                *guard = Some(AudioState { sink, cancel_tx });
+                *guard = Some(AudioState { sink });
             }
 
             loop {
@@ -240,7 +241,7 @@ impl TtsManager {
                     Some(AudioChunk::Samples(samples)) => {
                         let i16_samples: Vec<i16> = samples
                             .iter()
-                            .map(|s| (s * 32767.0).clamp(-32768.0, 32767.0) as i16)
+                            .map(|s| (s * I16_SAMPLE_SCALE).clamp(-32768.0, I16_SAMPLE_SCALE) as i16)
                             .collect();
                         let buffer = SamplesBuffer::new(1, sample_rate, i16_samples);
                         state.sink.append(buffer);
@@ -288,7 +289,7 @@ pub fn tts_get_config(app: AppHandle) -> Result<BackendConfig, String> {
 #[tauri::command]
 pub fn tts_set_config(app: AppHandle, config: BackendConfig) -> Result<(), String> {
     let tts = app.state::<Arc<TtsManager>>();
-    tts.switch_backend(config)
+    tts.set_backend(config)
 }
 
 #[tauri::command]
@@ -323,7 +324,7 @@ pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper_models::VoiceCatalog, String> {
-    let manager = app.state::<PiperManager>();
+    let manager = app.state::<SharedPiperModelManager>();
     let mut manager = manager.lock().await;
     manager.fetch_voices().await.cloned()
 }
@@ -333,21 +334,21 @@ pub async fn piper_download_model(
     app: AppHandle,
     voice_key: String,
 ) -> Result<piper_models::InstalledModel, String> {
-    let manager = app.state::<PiperManager>();
+    let manager = app.state::<SharedPiperModelManager>();
     let manager = manager.lock().await;
     manager.download_voice(&voice_key, &app).await
 }
 
 #[tauri::command]
 pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper_models::InstalledModel>, String> {
-    let manager = app.state::<PiperManager>();
+    let manager = app.state::<SharedPiperModelManager>();
     let manager = manager.lock().await;
     Ok(manager.list_installed())
 }
 
 #[tauri::command]
 pub async fn piper_delete_model(app: AppHandle, voice_key: String) -> Result<(), String> {
-    let manager = app.state::<PiperManager>();
+    let manager = app.state::<SharedPiperModelManager>();
     let manager = manager.lock().await;
     manager.delete_model(&voice_key)
 }

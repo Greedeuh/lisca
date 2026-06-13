@@ -3,11 +3,13 @@ use ort::session::Session;
 use ort::value::{TensorElementType, ValueType};
 use std::path::Path;
 
+const DEFAULT_NUM_CPUS: usize = 4;
+
 /// Create an ONNX session with XNNPACK (CPU SIMD) or CPU fallback.
 pub fn create_session(path: &Path) -> Result<Session, ort::Error> {
     let num_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
-        .unwrap_or(4);
+        .unwrap_or(DEFAULT_NUM_CPUS);
 
     // Try XNNPACK first (CPU SIMD acceleration)
     #[cfg(feature = "ort-xnnpack")]

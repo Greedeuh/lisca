@@ -116,13 +116,13 @@ export function VoiceBrowser({
               onClick={() => toggleFamily(group.family)}
             >
               <span className="expand-icon">
-                {expandedFamilies.has(group.family) ? "▼" : "▶"}
+                {(search.trim() || expandedFamilies.has(group.family)) ? "▼" : "▶"}
               </span>
               <span className="family-name">{group.familyName}</span>
               <span className="family-code">({group.family})</span>
             </div>
 
-            {expandedFamilies.has(group.family) && (
+            {(search.trim() || expandedFamilies.has(group.family)) && (
               <div className="voice-group-content">
                 {group.locales.map((locale) => (
                   <div key={locale.code} className="locale-group">
