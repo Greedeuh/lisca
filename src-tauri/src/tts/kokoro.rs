@@ -38,10 +38,13 @@ impl KokoroModel {
         };
 
         // Warmup: run dummy inference to compile ONNX kernels
+        // (session creation already tested inference for DirectML)
         eprintln!("Warming up model...");
         let start = std::time::Instant::now();
-        model.warmup()?;
-        eprintln!("Model warmed up in {}ms", start.elapsed().as_millis());
+        match model.warmup() {
+            Ok(()) => eprintln!("Model warmed up in {}ms", start.elapsed().as_millis()),
+            Err(e) => eprintln!("Warmup failed (non-fatal): {}", e),
+        }
 
         Ok(model)
     }
