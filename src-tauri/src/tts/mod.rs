@@ -1,5 +1,7 @@
 mod kokoro;
+mod piper;
 mod session;
+pub mod config;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -8,6 +10,14 @@ use tauri::AppHandle;
 use tauri::Manager;
 
 use kokoro::KokoroModel;
+use piper::PiperModel;
+
+use self::config::BackendConfig;
+
+pub trait TtsBackend: Send {
+    fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String>;
+    fn sample_rate(&self) -> u32;
+}
 
 enum AudioChunk {
     Samples(Vec<f32>),
@@ -21,8 +31,10 @@ struct AudioState {
 }
 
 pub struct TtsManager {
-    backend: Arc<std::sync::Mutex<Option<KokoroModel>>>,
+    backend: Arc<std::sync::Mutex<Option<Box<dyn TtsBackend>>>>,
     audio: Arc<std::sync::Mutex<Option<AudioState>>>,
+    app_data_dir: PathBuf,
+    resource_dir: PathBuf,
 }
 
 fn split_text(text: &str) -> Vec<String> {
@@ -51,72 +63,108 @@ fn split_text(text: &str) -> Vec<String> {
     }
 }
 
-fn find_project_root() -> PathBuf {
-    let cwd = std::env::current_dir().unwrap_or_default();
-
-    if cwd.join("models").exists() {
-        return cwd;
-    }
-
-    let mut path = cwd.clone();
-    for _ in 0..5 {
-        if path.join("models").exists() {
-            return path;
-        }
-        if !path.pop() {
-            break;
-        }
-    }
-
-    cwd
-}
-
 impl TtsManager {
-    pub fn new() -> Self {
+    pub fn new(app_data_dir: PathBuf, resource_dir: PathBuf) -> Self {
         Self {
             backend: Arc::new(std::sync::Mutex::new(None)),
             audio: Arc::new(std::sync::Mutex::new(None)),
+            app_data_dir,
+            resource_dir,
+        }
+    }
+
+    fn load_backend_from_config(config: &BackendConfig, base_dir: &std::path::Path) -> Option<Box<dyn TtsBackend>> {
+        match config {
+            BackendConfig::Kokoro {
+                model_path,
+                voice_path,
+            } => {
+                let mp = BackendConfig::resolve_path(model_path, base_dir);
+                let vp = BackendConfig::resolve_path(voice_path, base_dir);
+
+                if !mp.exists() || !vp.exists() {
+                    eprintln!("Kokoro model files not found: {:?}, {:?}", mp, vp);
+                    return None;
+                }
+
+                eprintln!("Preloading Kokoro model...");
+                let start = std::time::Instant::now();
+
+                match KokoroModel::load(&mp, &vp) {
+                    Ok(model) => {
+                        eprintln!(
+                            "Kokoro model preloaded in {}ms",
+                            start.elapsed().as_millis()
+                        );
+                        Some(Box::new(model))
+                    }
+                    Err(e) => {
+                        eprintln!("Preload failed: {}", e);
+                        None
+                    }
+                }
+            }
+            BackendConfig::Piper {
+                model_path,
+                config_path,
+            } => {
+                let mp = BackendConfig::resolve_path(model_path, base_dir);
+                let cp = BackendConfig::resolve_path(config_path, base_dir);
+
+                if !mp.exists() || !cp.exists() {
+                    eprintln!("Piper model files not found: {:?}, {:?}", mp, cp);
+                    return None;
+                }
+
+                eprintln!("Preloading Piper model...");
+                let start = std::time::Instant::now();
+
+                match PiperModel::load(&mp, &cp, base_dir) {
+                    Ok(model) => {
+                        eprintln!(
+                            "Piper model preloaded in {}ms",
+                            start.elapsed().as_millis()
+                        );
+                        Some(Box::new(model))
+                    }
+                    Err(e) => {
+                        eprintln!("Preload failed: {}", e);
+                        None
+                    }
+                }
+            }
         }
     }
 
     pub fn preload(&self) {
-        let models_dir = find_project_root().join("models");
-
-        let model_path = models_dir.join("kokoro-q8.onnx");
-        let voice_path = models_dir.join("voices/af.bin");
-
-        if !model_path.exists() || !voice_path.exists() {
-            eprintln!("Model files not found, skipping preload");
-            return;
-        }
+        let config = config::load_config(&self.app_data_dir);
 
         if self.backend.try_lock().map(|b| b.is_some()).unwrap_or(true) {
             return;
         }
 
-        let mp = model_path.display().to_string();
-        let vp = voice_path.display().to_string();
-
         let backend = self.backend.clone();
+        let base_dir = self.resource_dir.clone();
 
         std::thread::spawn(move || {
-            eprintln!("Preloading Kokoro model...");
-            let start = std::time::Instant::now();
-
-            match KokoroModel::load(
-                std::path::Path::new(&mp),
-                std::path::Path::new(&vp),
-            ) {
-                Ok(model) => {
-                    *backend.lock().unwrap() = Some(model);
-                    eprintln!(
-                        "Kokoro model preloaded in {}ms",
-                        start.elapsed().as_millis()
-                    );
-                }
-                Err(e) => eprintln!("Preload failed: {}", e),
-            }
+            let new_backend = Self::load_backend_from_config(&config, &base_dir);
+            *backend.lock().unwrap() = new_backend;
         });
+    }
+
+    pub fn switch_backend(&self, config: BackendConfig) -> Result<(), String> {
+        self.stop();
+
+        let new_backend = Self::load_backend_from_config(&config, &self.resource_dir)
+            .ok_or("Failed to load backend")?;
+
+        *self.backend.lock().unwrap() = Some(new_backend);
+        config::save_config(&self.app_data_dir, &config)?;
+        Ok(())
+    }
+
+    pub fn get_config(&self) -> BackendConfig {
+        config::load_config(&self.app_data_dir)
     }
 
     pub async fn speak(&self, text: &str) -> Result<(), String> {
@@ -158,6 +206,11 @@ impl TtsManager {
             let _ = audio_tx.blocking_send(AudioChunk::Done);
         });
 
+        let sample_rate = {
+            let guard = self.backend.lock().unwrap();
+            guard.as_ref().map(|b| b.sample_rate()).unwrap_or(24000)
+        };
+
         let audio = self.audio.clone();
         let play_handle = tokio::task::spawn_blocking(move || {
             use rodio::buffer::SamplesBuffer;
@@ -186,7 +239,7 @@ impl TtsManager {
                             .iter()
                             .map(|s| (s * 32767.0).clamp(-32768.0, 32767.0) as i16)
                             .collect();
-                        let buffer = SamplesBuffer::new(1, 24000, i16_samples);
+                        let buffer = SamplesBuffer::new(1, sample_rate, i16_samples);
                         state.sink.append(buffer);
                     }
                     _ => break,
@@ -221,4 +274,46 @@ pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
 pub async fn tts_stop(app: AppHandle) {
     let tts = app.state::<Arc<TtsManager>>();
     tts.stop();
+}
+
+#[tauri::command]
+pub fn tts_get_config(app: AppHandle) -> Result<BackendConfig, String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    Ok(tts.get_config())
+}
+
+#[tauri::command]
+pub fn tts_set_config(app: AppHandle, config: BackendConfig) -> Result<(), String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.switch_backend(config)
+}
+
+#[tauri::command]
+pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    let dir = &tts.resource_dir;
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use super::TtsBackend;
+
 /// Kokoro TTS model with misaki-rs phonemizer.
 pub struct KokoroModel {
     session: ort::session::Session,
@@ -122,7 +124,33 @@ impl KokoroModel {
         ids
     }
 
-    pub(crate) fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
+    /// Run dummy inference to compile ONNX kernels ahead of time.
+    fn warmup(&mut self) -> Result<(), String> {
+        // Minimal input: single token
+        let t_input_ids = ort::value::Tensor::from_array(([1, 1], vec![0i64]))
+            .map_err(|e| format!("Warmup tensor: {}", e))?;
+
+        let t_style = ort::value::Tensor::from_array(([1, 256], vec![0.0f32; 256]))
+            .map_err(|e| format!("Warmup tensor: {}", e))?;
+
+        let t_speed = ort::value::Tensor::from_array(([1], vec![1.0f32]))
+            .map_err(|e| format!("Warmup tensor: {}", e))?;
+
+        let _outputs = self
+            .session
+            .run(ort::inputs![
+                "input_ids" => t_input_ids.into_dyn(),
+                "style" => t_style.into_dyn(),
+                "speed" => t_speed.into_dyn(),
+            ])
+            .map_err(|e| format!("Warmup inference: {}", e))?;
+
+        Ok(())
+    }
+}
+
+impl TtsBackend for KokoroModel {
+    fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
         let tokens = self.tokenize(text);
 
         if tokens.is_empty() {
@@ -167,27 +195,7 @@ impl KokoroModel {
         Ok(data.to_vec())
     }
 
-    /// Run dummy inference to compile ONNX kernels ahead of time.
-    fn warmup(&mut self) -> Result<(), String> {
-        // Minimal input: single token
-        let t_input_ids = ort::value::Tensor::from_array(([1, 1], vec![0i64]))
-            .map_err(|e| format!("Warmup tensor: {}", e))?;
-
-        let t_style = ort::value::Tensor::from_array(([1, 256], vec![0.0f32; 256]))
-            .map_err(|e| format!("Warmup tensor: {}", e))?;
-
-        let t_speed = ort::value::Tensor::from_array(([1], vec![1.0f32]))
-            .map_err(|e| format!("Warmup tensor: {}", e))?;
-
-        let _outputs = self
-            .session
-            .run(ort::inputs![
-                "input_ids" => t_input_ids.into_dyn(),
-                "style" => t_style.into_dyn(),
-                "speed" => t_speed.into_dyn(),
-            ])
-            .map_err(|e| format!("Warmup inference: {}", e))?;
-
-        Ok(())
+    fn sample_rate(&self) -> u32 {
+        24000
     }
 }

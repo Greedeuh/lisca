@@ -11,7 +11,9 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
-            let tts = Arc::new(TtsManager::new());
+            let app_data_dir = app.path().app_data_dir().expect("no app data dir");
+            let resource_dir = app.path().resource_dir().expect("no resource dir");
+            let tts = Arc::new(TtsManager::new(app_data_dir, resource_dir));
             app.manage(tts.clone());
             tts.preload();
             Ok(())
@@ -21,6 +23,9 @@ pub fn run() {
             hotkey::hotkey_get,
             tts::tts_speak,
             tts::tts_stop,
+            tts::tts_get_config,
+            tts::tts_set_config,
+            tts::tts_open_resource_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
