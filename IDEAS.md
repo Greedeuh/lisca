@@ -14,11 +14,7 @@ Feature ideas for Lisca — Text to Speech app.
 
 ## Voice & Model
 
-- **Voice picker UI**: List available Kokoro voices (af_*, am_*, bf_*, bm_*) with preview
-- **Multiple voice support**: Switch between voices at runtime
 - **Speed control**: Adjustable speech rate slider
-- **Model download**: Auto-download model from HuggingFace on first run
-- **Multi-language**: Load language-specific models
 - **Multi-binding**: Multiple hotkeys mapped to different languages/models — e.g. Ctrl+Shift+1 for English, Ctrl+Shift+2 for French
 - **Auto-detect language**: Use text heuristics (character ranges, common words) or a lightweight classifier to pick the right voice automatically
 
@@ -33,7 +29,6 @@ Feature ideas for Lisca — Text to Speech app.
 
 ## UI/UX
 
-- **Overlay**: Minimal floating indicator when speaking
 - **History**: List of recently spoken texts
 - **Dark/light theme**: Follow system preference
 
