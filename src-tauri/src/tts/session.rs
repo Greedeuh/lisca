@@ -10,31 +10,58 @@ pub fn create_session(path: &Path) -> Result<Session, ort::Error> {
         .map(|n| n.get())
         .unwrap_or(4);
 
-    // Try DirectML first
+    // Try XNNPACK first (CPU SIMD acceleration)
+    #[cfg(feature = "ort-xnnpack")]
+    {
+        eprintln!("Trying XNNPACK execution provider...");
+        match try_create_session(path, num_cpus, "xnnpack") {
+            Ok(mut session) => {
+                eprintln!("XNNPACK session created, testing inference...");
+                match test_inference(&mut session) {
+                    Ok(()) => {
+                        eprintln!("XNNPACK inference OK");
+                        return Ok(session);
+                    }
+                    Err(e) => {
+                        eprintln!("XNNPACK inference failed: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("XNNPACK session creation failed: {}", e);
+            }
+        }
+    }
+
+    // Try DirectML (GPU)
     #[cfg(feature = "ort-directml")]
     {
         eprintln!("Trying DirectML execution provider...");
-        if let Ok(mut session) = try_create_session(path, num_cpus, true) {
-            eprintln!("DirectML session created, testing inference...");
-            match test_inference(&mut session) {
-                Ok(()) => {
-                    eprintln!("DirectML inference OK");
-                    return Ok(session);
+        match try_create_session(path, num_cpus, "directml") {
+            Ok(mut session) => {
+                eprintln!("DirectML session created, testing inference...");
+                match test_inference(&mut session) {
+                    Ok(()) => {
+                        eprintln!("DirectML inference OK");
+                        return Ok(session);
+                    }
+                    Err(e) => {
+                        eprintln!("DirectML inference failed: {}", e);
+                    }
                 }
-                Err(e) => {
-                    eprintln!("DirectML inference failed: {}", e);
-                    eprintln!("Note: q8 quantized models may be incompatible with DirectML. Try using the fp32 model (kokoro-82m-v1.0.onnx).");
-                }
+            }
+            Err(e) => {
+                eprintln!("DirectML session creation failed: {}", e);
             }
         }
     }
 
     // CPU fallback
     eprintln!("Using CPU execution provider");
-    try_create_session(path, num_cpus, false)
+    try_create_session(path, num_cpus, "cpu")
 }
 
-fn try_create_session(path: &Path, num_cpus: usize, directml: bool) -> Result<Session, ort::Error> {
+fn try_create_session(path: &Path, num_cpus: usize, provider: &str) -> Result<Session, ort::Error> {
     let mut builder =
         Session::builder()?.with_optimization_level(GraphOptimizationLevel::Level3)?;
 
@@ -43,24 +70,32 @@ fn try_create_session(path: &Path, num_cpus: usize, directml: bool) -> Result<Se
         .with_intra_threads(num_cpus)?
         .with_inter_threads(1)?;
 
-    if directml {
-        builder = builder.with_execution_providers([ort::ep::DirectML::default().build()])?;
-    } else {
-        builder = builder.with_execution_providers([ort::ep::CPU::default().build()])?;
+    match provider {
+        #[cfg(feature = "ort-directml")]
+        "directml" => {
+            builder = builder.with_execution_providers([ort::ep::DirectML::default().build()])?;
+        }
+        #[cfg(feature = "ort-xnnpack")]
+        "xnnpack" => {
+            builder = builder.with_execution_providers([ort::ep::XNNPACK::default().build()])?;
+        }
+        _ => {
+            builder = builder.with_execution_providers([ort::ep::CPU::default().build()])?;
+        }
     }
 
     let session = builder.commit_from_file(path)?;
 
     for input in session.inputs() {
         eprintln!(
-            "TTS model input: name={}, type={:?}",
+            "  input: name={}, type={:?}",
             input.name(),
             input.dtype()
         );
     }
     for output in session.outputs() {
         eprintln!(
-            "TTS model output: name={}, type={:?}",
+            "  output: name={}, type={:?}",
             output.name(),
             output.dtype()
         );
