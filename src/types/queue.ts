@@ -8,13 +8,12 @@ export type PlaybackState = "idle" | "playing" | "paused";
 export interface QueueSnapshot {
   items: QueueItem[];
   playback: PlaybackState;
-  current: QueueItem | null;
   auto_read: boolean;
   show_overlay: boolean;
 }
 
 export interface QueueConfig {
-  max_size: number;
+  max_items: number;
   auto_read: boolean;
   show_overlay: boolean;
 }

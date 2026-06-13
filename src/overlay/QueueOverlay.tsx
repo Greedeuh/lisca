@@ -4,20 +4,15 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 export function QueueOverlay() {
   const {
     items,
-    current,
-    playback,
     autoRead,
     showOverlay,
     remove,
-    pause,
-    resume,
-    stop,
     clear,
     toggleAutoRead,
     toggleShowOverlay,
   } = useTtsQueue();
 
-  const totalItems = items.length + (current ? 1 : 0);
+  const totalItems = items.length;
 
   const handleToggleOverlay = async () => {
     await toggleShowOverlay();
@@ -50,29 +45,7 @@ export function QueueOverlay() {
       </div>
 
       <div className="overlay-body">
-        {current ? (
-          <div className="overlay-now-playing">
-            <div className="overlay-now-label">
-              {playback === "paused" ? "Paused" : "Playing"}
-            </div>
-            <div className="overlay-now-text">{current.text}</div>
-            <div className="overlay-now-actions">
-              <button
-                className="overlay-btn"
-                onClick={playback === "playing" ? pause : resume}
-              >
-                {playback === "playing" ? "⏸" : "▶"}
-              </button>
-              <button className="overlay-btn overlay-btn-skip" onClick={stop}>
-                ⏭
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="overlay-empty">Queue empty</div>
-        )}
-
-        {items.length > 0 && (
+        {items.length > 0 ? (
           <div className="overlay-queue-list">
             {items.map((item) => (
               <div key={item.id} className="overlay-queue-item">
@@ -86,6 +59,8 @@ export function QueueOverlay() {
               </div>
             ))}
           </div>
+        ) : (
+          <div className="overlay-empty">Queue empty</div>
         )}
       </div>
 

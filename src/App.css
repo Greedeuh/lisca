@@ -466,7 +466,7 @@ button.secondary:hover:not(:disabled) {
   font-size: 0.85em;
 }
 
-.queue-auto-read {
+.queue-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -475,7 +475,7 @@ button.secondary:hover:not(:disabled) {
   cursor: pointer;
 }
 
-.queue-auto-read input {
+.queue-toggle input {
   cursor: pointer;
 }
 
@@ -618,5 +618,5 @@ button.secondary:hover:not(:disabled) {
   .queue-item-playing { background: var(--color-bg-surface); border-left-color: var(--color-primary-dark); }
   .queue-item-text { color: #f6f6f6; }
   .queue-empty { color: #888; }
-  .queue-auto-read { color: var(--color-text-muted); }
+  .queue-toggle { color: var(--color-text-muted); }
 }

@@ -1,5 +1,6 @@
 mod hotkey;
 mod overlay;
+mod persist;
 mod tts;
 
 use std::sync::Arc;
@@ -83,24 +84,24 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             hotkey::hotkey_set,
             hotkey::hotkey_get,
-            tts::tts_speak,
-            tts::tts_stop,
-            tts::tts_get_config,
-            tts::tts_set_config,
-            tts::tts_open_resource_dir,
-            tts::piper_fetch_voices,
-            tts::piper_download_model,
-            tts::piper_list_installed,
-            tts::piper_delete_model,
-            tts::tts_queue_add,
-            tts::tts_queue_remove,
-            tts::tts_queue_move,
-            tts::tts_queue_clear,
-            tts::tts_queue_state,
-            tts::tts_pause,
-            tts::tts_resume,
-            tts::tts_set_queue_config,
-            tts::tts_get_queue_config,
+            tts::commands::tts_speak,
+            tts::commands::tts_stop,
+            tts::commands::tts_get_config,
+            tts::commands::tts_set_config,
+            tts::commands::tts_open_resource_dir,
+            tts::commands::piper_fetch_voices,
+            tts::commands::piper_download_model,
+            tts::commands::piper_list_installed,
+            tts::commands::piper_delete_model,
+            tts::commands::tts_queue_add,
+            tts::commands::tts_queue_remove,
+            tts::commands::tts_queue_move,
+            tts::commands::tts_queue_clear,
+            tts::commands::tts_queue_state,
+            tts::commands::tts_pause,
+            tts::commands::tts_resume,
+            tts::commands::tts_set_queue_config,
+            tts::commands::tts_get_queue_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

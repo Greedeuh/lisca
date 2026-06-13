@@ -5,12 +5,14 @@ import type {
   QueueItem,
   QueueSnapshot,
   QueueEvent,
+  QueueConfig,
   PlaybackState,
 } from "../types/queue";
 
+const DEFAULT_MAX_ITEMS = 50;
+
 export function useTtsQueue() {
   const [items, setItems] = useState<QueueItem[]>([]);
-  const [current, setCurrent] = useState<QueueItem | null>(null);
   const [playback, setPlayback] = useState<PlaybackState>("idle");
   const [autoRead, setAutoRead] = useState(true);
   const [showOverlay, setShowOverlay] = useState(true);
@@ -18,7 +20,6 @@ export function useTtsQueue() {
   useEffect(() => {
     invoke<QueueSnapshot>("tts_queue_state").then((snap) => {
       setItems(snap.items);
-      setCurrent(snap.current);
       setPlayback(snap.playback);
       setAutoRead(snap.auto_read);
       setShowOverlay(snap.show_overlay);
@@ -35,12 +36,10 @@ export function useTtsQueue() {
           setShowOverlay(e.show_overlay);
           break;
         case "playback_started":
-          setCurrent(e.item);
           setPlayback("playing");
           setItems((prev) => prev.filter((i) => i.id !== e.item.id));
           break;
         case "item_completed":
-          setCurrent(null);
           setPlayback("idle");
           break;
         case "playback_paused":
@@ -50,7 +49,6 @@ export function useTtsQueue() {
           setPlayback("playing");
           break;
         case "playback_stopped":
-          setCurrent(null);
           setPlayback("idle");
           break;
         case "error":
@@ -63,7 +61,7 @@ export function useTtsQueue() {
     };
   }, []);
 
-  const addItem = useCallback(async (text: string) => {
+  const add = useCallback(async (text: string) => {
     return invoke<QueueItem>("tts_queue_add", { text });
   }, []);
 
@@ -96,7 +94,7 @@ export function useTtsQueue() {
     setAutoRead(newValue);
     try {
       await invoke("tts_set_queue_config", {
-        config: { max_size: 50, auto_read: newValue, show_overlay: showOverlay },
+        config: { max_items: DEFAULT_MAX_ITEMS, auto_read: newValue, show_overlay: showOverlay } as QueueConfig,
       });
     } catch {
       setAutoRead(!newValue);
@@ -108,7 +106,7 @@ export function useTtsQueue() {
     setShowOverlay(newValue);
     try {
       await invoke("tts_set_queue_config", {
-        config: { max_size: 50, auto_read: autoRead, show_overlay: newValue },
+        config: { max_items: DEFAULT_MAX_ITEMS, auto_read: autoRead, show_overlay: newValue } as QueueConfig,
       });
     } catch {
       setShowOverlay(!newValue);
@@ -117,11 +115,10 @@ export function useTtsQueue() {
 
   return {
     items,
-    current,
     playback,
     autoRead,
     showOverlay,
-    addItem,
+    add,
     remove,
     moveItem,
     clear,

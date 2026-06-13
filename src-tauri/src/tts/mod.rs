@@ -1,14 +1,17 @@
 mod kokoro;
 mod piper;
 mod session;
+pub mod commands;
 pub mod config;
 pub mod piper_models;
+pub mod processor;
 pub mod queue;
+pub mod text;
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
 use tauri::Manager;
@@ -23,8 +26,6 @@ const AUDIO_CHANNEL_BUFFER: usize = 8;
 const DEFAULT_SAMPLE_RATE: u32 = 24000;
 const I16_SAMPLE_SCALE: f32 = 32767.0;
 
-type SharedPiperModelManager = Arc<tokio::sync::Mutex<piper_models::PiperModelManager>>;
-
 pub trait TtsBackend: Send {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String>;
     fn sample_rate(&self) -> u32;
@@ -35,49 +36,23 @@ enum AudioChunk {
     Eof,
 }
 
-const STATE_IDLE: u8 = 0;
-const STATE_PLAYING: u8 = 1;
-const STATE_PAUSED: u8 = 2;
+const STATE_IDLE: u8 = PlaybackState::Idle as u8;
+const STATE_PLAYING: u8 = PlaybackState::Playing as u8;
+const STATE_PAUSED: u8 = PlaybackState::Paused as u8;
 
 pub struct TtsManager {
     backend: Arc<std::sync::Mutex<Option<Box<dyn TtsBackend>>>>,
-    app_data_dir: PathBuf,
-    resource_dir: PathBuf,
+    pub(crate) app_data_dir: PathBuf,
+    pub(crate) resource_dir: PathBuf,
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
     queue_config: Arc<std::sync::Mutex<QueueConfig>>,
     next_id: Arc<std::sync::Mutex<u32>>,
-    app_handle: AppHandle,
+    pub(crate) app_handle: AppHandle,
     stop_flag: Arc<AtomicBool>,
     pause_flag: Arc<AtomicBool>,
     playback_state: Arc<AtomicU8>,
     notify: Arc<tokio::sync::Notify>,
     processor_running: Arc<AtomicBool>,
-}
-
-fn split_text(text: &str) -> Vec<String> {
-    static RE: OnceLock<regex::Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| regex::Regex::new(r"([.!?;])\s+").unwrap());
-    let mut chunks: Vec<String> = Vec::new();
-    let mut last = 0;
-    for m in re.find_iter(text) {
-        let split_at = m.start() + 1;
-        let chunk = text[last..split_at].trim().to_string();
-        if !chunk.is_empty() {
-            chunks.push(chunk);
-        }
-        last = m.end();
-    }
-    if last < text.len() {
-        let tail = text[last..].trim().to_string();
-        if !tail.is_empty() {
-            chunks.push(tail);
-        }
-    }
-    if chunks.is_empty() {
-        vec![text.trim().to_string()]
-    } else {
-        chunks
-    }
 }
 
 impl TtsManager {
@@ -216,7 +191,7 @@ impl TtsManager {
                 }
             };
 
-            let chunks = split_text(&text);
+            let chunks = text::split_text(&text);
             for chunk in &chunks {
                 match model.synthesize(chunk, 1.0) {
                     Ok(audio) => {
@@ -291,8 +266,8 @@ impl TtsManager {
             let config = self.queue_config.lock().unwrap().clone();
             let mut q = self.queue.lock().await;
 
-            if q.len() >= config.max_size {
-                return Err(format!("Queue is full (max {})", config.max_size));
+            if q.len() >= config.max_items {
+                return Err(format!("Queue is full (max {})", config.max_items));
             }
 
             let id = {
@@ -396,15 +371,10 @@ impl TtsManager {
     pub async fn queue_state(&self) -> QueueSnapshot {
         let items = self.queue.lock().await;
         let config = self.queue_config.lock().unwrap().clone();
-        let playback = match self.playback_state.load(Ordering::SeqCst) {
-            STATE_PLAYING => PlaybackState::Playing,
-            STATE_PAUSED => PlaybackState::Paused,
-            _ => PlaybackState::Idle,
-        };
+        let playback = PlaybackState::from(self.playback_state.load(Ordering::SeqCst));
         QueueSnapshot {
             items: items.iter().cloned().collect(),
             playback,
-            current: None,
             auto_read: config.auto_read,
             show_overlay: config.show_overlay,
         }
@@ -477,395 +447,17 @@ impl TtsManager {
             return;
         }
 
-        let queue = self.queue.clone();
-        let queue_config = self.queue_config.clone();
-        let backend = self.backend.clone();
-        let app_data_dir = self.app_data_dir.clone();
-        let stop_flag = self.stop_flag.clone();
-        let pause_flag = self.pause_flag.clone();
-        let playback_state = self.playback_state.clone();
-        let notify = self.notify.clone();
-        let processor_running = self.processor_running.clone();
-        let app_handle = self.app_handle.clone();
-
-        tokio::spawn(async move {
-            loop {
-                notify.notified().await;
-
-                let should_exit = 'outer: loop {
-                    if stop_flag.load(Ordering::SeqCst) {
-                        stop_flag.store(false, Ordering::SeqCst);
-                        pause_flag.store(false, Ordering::SeqCst);
-                        playback_state.store(STATE_IDLE, Ordering::SeqCst);
-                        break 'outer false;
-                    }
-
-                    if pause_flag.load(Ordering::SeqCst) {
-                        playback_state.store(STATE_PAUSED, Ordering::SeqCst);
-                        loop {
-                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                            if stop_flag.load(Ordering::SeqCst) || !pause_flag.load(Ordering::SeqCst) {
-                                break;
-                            }
-                        }
-                        if stop_flag.load(Ordering::SeqCst) {
-                            stop_flag.store(false, Ordering::SeqCst);
-                            pause_flag.store(false, Ordering::SeqCst);
-                            playback_state.store(STATE_IDLE, Ordering::SeqCst);
-                            break 'outer false;
-                        }
-                        pause_flag.store(false, Ordering::SeqCst);
-                        playback_state.store(STATE_PLAYING, Ordering::SeqCst);
-                    }
-
-                    let item = {
-                        let mut q = queue.lock().await;
-                        q.pop_front()
-                    };
-
-                    let item = match item {
-                        Some(i) => i,
-                        None => {
-                            let config = queue_config.lock().unwrap().clone();
-                            let items = queue.lock().await.iter().cloned().collect();
-                            app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
-                                items,
-                                auto_read: config.auto_read,
-                                show_overlay: config.show_overlay,
-                            }).ok();
-                            if config.show_overlay {
-                                let main_visible = app_handle
-                                    .get_webview_window("main")
-                                    .map(|w| w.is_visible().unwrap_or(true))
-                                    .unwrap_or(true);
-                                if !main_visible {
-                                    crate::overlay::hide_overlay(&app_handle);
-                                }
-                            }
-                            break 'outer true;
-                        }
-                    };
-
-                    {
-                        let config = queue_config.lock().unwrap().clone();
-                        let items = queue.lock().await.iter().cloned().collect();
-                        app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
-                            items,
-                            auto_read: config.auto_read,
-                            show_overlay: config.show_overlay,
-                        }).ok();
-                    }
-
-                    app_handle.emit("tts-queue-event", &QueueEvent::PlaybackStarted {
-                        item: item.clone(),
-                    }).ok();
-
-                    let backend_clone = backend.clone();
-                    let text = item.text.clone();
-                    let synth_result = tokio::task::spawn_blocking(move || {
-                        let mut guard = backend_clone.lock().unwrap();
-                        let model = match guard.as_mut() {
-                            Some(m) => m,
-                            None => return Err("No backend loaded".to_string()),
-                        };
-                        let chunks = split_text(&text);
-                        let mut all_samples = Vec::new();
-                        for chunk in &chunks {
-                            match model.synthesize(chunk, 1.0) {
-                                Ok(samples) => all_samples.extend(samples),
-                                Err(e) => return Err(e),
-                            }
-                        }
-                        Ok(all_samples)
-                    })
-                    .await
-                    .unwrap();
-
-                    match synth_result {
-                        Ok(samples) => {
-                            let sample_rate = {
-                                let guard = backend.lock().unwrap();
-                                guard.as_ref().map(|b| b.sample_rate()).unwrap_or(DEFAULT_SAMPLE_RATE)
-                            };
-
-                            playback_state.store(STATE_PLAYING, Ordering::SeqCst);
-
-                            let play_stop = stop_flag.clone();
-                            let play_pause = pause_flag.clone();
-                            let play_state = playback_state.clone();
-                            let play_result = tokio::task::spawn_blocking(move || {
-                                use rodio::{OutputStream, Sink};
-                                use rodio::buffer::SamplesBuffer;
-
-                                let (_stream, handle) = OutputStream::try_default()
-                                    .expect("Failed to open audio output");
-                                let sink = Sink::try_new(&handle)
-                                    .expect("Failed to create audio sink");
-
-                                let i16_samples: Vec<i16> = samples
-                                    .iter()
-                                    .map(|s| (s * I16_SAMPLE_SCALE).clamp(-32768.0, I16_SAMPLE_SCALE) as i16)
-                                    .collect();
-                                let buffer = SamplesBuffer::new(1, sample_rate, i16_samples);
-                                sink.append(buffer);
-
-                                loop {
-                                    std::thread::sleep(std::time::Duration::from_millis(50));
-
-                                    if play_stop.load(Ordering::SeqCst) {
-                                        play_stop.store(false, Ordering::SeqCst);
-                                        play_pause.store(false, Ordering::SeqCst);
-                                        play_state.store(STATE_IDLE, Ordering::SeqCst);
-                                        drop(sink);
-                                        drop(_stream);
-                                        return true;
-                                    }
-
-                                    if play_pause.load(Ordering::SeqCst) {
-                                        sink.pause();
-                                        play_state.store(STATE_PAUSED, Ordering::SeqCst);
-                                        loop {
-                                            std::thread::sleep(std::time::Duration::from_millis(50));
-                                            if play_stop.load(Ordering::SeqCst) || !play_pause.load(Ordering::SeqCst) {
-                                                break;
-                                            }
-                                        }
-                                        if play_stop.load(Ordering::SeqCst) {
-                                            play_stop.store(false, Ordering::SeqCst);
-                                            play_pause.store(false, Ordering::SeqCst);
-                                            play_state.store(STATE_IDLE, Ordering::SeqCst);
-                                            drop(sink);
-                                            drop(_stream);
-                                            return true;
-                                        }
-                                        play_pause.store(false, Ordering::SeqCst);
-                                        play_state.store(STATE_PLAYING, Ordering::SeqCst);
-                                        sink.play();
-                                    }
-
-                                    if sink.empty() {
-                                        break;
-                                    }
-                                }
-
-                                sink.sleep_until_end();
-                                drop(sink);
-                                drop(_stream);
-                                false
-                            })
-                            .await
-                            .unwrap();
-
-                            if play_result {
-                                app_handle.emit("tts-queue-event", &QueueEvent::PlaybackStopped).ok();
-                                continue;
-                            }
-
-                            playback_state.store(STATE_IDLE, Ordering::SeqCst);
-                            {
-                                let config = queue_config.lock().unwrap().clone();
-                                let q_ref = queue.lock().await;
-                                let items = q_ref.iter().cloned().collect();
-                                queue::save_queue(&app_data_dir, &q_ref)
-                                    .map_err(|e| eprintln!("Failed to save queue: {}", e))
-                                    .ok();
-                                drop(q_ref);
-                                app_handle.emit("tts-queue-event", &QueueEvent::ItemCompleted {
-                                    id: item.id,
-                                }).ok();
-                                app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
-                                    items,
-                                    auto_read: config.auto_read,
-                                    show_overlay: config.show_overlay,
-                                }).ok();
-                            }
-
-                            if !queue_config.lock().unwrap().auto_read {
-                                let cfg = queue_config.lock().unwrap().clone();
-                                if cfg.show_overlay {
-                                    let main_visible = app_handle
-                                        .get_webview_window("main")
-                                        .map(|w| w.is_visible().unwrap_or(true))
-                                        .unwrap_or(true);
-                                    if !main_visible {
-                                        crate::overlay::hide_overlay(&app_handle);
-                                    }
-                                }
-                                break 'outer true;
-                            }
-                        }
-                        Err(e) => {
-                            app_handle.emit("tts-queue-event", &QueueEvent::Error {
-                                id: Some(item.id),
-                                message: e,
-                            }).ok();
-
-                            {
-                                let mut q = queue.lock().await;
-                                q.retain(|i| i.id != item.id);
-                                let config = queue_config.lock().unwrap().clone();
-                                let items = q.iter().cloned().collect();
-                                queue::save_queue(&app_data_dir, &q)
-                                    .map_err(|e| eprintln!("Failed to save queue: {}", e))
-                                    .ok();
-                                app_handle.emit("tts-queue-event", &QueueEvent::QueueUpdated {
-                                    items,
-                                    auto_read: config.auto_read,
-                                    show_overlay: config.show_overlay,
-                                }).ok();
-                            }
-                            continue;
-                        }
-                    }
-                };
-
-                processor_running.store(false, Ordering::SeqCst);
-
-                if should_exit {
-                    break;
-                }
-            }
-        });
+        processor::run_processor(
+            self.queue.clone(),
+            self.queue_config.clone(),
+            self.backend.clone(),
+            self.app_data_dir.clone(),
+            self.stop_flag.clone(),
+            self.pause_flag.clone(),
+            self.playback_state.clone(),
+            self.notify.clone(),
+            self.processor_running.clone(),
+            self.app_handle.clone(),
+        );
     }
-}
-
-#[tauri::command]
-pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.speak(&text).await
-}
-
-#[tauri::command]
-pub fn tts_stop(app: AppHandle) {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.stop();
-}
-
-#[tauri::command]
-pub fn tts_get_config(app: AppHandle) -> Result<BackendConfig, String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    Ok(tts.get_config())
-}
-
-#[tauri::command]
-pub fn tts_set_config(app: AppHandle, config: BackendConfig) -> Result<(), String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.set_backend(config)
-}
-
-#[tauri::command]
-pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    let dir = &tts.resource_dir;
-
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper_models::VoiceCatalog, String> {
-    let manager = app.state::<SharedPiperModelManager>();
-    let mut manager = manager.lock().await;
-    manager.fetch_voices().await.cloned()
-}
-
-#[tauri::command]
-pub async fn piper_download_model(
-    app: AppHandle,
-    voice_key: String,
-) -> Result<piper_models::InstalledModel, String> {
-    let manager = app.state::<SharedPiperModelManager>();
-    let manager = manager.lock().await;
-    manager.download_voice(&voice_key, &app).await
-}
-
-#[tauri::command]
-pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper_models::InstalledModel>, String> {
-    let manager = app.state::<SharedPiperModelManager>();
-    let manager = manager.lock().await;
-    Ok(manager.list_installed())
-}
-
-#[tauri::command]
-pub async fn piper_delete_model(app: AppHandle, voice_key: String) -> Result<(), String> {
-    let manager = app.state::<SharedPiperModelManager>();
-    let manager = manager.lock().await;
-    manager.delete_model(&voice_key)
-}
-
-// --- Queue commands ---
-
-#[tauri::command]
-pub async fn tts_queue_add(app: AppHandle, text: String) -> Result<QueueItem, String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.queue_add(text).await
-}
-
-#[tauri::command]
-pub async fn tts_queue_remove(app: AppHandle, id: u32) {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.queue_remove(id).await;
-}
-
-#[tauri::command]
-pub async fn tts_queue_move(app: AppHandle, id: u32, index: usize) {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.queue_move(id, index).await;
-}
-
-#[tauri::command]
-pub async fn tts_queue_clear(app: AppHandle) {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.queue_clear().await;
-}
-
-#[tauri::command]
-pub async fn tts_queue_state(app: AppHandle) -> QueueSnapshot {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.queue_state().await
-}
-
-#[tauri::command]
-pub fn tts_pause(app: AppHandle) {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.pause();
-}
-
-#[tauri::command]
-pub async fn tts_resume(app: AppHandle) {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.resume();
-}
-
-#[tauri::command]
-pub fn tts_set_queue_config(app: AppHandle, config: QueueConfig) -> Result<(), String> {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.set_queue_config(config)
-}
-
-#[tauri::command]
-pub fn tts_get_queue_config(app: AppHandle) -> QueueConfig {
-    let tts = app.state::<Arc<TtsManager>>();
-    tts.get_queue_config()
 }

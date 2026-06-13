@@ -1,42 +1,22 @@
-import type { QueueItem, PlaybackState } from "../types/queue";
+import type { QueueItem } from "../types/queue";
 
 interface QueueListProps {
   items: QueueItem[];
-  current: QueueItem | null;
-  playback: PlaybackState;
   onRemove: (id: number) => void;
   onMove: (id: number, index: number) => void;
 }
 
 export function QueueList({
   items,
-  current,
-  playback,
   onRemove,
   onMove,
 }: QueueListProps) {
-  if (!current && items.length === 0) {
+  if (items.length === 0) {
     return <p className="queue-empty">Queue is empty. Use the hotkey to add text.</p>;
   }
 
   return (
     <div className="queue-list">
-      {current && (
-        <div className="queue-item queue-item-playing">
-          <div className="queue-item-info">
-            <span className="queue-now-playing">
-              {playback === "paused" ? "Paused" : "Playing"}
-            </span>
-            <span className="queue-item-text">{current.text}</span>
-          </div>
-          <button
-            onClick={() => onRemove(current.id)}
-            className="secondary queue-item-remove"
-          >
-            Skip
-          </button>
-        </div>
-      )}
       {items.map((item, index) => (
         <div key={item.id} className="queue-item">
           <div className="queue-item-info">

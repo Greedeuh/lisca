@@ -5,7 +5,6 @@ import { QueueList } from "./QueueList";
 export function TtsQueue() {
   const {
     items,
-    current,
     playback,
     autoRead,
     showOverlay,
@@ -32,12 +31,10 @@ export function TtsQueue() {
         onResume={resume}
         onStop={stop}
         onClear={clear}
-        disabled={items.length === 0 && !current}
+        disabled={items.length === 0}
       />
       <QueueList
         items={items}
-        current={current}
-        playback={playback}
         onRemove={remove}
         onMove={moveItem}
       />

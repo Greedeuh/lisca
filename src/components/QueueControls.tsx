@@ -57,7 +57,7 @@ export function QueueControls({
           />
           Auto-read
         </label>
-        <label className="queue-auto-read">
+        <label className="queue-toggle">
           <input
             type="checkbox"
             checked={showOverlay}

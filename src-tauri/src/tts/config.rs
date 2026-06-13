@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+use crate::persist;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum BackendConfig {
@@ -42,22 +44,10 @@ pub fn config_path(app_data_dir: &Path) -> PathBuf {
 
 pub fn load_config(app_data_dir: &Path) -> BackendConfig {
     let path = config_path(app_data_dir);
-    if !path.exists() {
-        return BackendConfig::default();
-    }
-    let data = match std::fs::read_to_string(&path) {
-        Ok(d) => d,
-        Err(_) => return BackendConfig::default(),
-    };
-    serde_json::from_str(&data).unwrap_or_default()
+    persist::load_json(&path)
 }
 
 pub fn save_config(app_data_dir: &Path, config: &BackendConfig) -> Result<(), String> {
     let path = config_path(app_data_dir);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let data = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    std::fs::write(path, data).map_err(|e| e.to_string())?;
-    Ok(())
+    persist::save_json(&path, config)
 }
