@@ -9,7 +9,8 @@ use tokio::sync::Mutex;
 use kokoro::KokoroModel;
 
 pub struct TtsManager {
-    backend: Mutex<Option<KokoroModel>>,
+    backend: Arc<std::sync::Mutex<Option<KokoroModel>>>,
+    loading: Arc<std::sync::atomic::AtomicBool>,
     system_tts: Mutex<tts::Tts>,
     _app_handle: AppHandle,
 }
@@ -19,7 +20,8 @@ impl TtsManager {
         let engine = tts::Tts::default().map_err(|e| format!("Failed to init system TTS: {}", e))?;
 
         let manager = Self {
-            backend: Mutex::new(None),
+            backend: Arc::new(std::sync::Mutex::new(None)),
+            loading: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             system_tts: Mutex::new(engine),
             _app_handle: app_handle,
         };
@@ -27,26 +29,52 @@ impl TtsManager {
         Ok(manager)
     }
 
-    /// Try to auto-load default model from models/ directory.
-    pub async fn auto_load(&self) {
+    /// Start loading model in background thread (non-blocking).
+    pub fn preload(&self) {
         let models_dir = Self::find_project_root().join("models");
 
         let model_path = models_dir.join("kokoro-q8.onnx");
         let voice_path = models_dir.join("voices/af.bin");
 
-        eprintln!("Looking for model at: {}", model_path.display());
-        eprintln!("Looking for voice at: {}", voice_path.display());
-
-        if model_path.exists() && voice_path.exists() {
-            let mp = model_path.display().to_string();
-            let vp = voice_path.display().to_string();
-            match self.load_model(&mp, &vp).await {
-                Ok(()) => eprintln!("Auto-loaded Kokoro model"),
-                Err(e) => eprintln!("Auto-load failed: {}", e),
-            }
-        } else {
-            eprintln!("Model files not found, skipping auto-load");
+        if !model_path.exists() || !voice_path.exists() {
+            eprintln!("Model files not found, skipping preload");
+            return;
         }
+
+        if self.loading.load(std::sync::atomic::Ordering::Relaxed)
+            || self.is_loaded()
+        {
+            return;
+        }
+
+        self.loading.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        let mp = model_path.display().to_string();
+        let vp = voice_path.display().to_string();
+
+        let backend = self.backend.clone();
+        let loading = self.loading.clone();
+
+        std::thread::spawn(move || {
+            eprintln!("Preloading Kokoro model...");
+            let start = std::time::Instant::now();
+
+            match KokoroModel::load(
+                std::path::Path::new(&mp),
+                std::path::Path::new(&vp),
+            ) {
+                Ok(model) => {
+                    *backend.lock().unwrap() = Some(model);
+                    eprintln!(
+                        "Kokoro model preloaded in {}ms",
+                        start.elapsed().as_millis()
+                    );
+                }
+                Err(e) => eprintln!("Preload failed: {}", e),
+            }
+
+            loading.store(false, std::sync::atomic::Ordering::Relaxed);
+        });
     }
 
     fn find_project_root() -> std::path::PathBuf {
@@ -108,7 +136,7 @@ impl TtsManager {
         .map_err(|e| format!("Task: {}", e))?
         .map_err(|e| format!("Load: {}", e))?;
 
-        *self.backend.lock().await = Some(model);
+        *self.backend.lock().unwrap() = Some(model);
         Ok(())
     }
 
@@ -118,17 +146,20 @@ impl TtsManager {
         }
 
         // Try Kokoro first
-        {
-            let mut backend = self.backend.lock().await;
+        let (audio, sample_rate) = {
+            let mut backend = self.backend.lock().unwrap();
             if let Some(ref mut model) = *backend {
                 let audio = model.synthesize(text, 1.0)?;
-                let sample_rate = model.sample_rate();
-                drop(backend);
-
-                // Play audio via rodio
-                self.play_audio(&audio, sample_rate).await?;
-                return Ok(());
+                let sr = model.sample_rate();
+                (Some(audio), sr)
+            } else {
+                (None, 22050)
             }
+        };
+
+        if let Some(audio) = audio {
+            self.play_audio(&audio, sample_rate).await?;
+            return Ok(());
         }
 
         // Fallback to system TTS
@@ -137,6 +168,12 @@ impl TtsManager {
             .speak(text, false)
             .map_err(|e| format!("System TTS: {}", e))?;
         Ok(())
+    }
+
+    fn is_loaded(&self) -> bool {
+        self.backend.try_lock()
+            .map(|b| b.is_some())
+            .unwrap_or(false)
     }
 
     async fn play_audio(&self, samples: &[f32], sample_rate: u32) -> Result<(), String> {
@@ -198,6 +235,6 @@ pub async fn tts_load_model(
 #[tauri::command]
 pub async fn tts_model_loaded(app: AppHandle) -> Result<bool, String> {
     let tts = app.state::<Arc<TtsManager>>();
-    let backend = tts.backend.lock().await;
+    let backend = tts.backend.lock().unwrap();
     Ok(backend.is_some())
 }

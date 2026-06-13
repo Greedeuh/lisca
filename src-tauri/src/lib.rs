@@ -18,10 +18,8 @@ pub fn run() {
             let tts = Arc::new(tts_manager);
             app.manage(tts.clone());
 
-            // Auto-load default model if present
-            tauri::async_runtime::spawn(async move {
-                tts.auto_load().await;
-            });
+            // Preload model in background thread (non-blocking)
+            tts.preload();
 
             Ok(())
         })
