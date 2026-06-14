@@ -5,6 +5,7 @@ use tauri::Manager;
 use super::config::BackendConfig;
 use super::piper_models;
 use super::queue::{QueueConfig, QueueItem, QueueSnapshot};
+use super::voice_mapping::VoiceMapping;
 use super::TtsManager;
 
 type SharedPiperModelManager = Arc<tokio::sync::Mutex<piper_models::PiperModelManager>>;
@@ -85,14 +86,21 @@ pub async fn piper_download_model(
 pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper_models::InstalledModel>, String> {
     let manager = app.state::<SharedPiperModelManager>();
     let manager = manager.lock().await;
-    Ok(manager.list_installed())
+    let models = manager.list_installed();
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.refresh_installed_models(models.clone());
+    Ok(models)
 }
 
 #[tauri::command]
 pub async fn piper_delete_model(app: AppHandle, voice_key: String) -> Result<(), String> {
     let manager = app.state::<SharedPiperModelManager>();
     let manager = manager.lock().await;
-    manager.delete_model(&voice_key)
+    manager.delete_model(&voice_key)?;
+    let models = manager.list_installed();
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.refresh_installed_models(models);
+    Ok(())
 }
 
 #[tauri::command]
@@ -147,4 +155,16 @@ pub fn tts_set_queue_config(app: AppHandle, config: QueueConfig) -> Result<(), S
 pub fn tts_get_queue_config(app: AppHandle) -> QueueConfig {
     let tts = app.state::<Arc<TtsManager>>();
     tts.get_queue_config()
+}
+
+#[tauri::command]
+pub fn tts_get_voice_mapping(app: AppHandle) -> VoiceMapping {
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.get_voice_mapping()
+}
+
+#[tauri::command]
+pub fn tts_set_voice_mapping(app: AppHandle, mapping: VoiceMapping) -> Result<(), String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.set_voice_mapping(mapping)
 }

@@ -8,6 +8,7 @@ pub mod piper_models;
 pub mod processor;
 pub mod queue;
 pub mod text;
+pub mod voice_mapping;
 
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -23,6 +24,7 @@ use piper::PiperModel;
 use self::config::BackendConfig;
 use self::piper_models::InstalledModel;
 use self::queue::{QueueConfig, QueueEvent, QueueItem, QueueSnapshot, PlaybackState};
+use self::voice_mapping::VoiceMapping;
 
 const AUDIO_CHANNEL_BUFFER: usize = 8;
 const DEFAULT_SAMPLE_RATE: u32 = 24000;
@@ -45,48 +47,83 @@ const STATE_PAUSED: u8 = PlaybackState::Paused as u8;
 
 pub(crate) struct BackendPool {
     primary: Option<Box<dyn TtsBackend>>,
-    piper_cache: HashMap<String, Box<dyn TtsBackend>>,
-    installed_models: Vec<InstalledModel>,
+    cache: HashMap<String, Box<dyn TtsBackend>>,
+    installed: Vec<InstalledModel>,
+    mapping: VoiceMapping,
     resource_dir: PathBuf,
     lru_order: VecDeque<String>,
 }
 
 impl BackendPool {
-    fn new(resource_dir: PathBuf) -> Self {
+    fn new(resource_dir: PathBuf, mapping: VoiceMapping) -> Self {
         Self {
             primary: None,
-            piper_cache: HashMap::new(),
-            installed_models: Vec::new(),
+            cache: HashMap::new(),
+            installed: Vec::new(),
+            mapping,
             resource_dir,
             lru_order: VecDeque::new(),
         }
     }
 
-    fn get_for_text(&mut self, text: &str) -> &mut dyn TtsBackend {
-        if let Some(family) = language::detect_language_family(text) {
-            if self.piper_cache.contains_key(family) {
-                self.touch_lru(family);
-                return &mut **self.piper_cache.get_mut(family).unwrap();
+    fn get_for_language(&mut self, language: Option<&str>) -> &mut dyn TtsBackend {
+        if let Some(voice_key) = self.mapping.resolve(language) {
+            let voice_key = voice_key.to_string();
+            if self.cache.contains_key(&voice_key) {
+                self.touch_lru(&voice_key);
+                return &mut **self.cache.get_mut(&voice_key).unwrap();
             }
-            if self.load_piper_for_family(family) {
-                self.touch_lru(family);
-                return &mut **self.piper_cache.get_mut(family).unwrap();
+            if self.load_by_voice_key(&voice_key) {
+                self.touch_lru(&voice_key);
+                return &mut **self.cache.get_mut(&voice_key).unwrap();
             }
         }
+
+        if let Some(lang) = language {
+            if let Some(model) = self.installed.iter().find(|m| m.language.family == lang) {
+                let voice_key = model.voice_key.clone();
+                if self.cache.contains_key(&voice_key) {
+                    self.touch_lru(&voice_key);
+                    return &mut **self.cache.get_mut(&voice_key).unwrap();
+                }
+                if self.load_by_voice_key(&voice_key) {
+                    self.touch_lru(&voice_key);
+                    return &mut **self.cache.get_mut(&voice_key).unwrap();
+                }
+            }
+        }
+
         &mut **self.primary.as_mut().unwrap()
     }
 
+    fn get_for_text(&mut self, text: &str) -> &mut dyn TtsBackend {
+        let lang = language::detect_language_family(text);
+        self.get_for_language(lang)
+    }
+
     fn sample_rate_for_text(&self, text: &str) -> u32 {
-        if let Some(family) = language::detect_language_family(text) {
-            if let Some(backend) = self.piper_cache.get(family) {
+        let lang = language::detect_language_family(text);
+        self.sample_rate_for_language(lang)
+    }
+
+    fn sample_rate_for_language(&self, language: Option<&str>) -> u32 {
+        if let Some(voice_key) = self.mapping.resolve(language) {
+            if let Some(backend) = self.cache.get(voice_key) {
                 return backend.sample_rate();
+            }
+        }
+        if let Some(lang) = language {
+            if let Some(model) = self.installed.iter().find(|m| m.language.family == lang) {
+                if let Some(backend) = self.cache.get(&model.voice_key) {
+                    return backend.sample_rate();
+                }
             }
         }
         self.primary.as_ref().map(|b| b.sample_rate()).unwrap_or(DEFAULT_SAMPLE_RATE)
     }
 
-    fn load_piper_for_family(&mut self, family: &str) -> bool {
-        let model = match self.installed_models.iter().find(|m| m.language.family == family) {
+    fn load_by_voice_key(&mut self, voice_key: &str) -> bool {
+        let model = match self.installed.iter().find(|m| m.voice_key == voice_key) {
             Some(m) => m.clone(),
             None => return false,
         };
@@ -98,36 +135,36 @@ impl BackendPool {
             return false;
         }
 
-        eprintln!("Loading Piper model for language: {} ({})", family, model.name);
+        eprintln!("Loading Piper model: {} ({})", voice_key, model.name);
         let start = std::time::Instant::now();
 
         match PiperModel::load(&mp, &cp, &self.resource_dir) {
             Ok(m) => {
                 eprintln!(
-                    "Piper model for {} loaded in {}ms",
-                    family,
+                    "Piper model {} loaded in {}ms",
+                    voice_key,
                     start.elapsed().as_millis()
                 );
                 self.evict_if_full();
-                self.piper_cache.insert(family.to_string(), Box::new(m));
+                self.cache.insert(voice_key.to_string(), Box::new(m));
                 true
             }
             Err(e) => {
-                eprintln!("Failed to load Piper model for {}: {}", family, e);
+                eprintln!("Failed to load Piper model {}: {}", voice_key, e);
                 false
             }
         }
     }
 
-    fn touch_lru(&mut self, family: &str) {
-        self.lru_order.retain(|f| f != family);
-        self.lru_order.push_back(family.to_string());
+    fn touch_lru(&mut self, voice_key: &str) {
+        self.lru_order.retain(|k| k != voice_key);
+        self.lru_order.push_back(voice_key.to_string());
     }
 
     fn evict_if_full(&mut self) {
-        while self.piper_cache.len() >= MAX_CACHED_PIPER_BACKENDS {
+        while self.cache.len() >= MAX_CACHED_PIPER_BACKENDS {
             if let Some(oldest) = self.lru_order.pop_front() {
-                self.piper_cache.remove(&oldest);
+                self.cache.remove(&oldest);
                 eprintln!("Evicted cached Piper backend: {}", oldest);
             } else {
                 break;
@@ -135,16 +172,20 @@ impl BackendPool {
         }
     }
 
+    fn set_mapping(&mut self, mapping: VoiceMapping) {
+        self.mapping = mapping;
+        self.cache.clear();
+        self.lru_order.clear();
+    }
+
     fn refresh_installed(&mut self, models: Vec<InstalledModel>) {
-        let new_families: std::collections::HashSet<&str> =
-            models.iter().map(|m| m.language.family.as_str()).collect();
+        let valid_keys: std::collections::HashSet<&str> =
+            models.iter().map(|m| m.voice_key.as_str()).collect();
 
-        self.piper_cache
-            .retain(|family, _| new_families.contains(family.as_str()));
-        self.lru_order
-            .retain(|family| new_families.contains(family.as_str()));
+        self.cache.retain(|key, _| valid_keys.contains(key.as_str()));
+        self.lru_order.retain(|key| valid_keys.contains(key.as_str()));
 
-        self.installed_models = models;
+        self.installed = models;
     }
 }
 
@@ -168,9 +209,10 @@ impl TtsManager {
         let queue = queue::load_queue(&app_data_dir);
         let queue_config = queue::load_queue_config(&app_data_dir);
         let next_id = queue.iter().map(|i| i.id).max().unwrap_or(0) + 1;
+        let mapping = voice_mapping::load(&app_data_dir);
 
         Self {
-            pool: Arc::new(std::sync::Mutex::new(BackendPool::new(resource_dir.clone()))),
+            pool: Arc::new(std::sync::Mutex::new(BackendPool::new(resource_dir.clone(), mapping))),
             app_data_dir,
             resource_dir,
             queue: Arc::new(tokio::sync::Mutex::new(queue)),
@@ -284,6 +326,16 @@ impl TtsManager {
         self.pool.lock().unwrap().refresh_installed(models);
     }
 
+    pub fn get_voice_mapping(&self) -> VoiceMapping {
+        voice_mapping::load(&self.app_data_dir)
+    }
+
+    pub fn set_voice_mapping(&self, mapping: VoiceMapping) -> Result<(), String> {
+        voice_mapping::save(&self.app_data_dir, &mapping)?;
+        self.pool.lock().unwrap().set_mapping(mapping);
+        Ok(())
+    }
+
     pub async fn speak(&self, text: &str) -> Result<(), String> {
         if text.trim().is_empty() {
             return Err("No text to speak".into());
@@ -383,9 +435,13 @@ impl TtsManager {
                 id
             };
 
+            let detected_lang = language::detect_language_family(&text)
+                .map(|s| s.to_string());
+
             let item = QueueItem {
                 id,
                 text: text.trim().to_string(),
+                language: detected_lang,
             };
             let was_empty = q.is_empty();
             q.push_back(item.clone());

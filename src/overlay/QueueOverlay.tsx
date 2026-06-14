@@ -49,6 +49,9 @@ export function QueueOverlay() {
           <div className="overlay-now-playing">
             <div className="overlay-now-label">
               {playback === "paused" ? "Paused" : "Playing"}
+              {current.language && (
+                <span className="overlay-lang-badge">{current.language}</span>
+              )}
             </div>
             <div className="overlay-now-text">{current.text}</div>
             <div className="overlay-now-actions">
@@ -71,6 +74,9 @@ export function QueueOverlay() {
           <div className="overlay-queue-list">
             {items.map((item) => (
               <div key={item.id} className="overlay-queue-item">
+                {item.language && (
+                  <span className="overlay-lang-badge">{item.language}</span>
+                )}
                 <span className="overlay-queue-text">{item.text}</span>
                 <button
                   className="overlay-btn-remove"

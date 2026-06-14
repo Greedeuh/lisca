@@ -45,7 +45,11 @@ fn setup_tts(app: &mut tauri::App, app_data_dir: &std::path::Path, resource_dir:
 fn setup_piper_models(app: &mut tauri::App, app_data_dir: &std::path::Path) {
     let mut manager = tts::piper_models::PiperModelManager::new(app_data_dir);
     manager.load_cached_voices();
+    let models = manager.list_installed();
     app.manage(Arc::new(tokio::sync::Mutex::new(manager)));
+
+    let tts = app.state::<Arc<TtsManager>>();
+    tts.refresh_installed_models(models);
 }
 
 fn setup_close_handler(app: &mut tauri::App) {
@@ -138,5 +142,7 @@ fn register_commands() -> impl Fn(tauri::ipc::Invoke) -> bool {
         tts::commands::tts_resume,
         tts::commands::tts_set_queue_config,
         tts::commands::tts_get_queue_config,
+        tts::commands::tts_get_voice_mapping,
+        tts::commands::tts_set_voice_mapping,
     ]
 }

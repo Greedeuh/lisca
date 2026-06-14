@@ -27,6 +27,9 @@ export function QueueList({
             <span className="queue-now-playing">
               {playback === "paused" ? "Paused" : "Playing"}
             </span>
+            {current.language && (
+              <span className="queue-lang-badge">{current.language}</span>
+            )}
             <span className="queue-item-text">{current.text}</span>
           </div>
           <button
@@ -41,6 +44,9 @@ export function QueueList({
         <div key={item.id} className="queue-item">
           <div className="queue-item-info">
             <span className="queue-item-index">{index + 1}</span>
+            {item.language && (
+              <span className="queue-lang-badge">{item.language}</span>
+            )}
             <span className="queue-item-text">{item.text}</span>
           </div>
           <div className="queue-item-actions">

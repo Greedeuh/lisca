@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { PiperModelPicker } from "./PiperModelPicker";
+import { VoiceMappingSettings } from "./VoiceMappingSettings";
+import type { InstalledModel } from "../types/piper";
 
 const STATUS_DURATION = 2000;
 
@@ -26,6 +28,7 @@ export function ModelConfig() {
   const [configPath, setConfigPath] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [installedModels, setInstalledModels] = useState<InstalledModel[]>([]);
   const statusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -43,6 +46,10 @@ export function ModelConfig() {
       })
       .catch((err) => setStatus("Failed to load config: " + err))
       .finally(() => setLoading(false));
+
+    invoke<InstalledModel[]>("piper_list_installed")
+      .then(setInstalledModels)
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -113,6 +120,9 @@ export function ModelConfig() {
               .then(() => {
                 setConfig(newConfig);
                 setStatus("Model activated");
+                invoke<InstalledModel[]>("piper_list_installed")
+                  .then(setInstalledModels)
+                  .catch(console.error);
               })
               .catch((err) => setStatus("Error: " + err))
               .finally(() => {
@@ -122,6 +132,10 @@ export function ModelConfig() {
               });
           }}
         />
+      )}
+
+      {backendType === "piper" && installedModels.length > 0 && (
+        <VoiceMappingSettings installedModels={installedModels} />
       )}
 
       <details className="advanced-section">

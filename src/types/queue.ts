@@ -1,6 +1,7 @@
 export interface QueueItem {
   id: number;
   text: string;
+  language: string | null;
 }
 
 export type PlaybackState = "idle" | "playing" | "paused";

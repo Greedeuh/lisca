@@ -11,6 +11,8 @@ const QUEUE_CONFIG_FILE: &str = "queue_config.json";
 pub struct QueueItem {
     pub id: u32,
     pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -141,7 +143,7 @@ mod tests {
 
     #[test]
     fn queue_item_serde_roundtrip() {
-        let item = QueueItem { id: 1, text: "hello world".into() };
+        let item = QueueItem { id: 1, text: "hello world".into(), language: None };
         let json = serde_json::to_string(&item).unwrap();
         let deserialized: QueueItem = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.id, 1);
@@ -167,7 +169,7 @@ mod tests {
     #[test]
     fn queue_event_serde_all_variants() {
         let events = vec![
-            QueueEvent::PlaybackStarted { item: QueueItem { id: 1, text: "hi".into() } },
+            QueueEvent::PlaybackStarted { item: QueueItem { id: 1, text: "hi".into(), language: None } },
             QueueEvent::ItemCompleted { id: 1 },
             QueueEvent::PlaybackPaused,
             QueueEvent::PlaybackResumed,
@@ -200,8 +202,8 @@ mod tests {
     fn save_and_load_queue() {
         let dir = tempfile::tempdir().unwrap();
         let mut queue = VecDeque::new();
-        queue.push_back(QueueItem { id: 1, text: "hello".into() });
-        queue.push_back(QueueItem { id: 2, text: "world".into() });
+        queue.push_back(QueueItem { id: 1, text: "hello".into(), language: None });
+        queue.push_back(QueueItem { id: 2, text: "world".into(), language: None });
         save_queue(dir.path(), &queue).unwrap();
         let loaded = load_queue(dir.path());
         assert_eq!(loaded.len(), 2);

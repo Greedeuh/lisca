@@ -112,6 +112,20 @@
   font-weight: 600;
   letter-spacing: 0.5px;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.overlay-lang-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: lowercase;
+  font-family: monospace;
+  letter-spacing: 0;
 }
 
 .overlay-now-text {
@@ -145,13 +159,17 @@
   align-items: center;
   justify-content: space-between;
   padding: 7px 10px;
-  gap: 8px;
+  gap: 6px;
   border-radius: 8px;
   transition: background 0.15s;
 }
 
 .overlay-queue-item:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+
+.overlay-queue-item .overlay-lang-badge {
+  flex-shrink: 0;
 }
 
 .overlay-queue-text {

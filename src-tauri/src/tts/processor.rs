@@ -92,10 +92,11 @@ pub fn run_processor(
                 }).ok();
 
                 let pool_clone = pool.clone();
+                let item_lang = item.language.clone();
                 let text = item.text.clone();
                 let synth_result = match tokio::task::spawn_blocking(move || {
                     let mut pool_guard = pool_clone.lock().unwrap();
-                    let model = pool_guard.get_for_text(&text);
+                    let model = pool_guard.get_for_language(item_lang.as_deref());
                     let chunks = split_text(&text);
                     let mut all_samples = Vec::new();
                     for chunk in &chunks {
@@ -117,10 +118,9 @@ pub fn run_processor(
 
                 match synth_result {
                     Ok(samples) => {
-                        let text_for_sr = item.text.clone();
                         let sample_rate = {
                             let guard = pool.lock().unwrap();
-                            guard.sample_rate_for_text(&text_for_sr)
+                            guard.sample_rate_for_language(item.language.as_deref())
                         };
 
                         playback_state.store(STATE_PLAYING.into(), Ordering::SeqCst);
