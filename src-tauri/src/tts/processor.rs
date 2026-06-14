@@ -70,14 +70,12 @@ pub fn run_processor(
                         let q_ref = queue.lock().await;
                         emit_queue_updated(&app_handle, &q_ref, &config);
                         drop(q_ref);
-                        if config.show_overlay {
-                            let main_visible = app_handle
-                                .get_webview_window("main")
-                                .map(|w| w.is_visible().unwrap_or(true))
-                                .unwrap_or(true);
-                            if !main_visible {
-                                crate::overlay::hide_overlay(&app_handle);
-                            }
+                        let main_visible = app_handle
+                            .get_webview_window("main")
+                            .map(|w| w.is_visible().unwrap_or(true))
+                            .unwrap_or(true);
+                        if !main_visible {
+                            crate::overlay::hide_overlay(&app_handle);
                         }
                         break 'outer true;
                     }
@@ -208,15 +206,12 @@ pub fn run_processor(
                         }).ok();
 
                         if !queue_config.lock().unwrap().auto_read {
-                            let cfg = queue_config.lock().unwrap().clone();
-                            if cfg.show_overlay {
-                                let main_visible = app_handle
-                                    .get_webview_window("main")
-                                    .map(|w| w.is_visible().unwrap_or(true))
-                                    .unwrap_or(true);
-                                if !main_visible {
-                                    crate::overlay::hide_overlay(&app_handle);
-                                }
+                            let main_visible = app_handle
+                                .get_webview_window("main")
+                                .map(|w| w.is_visible().unwrap_or(true))
+                                .unwrap_or(true);
+                            if !main_visible {
+                                crate::overlay::hide_overlay(&app_handle);
                             }
                             break 'outer true;
                         }

@@ -1,10 +1,19 @@
-use tauri::{AppHandle, Manager, WebviewWindowBuilder};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder};
 
 const OVERLAY_WIDTH: f64 = 320.0;
 const OVERLAY_HEIGHT: f64 = 400.0;
 const OVERLAY_MARGIN: f64 = 10.0;
 
+static POSITIONED: AtomicBool = AtomicBool::new(false);
+
+#[allow(unused_mut)]
 pub fn create_overlay(app: &AppHandle) {
+    #[cfg(target_os = "linux")]
+    let visible = true;
+    #[cfg(not(target_os = "linux"))]
+    let visible = false;
+
     let mut builder = WebviewWindowBuilder::new(
         app,
         "overlay",
@@ -19,7 +28,7 @@ pub fn create_overlay(app: &AppHandle) {
     .skip_taskbar(true)
     .shadow(false)
     .focused(false)
-    .visible(false)
+    .visible(visible)
     .accept_first_mouse(true);
 
     #[cfg(target_os = "windows")]
@@ -31,52 +40,68 @@ pub fn create_overlay(app: &AppHandle) {
 }
 
 pub fn show_overlay(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("overlay") {
-        position_top_right(app, &w);
-        let _ = w.show();
+    if !POSITIONED.swap(true, Ordering::SeqCst) {
+        if let Some(w) = app.get_webview_window("overlay") {
+            position_top_right(app, &w);
+        }
+    }
 
-        #[cfg(target_os = "windows")]
-        force_topmost(&w);
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app.emit("overlay-visibility", true);
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        if let Some(w) = app.get_webview_window("overlay") {
+            let _ = w.show();
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(w) = app.get_webview_window("overlay") {
+            force_topmost(&w);
+        }
     }
 }
 
 pub fn hide_overlay(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("overlay") {
-        let _ = w.hide();
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app.emit("overlay-visibility", false);
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        if let Some(w) = app.get_webview_window("overlay") {
+            let _ = w.hide();
+        }
     }
 }
 
 fn position_top_right(app: &AppHandle, window: &tauri::webview::WebviewWindow) {
-    if let Ok(monitors) = app.available_monitors() {
-        if let Some(monitor) = monitors.first() {
-            let scale = monitor.scale_factor();
-            let monitor_x = monitor.position().x as f64 / scale;
-            let monitor_y = monitor.position().y as f64 / scale;
-            let monitor_width = monitor.size().width as f64 / scale;
+    // Prefer the monitor the window is currently on
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten());
 
-            let x = monitor_x + monitor_width - OVERLAY_WIDTH - OVERLAY_MARGIN;
-            let y = monitor_y + OVERLAY_MARGIN;
+    let monitor = match monitor {
+        Some(m) => m,
+        None => return,
+    };
 
-            let _ = window.set_position(tauri::Position::Logical(
-                tauri::LogicalPosition { x, y },
-            ));
-            return;
-        }
-    }
+    let scale = monitor.scale_factor();
+    let monitor_x = monitor.position().x as f64 / scale;
+    let monitor_y = monitor.position().y as f64 / scale;
+    let monitor_width = monitor.size().width as f64 / scale;
 
-    if let Ok(Some(monitor)) = app.primary_monitor() {
-        let scale = monitor.scale_factor();
-        let monitor_x = monitor.position().x as f64 / scale;
-        let monitor_y = monitor.position().y as f64 / scale;
-        let monitor_width = monitor.size().width as f64 / scale;
+    let x = monitor_x + monitor_width - OVERLAY_WIDTH - OVERLAY_MARGIN;
+    let y = monitor_y + OVERLAY_MARGIN;
 
-        let x = monitor_x + (monitor_width - OVERLAY_WIDTH) / 2.0;
-        let y = monitor_y + OVERLAY_MARGIN;
-
-        let _ = window.set_position(tauri::Position::Logical(
-            tauri::LogicalPosition { x, y },
-        ));
-    }
+    let _ = window.set_position(tauri::Position::Logical(
+        tauri::LogicalPosition { x, y },
+    ));
 }
 
 #[cfg(target_os = "windows")]

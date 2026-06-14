@@ -41,7 +41,12 @@ pub fn run() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = win.hide();
-                    overlay::show_overlay(&app_handle);
+                    let app_data_dir = app_handle.path().app_data_dir().expect("no app data dir");
+                    let queue_config = tts::queue::load_queue_config(&app_data_dir);
+                    let queue = tts::queue::load_queue(&app_data_dir);
+                    if queue_config.show_overlay && !queue.is_empty() {
+                        overlay::show_overlay(&app_handle);
+                    }
                 }
             });
             drop(window);

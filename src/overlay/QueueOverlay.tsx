@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import { useTtsQueue } from "../hooks/useTtsQueue";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 
 export function QueueOverlay() {
   const {
@@ -7,28 +8,33 @@ export function QueueOverlay() {
     current,
     playback,
     autoRead,
-    showOverlay,
     remove,
     pause,
     resume,
     stop,
     clear,
     toggleAutoRead,
-    toggleShowOverlay,
+    hideOverlay,
   } = useTtsQueue();
+
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const unlisten = listen<boolean>("overlay-visibility", (event) => {
+      setVisible(event.payload);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, []);
 
   const totalItems = items.length + (current ? 1 : 0);
 
   const handleToggleOverlay = async () => {
-    await toggleShowOverlay();
-    if (showOverlay) {
-      getCurrentWindow().hide();
-    }
+    await hideOverlay();
   };
 
   return (
-    <div className="queue-overlay">
-      <div className="overlay-header">
+    <div className={`queue-overlay${visible ? "" : " hidden"}`}>
+      <div className="overlay-header" data-tauri-drag-region>
         <span className="overlay-title">Lisca</span>
         <div className="overlay-header-right">
           <label className="overlay-auto-read">

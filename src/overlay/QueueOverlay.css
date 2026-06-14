@@ -1,6 +1,6 @@
 .queue-overlay {
-  width: 300px;
-  height: 380px;
+  width: 320px;
+  height: 400px;
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
@@ -18,11 +18,17 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
+.queue-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .overlay-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 14px 18px 10px;
+  cursor: grab;
 }
 
 .overlay-title {

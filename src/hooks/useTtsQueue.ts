@@ -117,6 +117,17 @@ export function useTtsQueue() {
     }
   }, [showOverlay, autoRead]);
 
+  const hideOverlay = useCallback(async () => {
+    setShowOverlay(false);
+    try {
+      await invoke("tts_set_queue_config", {
+        config: { max_items: DEFAULT_MAX_ITEMS, auto_read: autoRead, show_overlay: false } as QueueConfig,
+      });
+    } catch {
+      setShowOverlay(true);
+    }
+  }, [autoRead]);
+
   return {
     items,
     current,
@@ -132,5 +143,6 @@ export function useTtsQueue() {
     stop,
     toggleAutoRead,
     toggleShowOverlay,
+    hideOverlay,
   };
 }
