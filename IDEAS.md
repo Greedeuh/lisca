@@ -4,8 +4,6 @@ Feature ideas for Lisca — Text to Speech app.
 
 ## Core Experience
 
-- **Auto-copy on hotkey**: Simulate Ctrl+C before reading clipboard, so user just selects text + presses hotkey
-- **Selection reading**: Use accessibility APIs to read selected text directly without clipboard (no Ctrl+C needed)
 - **Stop on re-press**: Press hotkey again to interrupt current speech
 
 ## Queue System
