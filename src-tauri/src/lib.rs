@@ -1,3 +1,4 @@
+mod clipboard;
 mod hotkey;
 mod overlay;
 mod persist;

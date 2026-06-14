@@ -3,17 +3,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Manager;
-use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
+use crate::clipboard;
 use crate::tts::TtsManager;
-
-fn read_clipboard_text(app: &AppHandle) -> Result<String, String> {
-    app.clipboard()
-        .read_text()
-        .map_err(|e| format!("Clipboard read failed: {}", e))
-        .map(|s| s.to_string())
-}
 
 fn hotkey_path(app: &AppHandle) -> PathBuf {
     let dir = app.path().app_data_dir().expect("no app data dir");
@@ -188,14 +181,13 @@ pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
                 let tts = tts.clone();
                 let app_handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    match read_clipboard_text(&app_handle) {
-                        Ok(text) if !text.is_empty() => {
+                    match clipboard::auto_copy_and_read(&app_handle) {
+                        Some(text) => {
                             if let Err(e) = tts.queue_add(text).await {
                                 eprintln!("Queue error: {}", e);
                             }
                         }
-                        Ok(_) => eprintln!("Clipboard is empty"),
-                        Err(e) => eprintln!("Clipboard error: {}", e),
+                        None => eprintln!("No text selected"),
                     }
                 });
             }
