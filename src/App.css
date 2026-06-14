@@ -93,23 +93,6 @@ h1 { text-align: center; margin-bottom: 32px; }
   font-weight: 500;
 }
 
-.advanced-section {
-  margin-top: 16px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 12px;
-}
-
-.advanced-section summary {
-  cursor: pointer;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  font-size: 0.9em;
-}
-
-.advanced-section summary:hover {
-  color: #333;
-}
-
 button {
   border-radius: 8px;
   border: none;
@@ -673,9 +656,6 @@ button.secondary:hover:not(:disabled) {
   .hint { color: var(--color-text-hint); }
   .status { color: var(--color-text-status); }
   .field input { background: var(--color-bg-input); border-color: var(--color-border-input); color: #f6f6f6; }
-  .advanced-section { border-top-color: var(--color-border); }
-  .advanced-section summary { color: var(--color-text-muted); }
-  .advanced-section summary:hover { color: #ddd; }
   .picker-body { border-color: var(--color-border); }
   .picker-error { background: var(--color-error-bg); border-color: var(--color-error-border); }
   .picker-error p { color: var(--color-error-text); }
