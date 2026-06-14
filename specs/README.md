@@ -7,7 +7,7 @@ Text-to-speech desktop app built with Tauri v2 (React/TypeScript frontend, Rust 
 | Spec | Description |
 |------|-------------|
 | [Hotkey](hotkey.md) | Global keyboard shortcut to enqueue clipboard text for speech |
-| [TTS Backend](tts-backend.md) | Dual ONNX engines (Kokoro + Piper) with runtime switching |
+| [TTS Backend](tts-backend.md) | Dual ONNX engines (Kokoro + Piper) with language-based routing |
 | [Voice Catalog](voice-catalog.md) | Browse, search, download, and manage Piper voice models |
 | [Queue](queue.md) | Persistent TTS playback queue with controls |
 | [Overlay](overlay.md) | Floating transparent queue window (frosted glass) |

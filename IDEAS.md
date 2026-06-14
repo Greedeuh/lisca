@@ -6,15 +6,10 @@ Feature ideas for Lisca — Text to Speech app.
 
 - **Stop on re-press**: Press hotkey again to interrupt current speech
 
-## Queue System
-
-- **Refine**
-
 ## Voice & Model
 
 - **Speed control**: Adjustable speech rate slider
 - **Multi-binding**: Multiple hotkeys mapped to different languages/models — e.g. Ctrl+Shift+1 for English, Ctrl+Shift+2 for French
-- **Auto-detect language**: Use text heuristics (character ranges, common words) or a lightweight classifier to pick the right voice automatically
 - **Auto-translate to voice language**: If selected text is in a different language than the active voice, translate it before synthesis (e.g. German text + English voice → translate to English first)
 
 ## Audio

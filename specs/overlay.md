@@ -6,8 +6,8 @@ A transparent, always-on-top floating window that shows the queue status and pla
 ## Scenarios
 
 - **As a user**, when I close the main window, a floating overlay appears showing my queue — if the "Show overlay" setting is enabled and the queue is not empty.
-- **As a user**, the overlay shows the currently playing item with play/pause and skip buttons, so I can control playback without opening the main window.
-- **As a user**, the overlay shows pending queue items with remove buttons, so I can manage the queue at a glance.
+- **As a user**, the overlay shows the currently playing item with its detected language badge, play/pause and skip buttons, so I can control playback without opening the main window.
+- **As a user**, the overlay shows pending queue items with their detected language badges and remove buttons, so I can manage the queue at a glance.
 - **As a user**, I can drag the overlay by its header to reposition it anywhere on screen.
 - **As a user**, I can toggle "Auto-read" from the overlay header.
 - **As a user**, I can close the overlay with the ✕ button — this also disables the "Show overlay" setting.

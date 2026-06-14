@@ -1,7 +1,7 @@
 # TTS Queue
 
 ## Feature
-A persistent, ordered queue of text items to be spoken sequentially, with full playback controls.
+A persistent, ordered queue of text items to be spoken sequentially, with full playback controls and automatic language detection.
 
 ## Scenarios
 
@@ -13,6 +13,11 @@ A persistent, ordered queue of text items to be spoken sequentially, with full p
 - **As a user**, I can reorder items in the queue by dragging them, so I can prioritize what I want to hear first.
 - **As a user**, I can clear the entire queue at once, which also stops any current playback.
 - **As a user**, the queue persists across app restarts, so I don't lose queued items when I close and reopen the app.
+
+### Language Detection
+- **As a user**, when I add text to the queue, its language is automatically detected and shown as a badge on the item.
+- **As a user**, the detected language determines which voice model is used for synthesis — if a matching installed model exists, it is loaded automatically.
+- **As a user**, if no installed model matches the detected language, the fallback voice (or primary backend) is used.
 
 ### Playback Controls
 - **As a user**, I can pause playback and resume it from where it left off.
@@ -29,7 +34,9 @@ A persistent, ordered queue of text items to be spoken sequentially, with full p
 ## Key Files
 - `src-tauri/src/tts/queue.rs` — data types, file persistence
 - `src-tauri/src/tts/processor.rs` — async playback loop
-- `src-tauri/src/tts/mod.rs` — queue management methods
+- `src-tauri/src/tts/mod.rs` — queue management methods, BackendPool
+- `src-tauri/src/tts/language.rs` — whatlang-based language detection
+- `src-tauri/src/tts/voice_mapping.rs` — language-to-voice resolution
 - `src/hooks/useTtsQueue.ts` — frontend state hook
 - `src/components/TtsQueue.tsx` — main queue UI
 - `src/components/QueueList.tsx` — queue item list
