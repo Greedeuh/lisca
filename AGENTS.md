@@ -10,8 +10,9 @@ Lisca — a Tauri v2 desktop app for text-to-speech. React/TypeScript frontend, 
 - **Frontend only (Vite):** `bun run dev` (port 1420)
 - **Build:** `bun run tauri build`
 - **Type check:** `bun run build` (runs `tsc && vite build`)
-
-No lint, test, or CI pipelines are configured.
+- **Rust tests:** `cargo test` (from `src-tauri/`)
+- **Frontend tests:** `bun run test` (vitest)
+- **CI:** `.github/workflows/test.yml` — runs `cargo test`, `bun run build`, `bun run vitest run`
 
 ## Package manager
 
@@ -31,7 +32,9 @@ Uses **bun**, not npm or yarn. The lockfile is `bun.lock`.
 
 - React 18 + TypeScript + Vite
 - Entry: `src/main.tsx` → `src/App.tsx`
-- Single component: `HotkeyRecorder` (record/set global hotkey)
+- Components: `HotkeyRecorder`, `ModelConfig`, `PiperModelPicker`, `VoiceBrowser`, `VoiceRow`, `InstalledModels`, `DownloadProgress`, `TtsQueue`, `QueueControls`, `QueueList`
+- Overlay: `src/overlay/QueueOverlay.tsx` (separate window)
+- Hooks: `useTtsQueue` (queue state + events), `usePiperModels` (catalog/download state)
 - Uses `@tauri-apps/api/core` `invoke()` to call Rust commands
 - `@tauri-apps/plugin-global-shortcut` registered
 
@@ -45,7 +48,13 @@ Core flow: user selects text → presses hotkey → Rust reads clipboard → Kok
 
 - `tauri.conf.json` — `devUrl: http://localhost:1420`, `beforeDevCommand: "bun run dev"`
 - `src-tauri/capabilities/default.json` — permissions: `core:default`, `global-shortcut:allow-register`, `global-shortcut:allow-unregister`
-- CSP is disabled (`"csp": null`)
+- CSP is disabled (`"cstrl": null`)
+
+## Testing
+
+- `.claude/skills/lisca-testing/SKILL.md` — what to test, what to skip, patterns
+- `docs/testing-strategy.md` — current strategy (Layer 1 + Layer 3a)
+- `docs/testing-future.md` — deferred layers (Layer 2, 3b, 3c, 4)
 
 ## Tauri gotcha
 
