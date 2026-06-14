@@ -85,6 +85,7 @@ pub enum QueueEvent {
         id: Option<u32>,
         message: String,
     },
+    ProcessorIdle,
 }
 
 // --- File persistence ---

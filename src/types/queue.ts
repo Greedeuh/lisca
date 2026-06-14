@@ -26,4 +26,5 @@ export type QueueEvent =
   | { type: "playback_resumed" }
   | { type: "playback_stopped" }
   | { type: "queue_updated"; items: QueueItem[]; auto_read: boolean; show_overlay: boolean }
-  | { type: "error"; id: number | null; message: string };
+  | { type: "error"; id: number | null; message: string }
+  | { type: "processor_idle" };

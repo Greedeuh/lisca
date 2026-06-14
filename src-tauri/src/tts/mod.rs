@@ -2,17 +2,20 @@ mod kokoro;
 mod language;
 mod piper;
 mod session;
+pub mod audio;
 pub mod commands;
 pub mod config;
+pub mod playback;
 pub mod piper_models;
 pub mod processor;
 pub mod queue;
+pub mod queue_manager;
 pub mod text;
 pub mod voice_mapping;
 
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
@@ -22,8 +25,10 @@ use kokoro::KokoroModel;
 use piper::PiperModel;
 
 use self::config::BackendConfig;
+use self::playback::{PlaybackController, STATE_IDLE, STATE_PAUSED, STATE_PLAYING};
 use self::piper_models::InstalledModel;
-use self::queue::{QueueConfig, QueueEvent, QueueItem, QueueSnapshot, PlaybackState};
+use self::queue::{QueueConfig, QueueEvent, QueueItem, QueueSnapshot};
+use self::queue_manager::QueueManager;
 use self::voice_mapping::VoiceMapping;
 
 const AUDIO_CHANNEL_BUFFER: usize = 8;
@@ -40,10 +45,6 @@ enum AudioChunk {
     Samples(Vec<f32>),
     Eof,
 }
-
-const STATE_IDLE: u8 = PlaybackState::Idle as u8;
-const STATE_PLAYING: u8 = PlaybackState::Playing as u8;
-const STATE_PAUSED: u8 = PlaybackState::Paused as u8;
 
 pub(crate) struct BackendPool {
     primary: Option<Box<dyn TtsBackend>>,
@@ -66,33 +67,35 @@ impl BackendPool {
         }
     }
 
+    fn resolve_voice_key(&self, language: Option<&str>) -> Option<String> {
+        if let Some(key) = self.mapping.resolve(language) {
+            return Some(key.to_string());
+        }
+        language.and_then(|lang| {
+            self.installed.iter()
+                .find(|m| m.language.family == lang)
+                .map(|m| m.voice_key.clone())
+        })
+    }
+
+    fn ensure_cached(&mut self, voice_key: &str) -> bool {
+        if self.cache.contains_key(voice_key) {
+            self.touch_lru(voice_key);
+            return true;
+        }
+        if self.load_by_voice_key(voice_key) {
+            self.touch_lru(voice_key);
+            return true;
+        }
+        false
+    }
+
     fn get_for_language(&mut self, language: Option<&str>) -> &mut dyn TtsBackend {
-        if let Some(voice_key) = self.mapping.resolve(language) {
-            let voice_key = voice_key.to_string();
-            if self.cache.contains_key(&voice_key) {
-                self.touch_lru(&voice_key);
-                return &mut **self.cache.get_mut(&voice_key).unwrap();
-            }
-            if self.load_by_voice_key(&voice_key) {
-                self.touch_lru(&voice_key);
-                return &mut **self.cache.get_mut(&voice_key).unwrap();
+        if let Some(key) = self.resolve_voice_key(language) {
+            if self.ensure_cached(&key) {
+                return &mut **self.cache.get_mut(&key).unwrap();
             }
         }
-
-        if let Some(lang) = language {
-            if let Some(model) = self.installed.iter().find(|m| m.language.family == lang) {
-                let voice_key = model.voice_key.clone();
-                if self.cache.contains_key(&voice_key) {
-                    self.touch_lru(&voice_key);
-                    return &mut **self.cache.get_mut(&voice_key).unwrap();
-                }
-                if self.load_by_voice_key(&voice_key) {
-                    self.touch_lru(&voice_key);
-                    return &mut **self.cache.get_mut(&voice_key).unwrap();
-                }
-            }
-        }
-
         &mut **self.primary.as_mut().unwrap()
     }
 
@@ -107,16 +110,9 @@ impl BackendPool {
     }
 
     fn sample_rate_for_language(&self, language: Option<&str>) -> u32 {
-        if let Some(voice_key) = self.mapping.resolve(language) {
-            if let Some(backend) = self.cache.get(voice_key) {
+        if let Some(key) = self.resolve_voice_key(language) {
+            if let Some(backend) = self.cache.get(&key) {
                 return backend.sample_rate();
-            }
-        }
-        if let Some(lang) = language {
-            if let Some(model) = self.installed.iter().find(|m| m.language.family == lang) {
-                if let Some(backend) = self.cache.get(&model.voice_key) {
-                    return backend.sample_rate();
-                }
             }
         }
         self.primary.as_ref().map(|b| b.sample_rate()).unwrap_or(DEFAULT_SAMPLE_RATE)
@@ -193,36 +189,23 @@ pub struct TtsManager {
     pool: Arc<std::sync::Mutex<BackendPool>>,
     pub(crate) app_data_dir: PathBuf,
     pub(crate) resource_dir: PathBuf,
-    queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
-    queue_config: Arc<std::sync::Mutex<QueueConfig>>,
-    next_id: Arc<std::sync::Mutex<u32>>,
+    queue_mgr: QueueManager,
     pub(crate) app_handle: AppHandle,
-    stop_flag: Arc<AtomicBool>,
-    pause_flag: Arc<AtomicBool>,
-    playback_state: Arc<AtomicU8>,
-    notify: Arc<tokio::sync::Notify>,
+    playback: PlaybackController,
     processor_running: Arc<AtomicBool>,
 }
 
 impl TtsManager {
     pub fn new(app_data_dir: PathBuf, resource_dir: PathBuf, app_handle: AppHandle) -> Self {
-        let queue = queue::load_queue(&app_data_dir);
-        let queue_config = queue::load_queue_config(&app_data_dir);
-        let next_id = queue.iter().map(|i| i.id).max().unwrap_or(0) + 1;
         let mapping = voice_mapping::load(&app_data_dir);
 
         Self {
             pool: Arc::new(std::sync::Mutex::new(BackendPool::new(resource_dir.clone(), mapping))),
-            app_data_dir,
+            app_data_dir: app_data_dir.clone(),
             resource_dir,
-            queue: Arc::new(tokio::sync::Mutex::new(queue)),
-            queue_config: Arc::new(std::sync::Mutex::new(queue_config)),
-            next_id: Arc::new(std::sync::Mutex::new(next_id)),
+            queue_mgr: QueueManager::new(app_data_dir),
             app_handle,
-            stop_flag: Arc::new(AtomicBool::new(false)),
-            pause_flag: Arc::new(AtomicBool::new(false)),
-            playback_state: Arc::new(AtomicU8::new(STATE_IDLE)),
-            notify: Arc::new(tokio::sync::Notify::new()),
+            playback: PlaybackController::new(),
             processor_running: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -373,31 +356,26 @@ impl TtsManager {
         };
 
         let play_handle = tokio::task::spawn_blocking(move || {
-            use rodio::buffer::SamplesBuffer;
-            use rodio::{OutputStream, Sink};
-
-            let (_stream, handle) =
-                OutputStream::try_default().expect("Failed to open audio output");
-            let sink = Sink::try_new(&handle).expect("Failed to create audio sink");
+            let output = match audio::AudioOutput::try_new() {
+                Ok(o) => o,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return;
+                }
+            };
 
             loop {
                 let chunk = audio_rx.blocking_recv();
                 match chunk {
                     Some(AudioChunk::Samples(samples)) => {
-                        let i16_samples: Vec<i16> = samples
-                            .iter()
-                            .map(|s| (s * I16_SAMPLE_SCALE).clamp(-32768.0, I16_SAMPLE_SCALE) as i16)
-                            .collect();
-                        let buffer = SamplesBuffer::new(1, sample_rate, i16_samples);
-                        sink.append(buffer);
+                        let i16_samples = audio::f32_to_i16(&samples);
+                        output.play_buffer(i16_samples, sample_rate);
                     }
                     _ => break,
                 }
             }
 
-            sink.sleep_until_end();
-            drop(sink);
-            drop(_stream);
+            output.sleep_until_end();
         });
 
         let _ = synth_handle.await;
@@ -407,60 +385,27 @@ impl TtsManager {
     }
 
     pub fn stop(&self) {
-        self.stop_flag.store(true, Ordering::SeqCst);
-        self.pause_flag.store(false, Ordering::SeqCst);
-        self.playback_state.store(STATE_IDLE, Ordering::SeqCst);
-        self.notify.notify_one();
+        self.playback.stop();
     }
 
     // --- Queue methods ---
 
     pub async fn queue_add(&self, text: String) -> Result<QueueItem, String> {
-        if text.trim().is_empty() {
-            return Err("No text to speak".into());
-        }
+        let was_empty = self.queue_mgr.is_empty().await;
+        let item = self.queue_mgr.add(text).await?;
 
-        let (item, notify_needed) = {
-            let config = self.queue_config.lock().unwrap().clone();
-            let mut q = self.queue.lock().await;
+        let config = self.queue_mgr.get_config();
+        let q = self.queue_mgr.queue_arc();
+        let items: Vec<QueueItem> = q.lock().await.iter().cloned().collect();
+        self.emit_event(QueueEvent::QueueUpdated {
+            items,
+            auto_read: config.auto_read,
+            show_overlay: config.show_overlay,
+        });
 
-            if q.len() >= config.max_items {
-                return Err(format!("Queue is full (max {})", config.max_items));
-            }
-
-            let id = {
-                let mut next = self.next_id.lock().unwrap();
-                let id = *next;
-                *next += 1;
-                id
-            };
-
-            let detected_lang = language::detect_language_family(&text)
-                .map(|s| s.to_string());
-
-            let item = QueueItem {
-                id,
-                text: text.trim().to_string(),
-                language: detected_lang,
-            };
-            let was_empty = q.is_empty();
-            q.push_back(item.clone());
-
-            let items: Vec<QueueItem> = q.iter().cloned().collect();
-            queue::save_queue(&self.app_data_dir, &q)
-                .map_err(|e| eprintln!("Failed to save queue: {}", e))
-                .ok();
-
-            let auto_read = config.auto_read;
-            let show_overlay = config.show_overlay;
-            self.emit_event(QueueEvent::QueueUpdated { items, auto_read, show_overlay });
-
-            (item, was_empty)
-        };
-
-        if notify_needed {
+        if was_empty {
             self.spawn_processor_if_needed();
-            self.notify.notify_one();
+            self.playback.notify().notify_one();
         }
 
         self.sync_overlay(true);
@@ -469,13 +414,10 @@ impl TtsManager {
     }
 
     pub async fn queue_remove(&self, id: u32) {
-        let mut q = self.queue.lock().await;
-        q.retain(|i| i.id != id);
-        let items: Vec<QueueItem> = q.iter().cloned().collect();
-        let config = self.queue_config.lock().unwrap().clone();
-        queue::save_queue(&self.app_data_dir, &q)
-            .map_err(|e| eprintln!("Failed to save queue: {}", e))
-            .ok();
+        self.queue_mgr.remove(id).await;
+        let config = self.queue_mgr.get_config();
+        let q = self.queue_mgr.queue_arc();
+        let items: Vec<QueueItem> = q.lock().await.iter().cloned().collect();
         self.emit_event(QueueEvent::QueueUpdated {
             items,
             auto_read: config.auto_read,
@@ -484,28 +426,10 @@ impl TtsManager {
     }
 
     pub async fn queue_move(&self, id: u32, new_index: usize) {
-        let mut q = self.queue.lock().await;
-        let old_pos = match q.iter().position(|i| i.id == id) {
-            Some(p) => p,
-            None => return,
-        };
-
-        let new_pos = new_index.min(q.len().saturating_sub(1));
-        if old_pos == new_pos {
-            return;
-        }
-
-        let item = match q.remove(old_pos) {
-            Some(item) => item,
-            None => return,
-        };
-        q.insert(new_pos, item);
-
-        let items: Vec<QueueItem> = q.iter().cloned().collect();
-        let config = self.queue_config.lock().unwrap().clone();
-        queue::save_queue(&self.app_data_dir, &q)
-            .map_err(|e| eprintln!("Failed to save queue: {}", e))
-            .ok();
+        self.queue_mgr.move_item(id, new_index).await;
+        let config = self.queue_mgr.get_config();
+        let q = self.queue_mgr.queue_arc();
+        let items: Vec<QueueItem> = q.lock().await.iter().cloned().collect();
         self.emit_event(QueueEvent::QueueUpdated {
             items,
             auto_read: config.auto_read,
@@ -514,17 +438,9 @@ impl TtsManager {
     }
 
     pub async fn queue_clear(&self) {
-        self.stop_flag.store(true, Ordering::SeqCst);
-        self.pause_flag.store(false, Ordering::SeqCst);
-        self.playback_state.store(STATE_IDLE, Ordering::SeqCst);
-        self.notify.notify_one();
-
-        let mut q = self.queue.lock().await;
-        q.clear();
-        let config = self.queue_config.lock().unwrap().clone();
-        queue::save_queue(&self.app_data_dir, &q)
-            .map_err(|e| eprintln!("Failed to save queue: {}", e))
-            .ok();
+        self.playback.stop();
+        self.queue_mgr.clear().await;
+        let config = self.queue_mgr.get_config();
         self.emit_event(QueueEvent::QueueUpdated {
             items: vec![],
             auto_read: config.auto_read,
@@ -534,48 +450,37 @@ impl TtsManager {
     }
 
     pub async fn queue_state(&self) -> QueueSnapshot {
-        let items = self.queue.lock().await;
-        let config = self.queue_config.lock().unwrap().clone();
-        let playback = PlaybackState::from(self.playback_state.load(Ordering::SeqCst));
-        QueueSnapshot {
-            items: items.iter().cloned().collect(),
-            playback,
-            auto_read: config.auto_read,
-            show_overlay: config.show_overlay,
-        }
+        let mut snap = self.queue_mgr.snapshot().await;
+        snap.playback = self.playback.playback_state();
+        snap
     }
 
     pub fn pause(&self) {
-        if self.playback_state.load(Ordering::SeqCst) == STATE_PLAYING {
-            self.pause_flag.store(true, Ordering::SeqCst);
-            self.playback_state.store(STATE_PAUSED, Ordering::SeqCst);
+        self.playback.pause();
+        if !self.playback.is_idle() {
             self.emit_event(QueueEvent::PlaybackPaused);
         }
     }
 
     pub fn resume(&self) {
-        if self.playback_state.load(Ordering::SeqCst) == STATE_PAUSED {
-            self.pause_flag.store(false, Ordering::SeqCst);
-            self.playback_state.store(STATE_PLAYING, Ordering::SeqCst);
-            self.notify.notify_one();
+        if !self.playback.is_idle() {
+            self.playback.resume();
             self.emit_event(QueueEvent::PlaybackResumed);
-        } else if self.playback_state.load(Ordering::SeqCst) == STATE_IDLE {
-            let has_items = self.queue.try_lock().map(|q| !q.is_empty()).unwrap_or(false);
+        } else {
+            let has_items = !self.queue_mgr.is_empty_sync();
             if has_items {
                 self.spawn_processor_if_needed();
-                self.notify.notify_one();
+                self.playback.notify().notify_one();
             }
         }
     }
 
     pub fn get_queue_config(&self) -> QueueConfig {
-        self.queue_config.lock().unwrap().clone()
+        self.queue_mgr.get_config()
     }
 
     pub fn set_queue_config(&self, config: QueueConfig) -> Result<(), String> {
-        queue::save_queue_config(&self.app_data_dir, &config)?;
-        *self.queue_config.lock().unwrap() = config;
-        Ok(())
+        self.queue_mgr.set_config(config)
     }
 
     // --- Internal ---
@@ -591,7 +496,7 @@ impl TtsManager {
         if self.is_main_window_visible() {
             return;
         }
-        let show = self.queue_config.lock().unwrap().show_overlay;
+        let show = self.queue_mgr.get_config().show_overlay;
         if !show {
             crate::overlay::hide_overlay(&self.app_handle);
             return;
@@ -613,14 +518,14 @@ impl TtsManager {
         }
 
         processor::run_processor(
-            self.queue.clone(),
-            self.queue_config.clone(),
+            self.queue_mgr.queue_arc(),
+            self.queue_mgr.config_arc(),
             self.pool.clone(),
             self.app_data_dir.clone(),
-            self.stop_flag.clone(),
-            self.pause_flag.clone(),
-            self.playback_state.clone(),
-            self.notify.clone(),
+            self.playback.stop_flag(),
+            self.playback.pause_flag(),
+            self.playback.state_arc(),
+            self.playback.notify(),
             self.processor_running.clone(),
             self.app_handle.clone(),
         );

@@ -55,6 +55,10 @@ export function useTtsQueue() {
           setCurrent(null);
           setPlayback("idle");
           break;
+        case "processor_idle":
+          setCurrent(null);
+          setPlayback("idle");
+          break;
         case "error":
           console.error("TTS error:", e.message);
           break;
