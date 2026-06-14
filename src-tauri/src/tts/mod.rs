@@ -333,7 +333,10 @@ impl TtsManager {
             return;
         }
 
-        let item = q.remove(old_pos).unwrap();
+        let item = match q.remove(old_pos) {
+            Some(item) => item,
+            None => return,
+        };
         q.insert(new_pos, item);
 
         let items: Vec<QueueItem> = q.iter().cloned().collect();

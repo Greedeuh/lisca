@@ -33,7 +33,10 @@ pub fn run() {
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
-            let window = app.get_webview_window("main").unwrap();
+            let window = match app.get_webview_window("main") {
+                Some(w) => w,
+                None => return Ok(()),
+            };
 
             let win = window.clone();
             let app_handle = app.handle().clone();
@@ -52,7 +55,9 @@ pub fn run() {
             drop(window);
 
             TrayIconBuilder::with_id("main-tray")
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(app.default_window_icon()
+                    .expect("no default window icon — check tauri.conf.json bundle.icon")
+                    .clone())
                 .tooltip("Lisca")
                 .menu(&menu)
                 .show_menu_on_left_click(false)

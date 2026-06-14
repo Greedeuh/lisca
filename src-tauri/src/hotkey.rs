@@ -85,6 +85,93 @@ fn parse_shortcut(shortcut: &str) -> Result<(Modifiers, Code), String> {
     Ok((mods, code))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ctrl_shift_letter() {
+        let (mods, code) = parse_shortcut("Control+Shift+K").unwrap();
+        assert!(mods.contains(Modifiers::CONTROL));
+        assert!(mods.contains(Modifiers::SHIFT));
+        assert_eq!(code, Code::KeyK);
+    }
+
+    #[test]
+    fn alt_letter() {
+        let (mods, code) = parse_shortcut("Alt+A").unwrap();
+        assert!(mods.contains(Modifiers::ALT));
+        assert_eq!(code, Code::KeyA);
+    }
+
+    #[test]
+    fn super_fkey() {
+        let (mods, code) = parse_shortcut("Super+F1").unwrap();
+        assert!(mods.contains(Modifiers::SUPER));
+        assert_eq!(code, Code::F1);
+    }
+
+    #[test]
+    fn ctrl_abbr() {
+        let (mods, code) = parse_shortcut("Ctrl+B").unwrap();
+        assert!(mods.contains(Modifiers::CONTROL));
+        assert_eq!(code, Code::KeyB);
+    }
+
+    #[test]
+    fn space_key() {
+        let (mods, code) = parse_shortcut("Control+SPACE").unwrap();
+        assert!(mods.contains(Modifiers::CONTROL));
+        assert_eq!(code, Code::Space);
+    }
+
+    #[test]
+    fn digit_key() {
+        let (mods, code) = parse_shortcut("Alt+5").unwrap();
+        assert!(mods.contains(Modifiers::ALT));
+        assert_eq!(code, Code::Digit5);
+    }
+
+    #[test]
+    fn lowercase_key_works() {
+        let (_, code) = parse_shortcut("Control+k").unwrap();
+        assert_eq!(code, Code::KeyK);
+    }
+
+    #[test]
+    fn empty_string_errors() {
+        assert!(parse_shortcut("").is_err());
+    }
+
+    #[test]
+    fn modifier_only_errors() {
+        assert!(parse_shortcut("Control").is_err());
+    }
+
+    #[test]
+    fn unknown_key_errors() {
+        assert!(parse_shortcut("Control+Foo").is_err());
+    }
+
+    #[test]
+    fn meta_alias() {
+        let (mods, _) = parse_shortcut("Meta+C").unwrap();
+        assert!(mods.contains(Modifiers::SUPER));
+    }
+
+    #[test]
+    fn win_alias() {
+        let (mods, _) = parse_shortcut("Win+C").unwrap();
+        assert!(mods.contains(Modifiers::SUPER));
+    }
+
+    #[test]
+    fn cmd_alias() {
+        let (mods, _) = parse_shortcut("Cmd+C").unwrap();
+        assert!(mods.contains(Modifiers::SUPER));
+    }
+}
+
 #[tauri::command]
 pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
     app.global_shortcut()

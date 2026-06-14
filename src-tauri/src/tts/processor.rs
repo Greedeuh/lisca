@@ -93,7 +93,7 @@ pub fn run_processor(
 
                 let backend_clone = backend.clone();
                 let text = item.text.clone();
-                let synth_result = tokio::task::spawn_blocking(move || {
+                let synth_result = match tokio::task::spawn_blocking(move || {
                     let mut guard = backend_clone.lock().unwrap();
                     let model = match guard.as_mut() {
                         Some(m) => m,
@@ -110,7 +110,13 @@ pub fn run_processor(
                     Ok(all_samples)
                 })
                 .await
-                .unwrap();
+                {
+                    Ok(result) => result,
+                    Err(e) => {
+                        eprintln!("Synthesis task panicked: {}", e);
+                        Err(format!("Synthesis failed: {}", e))
+                    }
+                };
 
                 match synth_result {
                     Ok(samples) => {
@@ -124,7 +130,7 @@ pub fn run_processor(
                         let play_stop = stop_flag.clone();
                         let play_pause = pause_flag.clone();
                         let play_state = playback_state.clone();
-                        let play_result = tokio::task::spawn_blocking(move || {
+                        let play_result = match tokio::task::spawn_blocking(move || {
                             use rodio::{OutputStream, Sink};
                             use rodio::buffer::SamplesBuffer;
 
@@ -185,7 +191,14 @@ pub fn run_processor(
                             false
                         })
                         .await
-                        .unwrap();
+                        {
+                            Ok(result) => result,
+                            Err(e) => {
+                                eprintln!("Playback task panicked: {}", e);
+                                playback_state.store(STATE_IDLE.into(), Ordering::SeqCst);
+                                continue;
+                            }
+                        };
 
                         if play_result {
                             app_handle.emit("tts-queue-event", &QueueEvent::PlaybackStopped).ok();

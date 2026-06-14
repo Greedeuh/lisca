@@ -13,7 +13,7 @@ pub struct QueueItem {
     pub text: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueueConfig {
     pub max_items: usize,
     pub auto_read: bool,
@@ -115,4 +115,122 @@ pub fn load_queue_config(app_data_dir: &Path) -> QueueConfig {
 pub fn save_queue_config(app_data_dir: &Path, config: &QueueConfig) -> Result<(), String> {
     let path = queue_config_file_path(app_data_dir);
     persist::save_json(&path, config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn queue_config_defaults() {
+        let config = QueueConfig::default();
+        assert_eq!(config.max_items, 50);
+        assert!(config.auto_read);
+        assert!(config.show_overlay);
+    }
+
+    #[test]
+    fn queue_config_serde_roundtrip() {
+        let config = QueueConfig { max_items: 10, auto_read: false, show_overlay: false };
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: QueueConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.max_items, 10);
+        assert!(!deserialized.auto_read);
+        assert!(!deserialized.show_overlay);
+    }
+
+    #[test]
+    fn queue_item_serde_roundtrip() {
+        let item = QueueItem { id: 1, text: "hello world".into() };
+        let json = serde_json::to_string(&item).unwrap();
+        let deserialized: QueueItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, 1);
+        assert_eq!(deserialized.text, "hello world");
+    }
+
+    #[test]
+    fn playback_state_conversions() {
+        assert!(matches!(PlaybackState::from(0), PlaybackState::Idle));
+        assert!(matches!(PlaybackState::from(1), PlaybackState::Playing));
+        assert!(matches!(PlaybackState::from(2), PlaybackState::Paused));
+        assert!(matches!(PlaybackState::from(99), PlaybackState::Idle));
+        assert!(matches!(PlaybackState::from(255), PlaybackState::Idle));
+
+        let u: u8 = PlaybackState::Idle.into();
+        assert_eq!(u, 0);
+        let u: u8 = PlaybackState::Playing.into();
+        assert_eq!(u, 1);
+        let u: u8 = PlaybackState::Paused.into();
+        assert_eq!(u, 2);
+    }
+
+    #[test]
+    fn queue_event_serde_all_variants() {
+        let events = vec![
+            QueueEvent::PlaybackStarted { item: QueueItem { id: 1, text: "hi".into() } },
+            QueueEvent::ItemCompleted { id: 1 },
+            QueueEvent::PlaybackPaused,
+            QueueEvent::PlaybackResumed,
+            QueueEvent::PlaybackStopped,
+            QueueEvent::QueueUpdated { items: vec![], auto_read: true, show_overlay: true },
+            QueueEvent::Error { id: Some(1), message: "fail".into() },
+        ];
+
+        for event in &events {
+            let json = serde_json::to_string(event).unwrap();
+            let deserialized: QueueEvent = serde_json::from_str(&json).unwrap();
+            let json2 = serde_json::to_string(&deserialized).unwrap();
+            assert_eq!(json, json2, "Roundtrip failed for: {}", json);
+        }
+    }
+
+    #[test]
+    fn queue_event_type_tags() {
+        let json = serde_json::to_string(&QueueEvent::PlaybackPaused).unwrap();
+        assert!(json.contains("\"type\":\"playback_paused\""));
+
+        let json = serde_json::to_string(&QueueEvent::PlaybackStopped).unwrap();
+        assert!(json.contains("\"type\":\"playback_stopped\""));
+
+        let json = serde_json::to_string(&QueueEvent::Error { id: None, message: "e".into() }).unwrap();
+        assert!(json.contains("\"type\":\"error\""));
+    }
+
+    #[test]
+    fn save_and_load_queue() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut queue = VecDeque::new();
+        queue.push_back(QueueItem { id: 1, text: "hello".into() });
+        queue.push_back(QueueItem { id: 2, text: "world".into() });
+        save_queue(dir.path(), &queue).unwrap();
+        let loaded = load_queue(dir.path());
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].text, "hello");
+        assert_eq!(loaded[1].text, "world");
+    }
+
+    #[test]
+    fn load_empty_queue() {
+        let dir = tempfile::tempdir().unwrap();
+        let loaded = load_queue(dir.path());
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn save_and_load_queue_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = QueueConfig { max_items: 10, auto_read: false, show_overlay: true };
+        save_queue_config(dir.path(), &config).unwrap();
+        let loaded = load_queue_config(dir.path());
+        assert_eq!(loaded.max_items, 10);
+        assert!(!loaded.auto_read);
+        assert!(loaded.show_overlay);
+    }
+
+    #[test]
+    fn load_missing_queue_config_returns_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let loaded = load_queue_config(dir.path());
+        assert_eq!(loaded, QueueConfig::default());
+    }
 }

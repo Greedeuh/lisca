@@ -25,3 +25,57 @@ pub fn split_text(text: &str) -> Vec<String> {
         chunks
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_sentence() {
+        assert_eq!(split_text("Hello world."), vec!["Hello world."]);
+    }
+
+    #[test]
+    fn multiple_sentences() {
+        assert_eq!(
+            split_text("Hello. World? How are you?"),
+            vec!["Hello.", "World?", "How are you?"]
+        );
+    }
+
+    #[test]
+    fn semicolons() {
+        assert_eq!(
+            split_text("First; second; third."),
+            vec!["First;", "second;", "third."]
+        );
+    }
+
+    #[test]
+    fn empty_string() {
+        assert_eq!(split_text(""), vec![""]);
+    }
+
+    #[test]
+    fn no_punctuation() {
+        assert_eq!(split_text("no punctuation here"), vec!["no punctuation here"]);
+    }
+
+    #[test]
+    fn trailing_punctuation_no_space() {
+        assert_eq!(split_text("Hello."), vec!["Hello."]);
+    }
+
+    #[test]
+    fn multiple_punctuation_marks() {
+        assert_eq!(
+            split_text("Really? Yes! OK..."),
+            vec!["Really?", "Yes!", "OK..."]
+        );
+    }
+
+    #[test]
+    fn whitespace_only() {
+        assert_eq!(split_text("   "), vec![""]);
+    }
+}
