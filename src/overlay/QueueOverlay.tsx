@@ -1,6 +1,4 @@
-import { useState, useEffect } from "react";
 import { useTtsQueue } from "../hooks/useTtsQueue";
-import { listen } from "@tauri-apps/api/event";
 
 export function QueueOverlay() {
   const {
@@ -17,15 +15,6 @@ export function QueueOverlay() {
     hideOverlay,
   } = useTtsQueue();
 
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const unlisten = listen<boolean>("overlay-visibility", (event) => {
-      setVisible(event.payload);
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, []);
-
   const totalItems = items.length + (current ? 1 : 0);
 
   const handleToggleOverlay = async () => {
@@ -33,7 +22,7 @@ export function QueueOverlay() {
   };
 
   return (
-    <div className={`queue-overlay${visible ? "" : " hidden"}`}>
+    <div className="queue-overlay hidden">
       <div className="overlay-header" data-tauri-drag-region>
         <span className="overlay-title">Lisca</span>
         <div className="overlay-header-right">

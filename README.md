@@ -116,6 +116,10 @@ Config files are stored at `{app_data_dir}/lisca/`:
 - `queue_config.json` — queue settings (max items, auto-read, overlay)
 - `piper_voices_cache.json` — cached voice catalog
 
+## Known Limitations
+
+- **Linux (Wayland):** The floating overlay window does not work on Wayland due to its restrictive window management. X11 is supported. This is a Tauri/WebkitGTK limitation.
+
 ## License
 
 <!-- Add license here -->

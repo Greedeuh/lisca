@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewWindowBuilder};
 
 const OVERLAY_WIDTH: f64 = 320.0;
 const OVERLAY_HEIGHT: f64 = 400.0;
@@ -9,11 +9,6 @@ static POSITIONED: AtomicBool = AtomicBool::new(false);
 
 #[allow(unused_mut)]
 pub fn create_overlay(app: &AppHandle) {
-    #[cfg(target_os = "linux")]
-    let visible = true;
-    #[cfg(not(target_os = "linux"))]
-    let visible = false;
-
     let mut builder = WebviewWindowBuilder::new(
         app,
         "overlay",
@@ -28,7 +23,7 @@ pub fn create_overlay(app: &AppHandle) {
     .skip_taskbar(true)
     .shadow(false)
     .focused(false)
-    .visible(visible)
+    .visible(false)
     .accept_first_mouse(true);
 
     #[cfg(target_os = "windows")]
@@ -46,15 +41,8 @@ pub fn show_overlay(app: &AppHandle) {
         }
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        let _ = app.emit("overlay-visibility", true);
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        if let Some(w) = app.get_webview_window("overlay") {
-            let _ = w.show();
-        }
+    if let Some(w) = app.get_webview_window("overlay") {
+        let _ = w.show();
     }
 
     #[cfg(target_os = "windows")]
@@ -66,15 +54,8 @@ pub fn show_overlay(app: &AppHandle) {
 }
 
 pub fn hide_overlay(app: &AppHandle) {
-    #[cfg(target_os = "linux")]
-    {
-        let _ = app.emit("overlay-visibility", false);
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        if let Some(w) = app.get_webview_window("overlay") {
-            let _ = w.hide();
-        }
+    if let Some(w) = app.get_webview_window("overlay") {
+        let _ = w.hide();
     }
 }
 
