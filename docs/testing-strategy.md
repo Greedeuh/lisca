@@ -56,17 +56,13 @@ Set this up *before* writing tests, so every test is immediately enforced.
 
 **What**: Pure logic functions — no Tauri runtime, no models, no network.
 
-**Targets**:
+Examples:
 
 | Function | File | Key cases |
 |---|---|---|
 | `parse_shortcut()` | `hotkey.rs` | Valid combos (`"Control+Shift+K"`, `"Alt+A"`, `"Super+F1"`), invalid (`""`, `"Control"` only, unknown key) |
-| `split_text()` | `tts/text.rs` | Single sentence, multi-sentence (`"Hello. World?"`), semicolons, empty string, no punctuation |
 | `QueueConfig` defaults + serde | `tts/queue.rs` | Default values, JSON round-trip |
 | `QueueEvent` serde (7 variants) | `tts/queue.rs` | Each variant serializes with correct `"type"` tag and `snake_case` naming |
-| `PlaybackState` u8 conversions | `tts/queue.rs` | `u8 → PlaybackState → u8` round-trip for valid values (0,1,2). Invalid u8 (e.g. 99) infallibly maps to `Idle` (no `TryFrom`, only `From`) |
-| `BackendConfig` serde | `tts/config.rs` | Kokoro/Piper variants serialize/deserialize correctly |
-| `save_json` / `load_json` | `persist.rs` | Round-trip, corrupt JSON returns default, missing file returns default |
 | Queue file persistence | `tts/queue.rs` | `save_queue`/`load_queue` and `save_queue_config`/`load_queue_config` with temp dir |
 
 **How**: Standard `#[cfg(test)]` modules inline in each file. Use `tempfile::tempdir()` for file-based tests.
@@ -94,8 +90,8 @@ import { mockIPC, mockWindows, clearMocks } from '@tauri-apps/api/mocks';
 beforeEach(() => { clearMocks(); mockWindows('main'); });
 ```
 
-**Targets**:
 
+Examples:
 | Component | Test cases |
 |---|---|
 | `VoiceRow` | Renders name/quality/size. "Use" vs "Download" button. Click handlers called |
@@ -129,45 +125,6 @@ When a bug is found:
 4. The test stays — it prevents regression
 
 This applies to both Rust (Layer 1) and frontend (Layer 3a) bugs.
-
----
-
-## Test File Organization
-
-```
-src-tauri/
-├── src/
-│   ├── hotkey.rs                    ← #[cfg(test)] inline (parse_shortcut)
-│   ├── persist.rs                   ← #[cfg(test)] inline
-│   └── tts/
-│       ├── text.rs                  ← #[cfg(test)] inline
-│       ├── queue.rs                 ← #[cfg(test)] inline
-│       └── config.rs                ← #[cfg(test)] inline
-└── Cargo.toml                       ← [dev-dependencies: tempfile]
-
-src/
-├── test/setup.ts                    ← Vitest + Tauri mock setup
-├── components/__tests__/
-│   ├── VoiceRow.test.tsx
-│   ├── InstalledModels.test.tsx
-│   ├── DownloadProgress.test.tsx
-│   ├── QueueControls.test.tsx
-│   └── QueueList.test.tsx
-└── utils/__tests__/
-    └── format.test.ts
-```
-
----
-
-## Implementation Order
-
-| Step | What | Time |
-|---|---|---|
-| 0 | Set up CI (GitHub Actions) | 30 min |
-| 0.5 | Fix `.unwrap()` in hot paths | 1 hr |
-| 1 | Layer 1: Rust unit tests | 2 hr |
-| 2 | Layer 3a: Pure component tests | 2 hr |
-| — | **Total** | **~5.5 hr** |
 
 ## Verification
 

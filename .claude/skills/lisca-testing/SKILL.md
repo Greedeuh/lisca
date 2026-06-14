@@ -27,14 +27,7 @@ bun run build           # Type check + vite build
 
 Pure functions — no Tauri runtime, no models, no network.
 
-| Module | Function | Key cases |
-|---|---|---|
-| `hotkey.rs` | `parse_shortcut()` | Valid combos, invalid input, modifier aliases (Ctrl/Control, Super/Meta/Win/Cmd) |
-| `tts/text.rs` | `split_text()` | Single sentence, multi-sentence, semicolons, empty string, no punctuation |
-| `tts/queue.rs` | serde roundtrips | `QueueConfig`, `QueueItem`, `QueueEvent` (7 variants), `PlaybackState` u8 conversions |
-| `tts/queue.rs` | file persistence | `save_queue`/`load_queue`, `save_queue_config`/`load_queue_config` with temp dir |
-| `tts/config.rs` | `BackendConfig` serde | Kokoro/Piper variants, `resolve_path` (absolute vs relative) |
-| `persist.rs` | `save_json`/`load_json` | Roundtrip, corrupt JSON returns default, missing file returns default |
+Example: `hotkey.rs`, `tts/text.rs`, `tts/queue.rs`, `persist.rs`.
 
 **Pattern**: inline `#[cfg(test)] mod tests` in each file. Use `tempfile::tempdir()` for file tests.
 
@@ -57,13 +50,8 @@ mod tests {
 
 Presentational components — render correctly, call callbacks on interaction.
 
-| Component | What to verify |
-|---|---|
-| `VoiceRow` | Renders name/quality/size. "Use" vs "Download" button. Click handlers. Disabled state when downloading |
-| `InstalledModels` | Empty state. Lists models. "Active" badge. Select/delete callbacks |
-| `DownloadProgress` | Voice key, size text, progress bar width percentage |
-| `QueueControls` | Play/Pause toggle based on state. Stop/Clear callbacks. Auto-read/Show overlay checkboxes. Disabled state |
-| `QueueList` | Empty state. Current item with Playing/Paused label. Queued items with indices. Up/Down/Remove/Skip buttons |
+Example: `VoiceRow`, `InstalledModels`, `TtsQueue`, `format.ts`.
+
 | `format.ts` | KB/MB formatting edge cases |
 
 **Pattern**: Vitest + `@testing-library/react` + `@testing-library/user-event`.
@@ -139,6 +127,31 @@ Three things happen before each test:
 ### QueueConfig PartialEq
 
 `QueueConfig` derives `PartialEq` (added for test assertions). This is a non-breaking addition — only enables `==`/`!=`.
+
+### Mocking `@tauri-apps/api/event` `listen`
+
+Components that call `listen()` directly (like `QueueOverlay`) need `__TAURI_INTERNALS__.transformCallback`. Mock the module before importing the component:
+
+```ts
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(() => Promise.resolve(vi.fn())),
+}));
+```
+
+### Mocking hooks with `vi.mock`
+
+Components that use custom hooks (like `QueueOverlay`, `TtsQueue`) should mock the hook module, not the Tauri APIs. Import the mocked hook and use `vi.mocked()` to control return values:
+
+```ts
+vi.mock("../../hooks/useTtsQueue", () => ({
+  useTtsQueue: vi.fn(),
+}));
+import { useTtsQueue } from "../../hooks/useTtsQueue";
+const mockUseTtsQueue = vi.mocked(useTtsQueue);
+
+// In each test:
+mockUseTtsQueue.mockReturnValue({ items: [], current: null, playback: "idle", ... });
+```
 
 ### Adding a New Test
 
