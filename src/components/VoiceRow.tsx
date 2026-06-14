@@ -6,7 +6,6 @@ interface VoiceRowProps {
   isDownloaded: boolean;
   isDownloading: boolean;
   onDownload: () => void;
-  onSelect: () => void;
 }
 
 function getVoiceSize(voice: VoiceEntry): number {
@@ -23,7 +22,6 @@ export function VoiceRow({
   isDownloaded,
   isDownloading,
   onDownload,
-  onSelect,
 }: VoiceRowProps) {
   const size = getVoiceSize(voice);
 
@@ -40,11 +38,7 @@ export function VoiceRow({
         <span className="voice-size">{formatSize(size)}</span>
       </div>
       <div className="voice-actions">
-        {isDownloaded ? (
-          <button className="use-button" onClick={onSelect}>
-            Use
-          </button>
-        ) : (
+        {!isDownloaded && (
           <button
             className="download-button"
             onClick={onDownload}

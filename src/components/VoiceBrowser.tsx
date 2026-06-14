@@ -7,7 +7,6 @@ interface VoiceBrowserProps {
   downloadedVoices: Set<string>;
   downloadingVoice: string | null;
   onDownload: (voiceKey: string) => void;
-  onSelect: (voiceKey: string) => void;
 }
 
 export function VoiceBrowser({
@@ -15,14 +14,12 @@ export function VoiceBrowser({
   downloadedVoices,
   downloadingVoice,
   onDownload,
-  onSelect,
 }: VoiceBrowserProps) {
   const [search, setSearch] = useState("");
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(
     new Set()
   );
 
-  // Group voices by language family -> locale
   const voiceGroups = useMemo(() => {
     const groups: VoiceGroup[] = [];
     const familyMap = new Map<string, Map<string, LocaleGroup>>();
@@ -46,7 +43,6 @@ export function VoiceBrowser({
       localeMap.get(code)!.voices.push(voice);
     }
 
-    // Convert to array and sort
     for (const [family, localeMap] of familyMap) {
       const locales = Array.from(localeMap.values()).sort((a, b) =>
         a.code.localeCompare(b.code)
@@ -61,7 +57,6 @@ export function VoiceBrowser({
     return groups.sort((a, b) => a.family.localeCompare(b.family));
   }, [catalog]);
 
-  // Filter by search
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return voiceGroups;
 
@@ -138,7 +133,6 @@ export function VoiceBrowser({
                           isDownloaded={downloadedVoices.has(voice.key)}
                           isDownloading={downloadingVoice === voice.key}
                           onDownload={() => onDownload(voice.key)}
-                          onSelect={() => onSelect(voice.key)}
                         />
                       ))}
                     </div>

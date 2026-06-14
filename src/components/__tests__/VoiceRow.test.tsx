@@ -40,7 +40,6 @@ describe("VoiceRow", () => {
         isDownloaded={false}
         isDownloading={false}
         onDownload={vi.fn()}
-        onSelect={vi.fn()}
       />
     );
     expect(screen.getByText("Lessac Medium")).toBeInTheDocument();
@@ -54,23 +53,22 @@ describe("VoiceRow", () => {
         isDownloaded={false}
         isDownloading={false}
         onDownload={vi.fn()}
-        onSelect={vi.fn()}
       />
     );
     expect(screen.getByText("Download")).toBeInTheDocument();
   });
 
-  it("shows use button when downloaded", () => {
+  it("hides download button when downloaded", () => {
     render(
       <VoiceRow
         voice={mockVoice}
         isDownloaded={true}
         isDownloading={false}
         onDownload={vi.fn()}
-        onSelect={vi.fn()}
       />
     );
-    expect(screen.getByText("Use")).toBeInTheDocument();
+    expect(screen.queryByText("Download")).not.toBeInTheDocument();
+    expect(screen.queryByText("Use")).not.toBeInTheDocument();
   });
 
   it("calls onDownload when download button clicked", async () => {
@@ -82,27 +80,10 @@ describe("VoiceRow", () => {
         isDownloaded={false}
         isDownloading={false}
         onDownload={onDownload}
-        onSelect={vi.fn()}
       />
     );
     await user.click(screen.getByText("Download"));
     expect(onDownload).toHaveBeenCalledOnce();
-  });
-
-  it("calls onSelect when use button clicked", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    render(
-      <VoiceRow
-        voice={mockVoice}
-        isDownloaded={true}
-        isDownloading={false}
-        onDownload={vi.fn()}
-        onSelect={onSelect}
-      />
-    );
-    await user.click(screen.getByText("Use"));
-    expect(onSelect).toHaveBeenCalledOnce();
   });
 
   it("shows downloading state", () => {
@@ -112,7 +93,6 @@ describe("VoiceRow", () => {
         isDownloaded={false}
         isDownloading={true}
         onDownload={vi.fn()}
-        onSelect={vi.fn()}
       />
     );
     expect(screen.getByText("Downloading...")).toBeInTheDocument();
@@ -126,7 +106,6 @@ describe("VoiceRow", () => {
         isDownloaded={false}
         isDownloading={false}
         onDownload={vi.fn()}
-        onSelect={vi.fn()}
       />
     );
     expect(screen.getByText("3 speakers")).toBeInTheDocument();
@@ -139,7 +118,6 @@ describe("VoiceRow", () => {
         isDownloaded={false}
         isDownloading={false}
         onDownload={vi.fn()}
-        onSelect={vi.fn()}
       />
     );
     expect(screen.queryByText("speakers")).not.toBeInTheDocument();

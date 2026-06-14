@@ -43,7 +43,6 @@ describe("VoiceBrowser", () => {
     downloadedVoices: new Set<string>(),
     downloadingVoice: null,
     onDownload: vi.fn(),
-    onSelect: vi.fn(),
   };
 
   it("renders voice groups by family", () => {
@@ -95,7 +94,7 @@ describe("VoiceBrowser", () => {
     expect(screen.getByText("Lessac Low")).toBeInTheDocument();
   });
 
-  it("shows Use button for downloaded voices", async () => {
+  it("does not show Use button for downloaded voices", async () => {
     const user = userEvent.setup();
     render(
       <VoiceBrowser
@@ -104,8 +103,7 @@ describe("VoiceBrowser", () => {
       />
     );
     await user.click(screen.getByText("English"));
-    const useButtons = screen.getAllByText("Use");
-    expect(useButtons.length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Use")).not.toBeInTheDocument();
   });
 
   it("calls onDownload when download button clicked", async () => {

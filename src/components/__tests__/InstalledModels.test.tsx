@@ -29,7 +29,6 @@ describe("InstalledModels", () => {
       <InstalledModels
         models={[]}
         activeModelPath={null}
-        onSelect={vi.fn()}
         onDelete={vi.fn()}
       />
     );
@@ -41,7 +40,6 @@ describe("InstalledModels", () => {
       <InstalledModels
         models={mockModels}
         activeModelPath={null}
-        onSelect={vi.fn()}
         onDelete={vi.fn()}
       />
     );
@@ -54,39 +52,21 @@ describe("InstalledModels", () => {
       <InstalledModels
         models={mockModels}
         activeModelPath="/path/to/en_US-lessac-medium.onnx"
-        onSelect={vi.fn()}
         onDelete={vi.fn()}
       />
     );
     expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
-  it("shows Use button for non-active models", () => {
+  it("does not show Use button", () => {
     render(
       <InstalledModels
         models={mockModels}
         activeModelPath="/path/to/en_US-lessac-medium.onnx"
-        onSelect={vi.fn()}
         onDelete={vi.fn()}
       />
     );
-    const useButtons = screen.getAllByText("Use");
-    expect(useButtons).toHaveLength(1);
-  });
-
-  it("calls onSelect with model when Use clicked", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    render(
-      <InstalledModels
-        models={mockModels}
-        activeModelPath="/path/to/en_US-lessac-medium.onnx"
-        onSelect={onSelect}
-        onDelete={vi.fn()}
-      />
-    );
-    await user.click(screen.getByText("Use"));
-    expect(onSelect).toHaveBeenCalledWith(mockModels[1]);
+    expect(screen.queryByText("Use")).not.toBeInTheDocument();
   });
 
   it("calls onDelete with voice_key when Delete clicked", async () => {
@@ -96,7 +76,6 @@ describe("InstalledModels", () => {
       <InstalledModels
         models={mockModels}
         activeModelPath={null}
-        onSelect={vi.fn()}
         onDelete={onDelete}
       />
     );

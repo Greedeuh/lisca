@@ -3,14 +3,12 @@ import type { InstalledModel } from "../types/piper";
 interface InstalledModelsProps {
   models: InstalledModel[];
   activeModelPath: string | null;
-  onSelect: (model: InstalledModel) => void;
   onDelete: (voiceKey: string) => void;
 }
 
 export function InstalledModels({
   models,
   activeModelPath,
-  onSelect,
   onDelete,
 }: InstalledModelsProps) {
   if (models.length === 0) {
@@ -42,14 +40,6 @@ export function InstalledModels({
               {isActive && <span className="active-badge">Active</span>}
             </div>
             <div className="installed-actions">
-              {!isActive && (
-                <button
-                  className="use-button"
-                  onClick={() => onSelect(model)}
-                >
-                  Use
-                </button>
-              )}
               <button
                 className="delete-button"
                 onClick={() => onDelete(model.voice_key)}
