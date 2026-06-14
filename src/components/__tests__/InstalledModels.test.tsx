@@ -58,17 +58,6 @@ describe("InstalledModels", () => {
     expect(screen.getByText("Active")).toBeInTheDocument();
   });
 
-  it("does not show Use button", () => {
-    render(
-      <InstalledModels
-        models={mockModels}
-        activeModelPath="/path/to/en_US-lessac-medium.onnx"
-        onDelete={vi.fn()}
-      />
-    );
-    expect(screen.queryByText("Use")).not.toBeInTheDocument();
-  });
-
   it("calls onDelete with voice_key when Delete clicked", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();

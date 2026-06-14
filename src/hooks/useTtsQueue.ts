@@ -69,10 +69,6 @@ export function useTtsQueue() {
     };
   }, []);
 
-  const add = useCallback(async (text: string) => {
-    return invoke<QueueItem>("tts_queue_add", { text });
-  }, []);
-
   const remove = useCallback(async (id: number) => {
     await invoke("tts_queue_remove", { id });
   }, []);
@@ -138,7 +134,6 @@ export function useTtsQueue() {
     playback,
     autoRead,
     showOverlay,
-    add,
     remove,
     moveItem,
     clear,

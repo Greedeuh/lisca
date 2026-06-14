@@ -22,7 +22,6 @@ function mockQueueState(overrides: Partial<ReturnType<typeof useTtsQueue>> = {})
     playback: "idle" as PlaybackState,
     autoRead: true,
     showOverlay: true,
-    add: vi.fn(),
     remove: vi.fn(),
     moveItem: vi.fn(),
     clear: vi.fn(),

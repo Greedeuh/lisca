@@ -1,4 +1,3 @@
-mod kokoro;
 mod language;
 mod piper;
 mod session;
@@ -21,7 +20,6 @@ use tauri::AppHandle;
 use tauri::Emitter;
 use tauri::Manager;
 
-use kokoro::KokoroModel;
 use piper::PiperModel;
 
 use self::config::BackendConfig;
@@ -212,35 +210,6 @@ impl TtsManager {
 
     fn load_backend_from_config(config: &BackendConfig, base_dir: &std::path::Path) -> Option<Box<dyn TtsBackend>> {
         match config {
-            BackendConfig::Kokoro {
-                model_path,
-                voice_path,
-            } => {
-                let mp = BackendConfig::resolve_path(model_path, base_dir);
-                let vp = BackendConfig::resolve_path(voice_path, base_dir);
-
-                if !mp.exists() || !vp.exists() {
-                    eprintln!("Kokoro model files not found: {:?}, {:?}", mp, vp);
-                    return None;
-                }
-
-                eprintln!("Preloading Kokoro model...");
-                let start = std::time::Instant::now();
-
-                match KokoroModel::load(&mp, &vp) {
-                    Ok(model) => {
-                        eprintln!(
-                            "Kokoro model preloaded in {}ms",
-                            start.elapsed().as_millis()
-                        );
-                        Some(Box::new(model))
-                    }
-                    Err(e) => {
-                        eprintln!("Preload failed: {}", e);
-                        None
-                    }
-                }
-            }
             BackendConfig::Piper {
                 model_path,
                 config_path,

@@ -41,18 +41,6 @@ describe("useTtsQueue", () => {
     expect(result.current.autoRead).toBe(true);
   });
 
-  it("add calls invoke", async () => {
-    const { result } = renderHook(() => useTtsQueue());
-    await waitFor(() => expect(result.current.items).toHaveLength(1));
-
-    await act(async () => {
-      await result.current.add("hello");
-    });
-
-    const invoke = (window as any).__TAURI_INTERNALS__.invoke;
-    expect(invoke).toHaveBeenCalledWith("tts_queue_add", { text: "hello" }, undefined);
-  });
-
   it("remove calls invoke", async () => {
     const { result } = renderHook(() => useTtsQueue());
     await waitFor(() => expect(result.current.items).toHaveLength(1));

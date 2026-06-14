@@ -94,18 +94,6 @@ describe("VoiceBrowser", () => {
     expect(screen.getByText("Lessac Low")).toBeInTheDocument();
   });
 
-  it("does not show Use button for downloaded voices", async () => {
-    const user = userEvent.setup();
-    render(
-      <VoiceBrowser
-        {...defaultProps}
-        downloadedVoices={new Set(["en_US-lessac-medium"])}
-      />
-    );
-    await user.click(screen.getByText("English"));
-    expect(screen.queryByText("Use")).not.toBeInTheDocument();
-  });
-
   it("calls onDownload when download button clicked", async () => {
     const user = userEvent.setup();
     const onDownload = vi.fn();

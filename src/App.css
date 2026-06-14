@@ -67,26 +67,6 @@ h1 { text-align: center; margin-bottom: 32px; }
 
 .hint { color: var(--color-text-hint); font-weight: 500; margin: 8px 0; }
 
-.field {
-  margin-bottom: 12px;
-}
-
-.field label {
-  display: block;
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-
-.field input {
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--color-border-input);
-  font-family: monospace;
-  font-size: 0.9em;
-  box-sizing: border-box;
-}
-
 .status {
   margin-top: 12px;
   color: var(--color-text-status);
@@ -171,6 +151,12 @@ button.secondary:hover:not(:disabled) {
   border-radius: 6px;
   font-size: 0.9em;
   box-sizing: border-box;
+}
+
+.voice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .voice-group {
@@ -497,6 +483,19 @@ button.secondary:hover:not(:disabled) {
 .queue-controls-buttons button {
   padding: 6px 12px;
   font-size: 0.85em;
+}
+
+.queue-auto-read {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9em;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.queue-auto-read input {
+  cursor: pointer;
 }
 
 .queue-toggle {

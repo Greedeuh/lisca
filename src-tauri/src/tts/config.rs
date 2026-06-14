@@ -6,11 +6,6 @@ use crate::persist;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum BackendConfig {
-    #[serde(rename = "kokoro")]
-    Kokoro {
-        model_path: String,
-        voice_path: String,
-    },
     #[serde(rename = "piper")]
     Piper {
         model_path: String,
@@ -65,23 +60,6 @@ mod tests {
     }
 
     #[test]
-    fn kokoro_serde_roundtrip() {
-        let config = BackendConfig::Kokoro {
-            model_path: "/path/to/model.onnx".into(),
-            voice_path: "/path/to/voice.bin".into(),
-        };
-        let json = serde_json::to_string(&config).unwrap();
-        let deserialized: BackendConfig = serde_json::from_str(&json).unwrap();
-        match deserialized {
-            BackendConfig::Kokoro { model_path, voice_path } => {
-                assert_eq!(model_path, "/path/to/model.onnx");
-                assert_eq!(voice_path, "/path/to/voice.bin");
-            }
-            _ => panic!("Expected Kokoro variant"),
-        }
-    }
-
-    #[test]
     fn piper_serde_roundtrip() {
         let config = BackendConfig::Piper {
             model_path: "models/en_US-lessac-medium.onnx".into(),
@@ -89,13 +67,9 @@ mod tests {
         };
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: BackendConfig = serde_json::from_str(&json).unwrap();
-        match deserialized {
-            BackendConfig::Piper { model_path, config_path } => {
-                assert_eq!(model_path, "models/en_US-lessac-medium.onnx");
-                assert_eq!(config_path, "models/en_US-lessac-medium.onnx.json");
-            }
-            _ => panic!("Expected Piper variant"),
-        }
+        let BackendConfig::Piper { model_path, config_path } = deserialized;
+        assert_eq!(model_path, "models/en_US-lessac-medium.onnx");
+        assert_eq!(config_path, "models/en_US-lessac-medium.onnx.json");
     }
 
     #[test]
@@ -115,19 +89,15 @@ mod tests {
     #[test]
     fn save_and_load_config() {
         let dir = tempfile::tempdir().unwrap();
-        let config = BackendConfig::Kokoro {
+        let config = BackendConfig::Piper {
             model_path: "test.onnx".into(),
-            voice_path: "test.bin".into(),
+            config_path: "test.onnx.json".into(),
         };
         save_config(dir.path(), &config).unwrap();
         let loaded = load_config(dir.path());
-        match loaded {
-            BackendConfig::Kokoro { model_path, voice_path } => {
-                assert_eq!(model_path, "test.onnx");
-                assert_eq!(voice_path, "test.bin");
-            }
-            _ => panic!("Expected Kokoro variant"),
-        }
+        let BackendConfig::Piper { model_path, config_path } = loaded;
+        assert_eq!(model_path, "test.onnx");
+        assert_eq!(config_path, "test.onnx.json");
     }
 
     #[test]
