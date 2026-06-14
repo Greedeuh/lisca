@@ -103,9 +103,23 @@ export function ModelConfig() {
           onSelectModel={(newModelPath, newConfigPath) => {
             setModelPath(newModelPath);
             setConfigPath(newConfigPath);
-            setStatus("Model selected");
-            if (statusTimeout.current) clearTimeout(statusTimeout.current);
-            statusTimeout.current = setTimeout(() => setStatus(""), STATUS_DURATION);
+            setLoading(true);
+            const newConfig: PiperConfig = {
+              type: "piper",
+              model_path: newModelPath,
+              config_path: newConfigPath,
+            };
+            invoke("tts_set_config", { config: newConfig })
+              .then(() => {
+                setConfig(newConfig);
+                setStatus("Model activated");
+              })
+              .catch((err) => setStatus("Error: " + err))
+              .finally(() => {
+                setLoading(false);
+                if (statusTimeout.current) clearTimeout(statusTimeout.current);
+                statusTimeout.current = setTimeout(() => setStatus(""), STATUS_DURATION);
+              });
           }}
         />
       )}
