@@ -15,6 +15,7 @@ pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
     tts.speak(&text).await
 }
 
+
 #[tauri::command]
 pub fn tts_stop(app: AppHandle) {
     let tts = app.state::<Arc<TtsManager>>();

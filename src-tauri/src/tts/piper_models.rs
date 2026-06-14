@@ -240,6 +240,12 @@ impl PiperModelManager {
         Ok(())
     }
 
+    pub fn get_installed_for_family(&self, family: &str) -> Option<InstalledModel> {
+        self.list_installed()
+            .into_iter()
+            .find(|m| m.language.family == family)
+    }
+
     pub fn list_installed(&self) -> Vec<InstalledModel> {
         let mut models = Vec::new();
 

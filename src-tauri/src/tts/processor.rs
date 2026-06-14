@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use super::queue::{QueueConfig, QueueEvent, QueueItem};
 use super::text::split_text;
-use super::{TtsBackend, DEFAULT_SAMPLE_RATE, I16_SAMPLE_SCALE, STATE_IDLE, STATE_PAUSED, STATE_PLAYING};
+use super::{BackendPool, I16_SAMPLE_SCALE, STATE_IDLE, STATE_PAUSED, STATE_PLAYING};
 
 fn emit_queue_updated(app: &AppHandle, queue: &VecDeque<QueueItem>, config: &QueueConfig) {
     let items: Vec<QueueItem> = queue.iter().cloned().collect();
@@ -19,7 +19,7 @@ fn emit_queue_updated(app: &AppHandle, queue: &VecDeque<QueueItem>, config: &Que
 pub fn run_processor(
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
     queue_config: Arc<std::sync::Mutex<QueueConfig>>,
-    backend: Arc<std::sync::Mutex<Option<Box<dyn TtsBackend>>>>,
+    pool: Arc<std::sync::Mutex<BackendPool>>,
     app_data_dir: std::path::PathBuf,
     stop_flag: Arc<AtomicBool>,
     pause_flag: Arc<AtomicBool>,
@@ -91,14 +91,11 @@ pub fn run_processor(
                     item: item.clone(),
                 }).ok();
 
-                let backend_clone = backend.clone();
+                let pool_clone = pool.clone();
                 let text = item.text.clone();
                 let synth_result = match tokio::task::spawn_blocking(move || {
-                    let mut guard = backend_clone.lock().unwrap();
-                    let model = match guard.as_mut() {
-                        Some(m) => m,
-                        None => return Err("No backend loaded".to_string()),
-                    };
+                    let mut pool_guard = pool_clone.lock().unwrap();
+                    let model = pool_guard.get_for_text(&text);
                     let chunks = split_text(&text);
                     let mut all_samples = Vec::new();
                     for chunk in &chunks {
@@ -120,9 +117,10 @@ pub fn run_processor(
 
                 match synth_result {
                     Ok(samples) => {
+                        let text_for_sr = item.text.clone();
                         let sample_rate = {
-                            let guard = backend.lock().unwrap();
-                            guard.as_ref().map(|b| b.sample_rate()).unwrap_or(DEFAULT_SAMPLE_RATE)
+                            let guard = pool.lock().unwrap();
+                            guard.sample_rate_for_text(&text_for_sr)
                         };
 
                         playback_state.store(STATE_PLAYING.into(), Ordering::SeqCst);

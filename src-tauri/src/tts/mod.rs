@@ -1,4 +1,5 @@
 mod kokoro;
+mod language;
 mod piper;
 mod session;
 pub mod commands;
@@ -8,7 +9,7 @@ pub mod processor;
 pub mod queue;
 pub mod text;
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
@@ -20,11 +21,13 @@ use kokoro::KokoroModel;
 use piper::PiperModel;
 
 use self::config::BackendConfig;
+use self::piper_models::InstalledModel;
 use self::queue::{QueueConfig, QueueEvent, QueueItem, QueueSnapshot, PlaybackState};
 
 const AUDIO_CHANNEL_BUFFER: usize = 8;
 const DEFAULT_SAMPLE_RATE: u32 = 24000;
 const I16_SAMPLE_SCALE: f32 = 32767.0;
+const MAX_CACHED_PIPER_BACKENDS: usize = 4;
 
 pub trait TtsBackend: Send {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String>;
@@ -40,8 +43,113 @@ const STATE_IDLE: u8 = PlaybackState::Idle as u8;
 const STATE_PLAYING: u8 = PlaybackState::Playing as u8;
 const STATE_PAUSED: u8 = PlaybackState::Paused as u8;
 
+pub(crate) struct BackendPool {
+    primary: Option<Box<dyn TtsBackend>>,
+    piper_cache: HashMap<String, Box<dyn TtsBackend>>,
+    installed_models: Vec<InstalledModel>,
+    resource_dir: PathBuf,
+    lru_order: VecDeque<String>,
+}
+
+impl BackendPool {
+    fn new(resource_dir: PathBuf) -> Self {
+        Self {
+            primary: None,
+            piper_cache: HashMap::new(),
+            installed_models: Vec::new(),
+            resource_dir,
+            lru_order: VecDeque::new(),
+        }
+    }
+
+    fn get_for_text(&mut self, text: &str) -> &mut dyn TtsBackend {
+        if let Some(family) = language::detect_language_family(text) {
+            if self.piper_cache.contains_key(family) {
+                self.touch_lru(family);
+                return &mut **self.piper_cache.get_mut(family).unwrap();
+            }
+            if self.load_piper_for_family(family) {
+                self.touch_lru(family);
+                return &mut **self.piper_cache.get_mut(family).unwrap();
+            }
+        }
+        &mut **self.primary.as_mut().unwrap()
+    }
+
+    fn sample_rate_for_text(&self, text: &str) -> u32 {
+        if let Some(family) = language::detect_language_family(text) {
+            if let Some(backend) = self.piper_cache.get(family) {
+                return backend.sample_rate();
+            }
+        }
+        self.primary.as_ref().map(|b| b.sample_rate()).unwrap_or(DEFAULT_SAMPLE_RATE)
+    }
+
+    fn load_piper_for_family(&mut self, family: &str) -> bool {
+        let model = match self.installed_models.iter().find(|m| m.language.family == family) {
+            Some(m) => m.clone(),
+            None => return false,
+        };
+
+        let mp = std::path::PathBuf::from(&model.model_path);
+        let cp = std::path::PathBuf::from(&model.config_path);
+
+        if !mp.exists() || !cp.exists() {
+            return false;
+        }
+
+        eprintln!("Loading Piper model for language: {} ({})", family, model.name);
+        let start = std::time::Instant::now();
+
+        match PiperModel::load(&mp, &cp, &self.resource_dir) {
+            Ok(m) => {
+                eprintln!(
+                    "Piper model for {} loaded in {}ms",
+                    family,
+                    start.elapsed().as_millis()
+                );
+                self.evict_if_full();
+                self.piper_cache.insert(family.to_string(), Box::new(m));
+                true
+            }
+            Err(e) => {
+                eprintln!("Failed to load Piper model for {}: {}", family, e);
+                false
+            }
+        }
+    }
+
+    fn touch_lru(&mut self, family: &str) {
+        self.lru_order.retain(|f| f != family);
+        self.lru_order.push_back(family.to_string());
+    }
+
+    fn evict_if_full(&mut self) {
+        while self.piper_cache.len() >= MAX_CACHED_PIPER_BACKENDS {
+            if let Some(oldest) = self.lru_order.pop_front() {
+                self.piper_cache.remove(&oldest);
+                eprintln!("Evicted cached Piper backend: {}", oldest);
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn refresh_installed(&mut self, models: Vec<InstalledModel>) {
+        let new_families: std::collections::HashSet<&str> =
+            models.iter().map(|m| m.language.family.as_str()).collect();
+
+        self.piper_cache
+            .retain(|family, _| new_families.contains(family.as_str()));
+        self.lru_order
+            .retain(|family| new_families.contains(family.as_str()));
+
+        self.installed_models = models;
+    }
+}
+
 pub struct TtsManager {
-    backend: Arc<std::sync::Mutex<Option<Box<dyn TtsBackend>>>>,
+    pool: Arc<std::sync::Mutex<BackendPool>>,
     pub(crate) app_data_dir: PathBuf,
     pub(crate) resource_dir: PathBuf,
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
@@ -62,7 +170,7 @@ impl TtsManager {
         let next_id = queue.iter().map(|i| i.id).max().unwrap_or(0) + 1;
 
         Self {
-            backend: Arc::new(std::sync::Mutex::new(None)),
+            pool: Arc::new(std::sync::Mutex::new(BackendPool::new(resource_dir.clone()))),
             app_data_dir,
             resource_dir,
             queue: Arc::new(tokio::sync::Mutex::new(queue)),
@@ -143,16 +251,16 @@ impl TtsManager {
     pub fn preload(&self) {
         let config = config::load_config(&self.app_data_dir);
 
-        if self.backend.try_lock().map(|b| b.is_some()).unwrap_or(true) {
+        if self.pool.try_lock().map(|p| p.primary.is_some()).unwrap_or(true) {
             return;
         }
 
-        let backend = self.backend.clone();
+        let pool = self.pool.clone();
         let base_dir = self.resource_dir.clone();
 
         std::thread::spawn(move || {
             let new_backend = Self::load_backend_from_config(&config, &base_dir);
-            *backend.lock().unwrap() = new_backend;
+            pool.lock().unwrap().primary = new_backend;
         });
     }
 
@@ -162,13 +270,18 @@ impl TtsManager {
         let new_backend = Self::load_backend_from_config(&config, &self.resource_dir)
             .ok_or("Failed to load backend")?;
 
-        *self.backend.lock().unwrap() = Some(new_backend);
+        let mut pool = self.pool.lock().unwrap();
+        pool.primary = Some(new_backend);
         config::save_config(&self.app_data_dir, &config)?;
         Ok(())
     }
 
     pub fn get_config(&self) -> BackendConfig {
         config::load_config(&self.app_data_dir)
+    }
+
+    pub fn refresh_installed_models(&self, models: Vec<InstalledModel>) {
+        self.pool.lock().unwrap().refresh_installed(models);
     }
 
     pub async fn speak(&self, text: &str) -> Result<(), String> {
@@ -178,20 +291,13 @@ impl TtsManager {
 
         let (audio_tx, mut audio_rx) = tokio::sync::mpsc::channel::<AudioChunk>(AUDIO_CHANNEL_BUFFER);
 
-        let backend = self.backend.clone();
-        let text = text.to_string();
+        let pool = self.pool.clone();
+        let text_clone = text.to_string();
         let synth_handle = tokio::task::spawn_blocking(move || {
-            let mut backend_guard = backend.lock().unwrap();
-            let model = match backend_guard.as_mut() {
-                Some(m) => m,
-                None => {
-                    drop(backend_guard);
-                    let _ = audio_tx.blocking_send(AudioChunk::Eof);
-                    return;
-                }
-            };
+            let mut pool_guard = pool.lock().unwrap();
+            let model = pool_guard.get_for_text(&text_clone);
 
-            let chunks = text::split_text(&text);
+            let chunks = text::split_text(&text_clone);
             for chunk in &chunks {
                 match model.synthesize(chunk, 1.0) {
                     Ok(audio) => {
@@ -205,13 +311,13 @@ impl TtsManager {
                     }
                 }
             }
-            drop(backend_guard);
+            drop(pool_guard);
             let _ = audio_tx.blocking_send(AudioChunk::Eof);
         });
 
         let sample_rate = {
-            let guard = self.backend.lock().unwrap();
-            guard.as_ref().map(|b| b.sample_rate()).unwrap_or(DEFAULT_SAMPLE_RATE)
+            let guard = self.pool.lock().unwrap();
+            guard.sample_rate_for_text(text)
         };
 
         let play_handle = tokio::task::spawn_blocking(move || {
@@ -453,7 +559,7 @@ impl TtsManager {
         processor::run_processor(
             self.queue.clone(),
             self.queue_config.clone(),
-            self.backend.clone(),
+            self.pool.clone(),
             self.app_data_dir.clone(),
             self.stop_flag.clone(),
             self.pause_flag.clone(),
