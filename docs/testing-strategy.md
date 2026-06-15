@@ -94,8 +94,8 @@ beforeEach(() => { clearMocks(); mockWindows('main'); });
 Examples:
 | Component | Test cases |
 |---|---|
-| `VoiceRow` | Renders name/quality/size. "Use" vs "Download" button. Click handlers called |
-| `InstalledModels` | Lists models, "Active" badge, select/delete callbacks |
+| `VoiceRow` | Renders name/quality/size. "Download" button for uninstalled voices. Click handlers called |
+| `InstalledModels` | Lists models, "Active" badge, delete callback |
 | `DownloadProgress` | Progress bar width, percentage text |
 | `QueueControls` | Pause/Resume toggle, stop/clear callbacks, checkbox state |
 | `QueueList` | Now-playing item, queued items, reorder/remove buttons |
@@ -109,7 +109,7 @@ Examples:
 - **rodio audio playback** — platform-dependent, needs audio device
 - **ONNX inference correctness** — upstream dependency, not our code
 - **Overlay window positioning** — platform-specific Win32/X11 calls
-- **espeak-ng/misaki phonemization accuracy** — upstream
+- **espeak-ng phonemization accuracy** — upstream
 - **Tauri plugin internals** — global shortcut, clipboard
 - **Piper catalog fetch/download** — hits HuggingFace network
 - **CSS/styling** — no visual regression for a small app

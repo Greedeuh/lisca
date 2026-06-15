@@ -72,7 +72,7 @@ impl TtsBackend for MockBackend {
 | Component | Test cases |
 |---|---|
 | `HotkeyRecorder` | Mount → loads saved hotkey. Record mode → keydown → saves combo |
-| `ModelConfig` | Mount → loads config. Backend switch → saves. Path inputs |
+| `ModelConfig` | Mount → loads config. Path inputs |
 | `VoiceBrowser` | Search filters. Family expand/collapse |
 | `TtsQueue` | Wires hook data to controls + list |
 | `PiperModelPicker` | Mount → fetches catalog. Shows installed/available tabs. Download triggers progress |
@@ -85,7 +85,7 @@ impl TtsBackend for MockBackend {
 
 | Hook | Test cases |
 |---|---|
-| `useTtsQueue` | Mount loads state. Event dispatch updates. `add()`/`remove()`/`clear()` invoke correct commands. `toggleAutoRead()` flips config |
+| `useTtsQueue` | Mount loads state. Event dispatch updates. `remove()`/`clear()` invoke correct commands. `toggleAutoRead()` flips config |
 | `usePiperModels` | Mount loads installed. `fetchCatalog()` invokes. Download progress events update state |
 
 **Pattern** (`renderHook` + event simulation):

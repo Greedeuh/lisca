@@ -9,12 +9,12 @@ Built with [Tauri v2](https://v2.tauri.app/) — React/TypeScript frontend, Rust
 ## Features
 
 - **Global hotkey** — trigger TTS from any app via a customizable keyboard shortcut
-- **Dual TTS engines** — Kokoro (ONNX) and Piper (ONNX + espeak-ng), switchable at runtime
+- **Piper TTS engine** — ONNX-based TTS with espeak-ng phonemization, 20+ bundled languages
 - **Voice catalog** — browse, search, and download Piper voices from HuggingFace
 - **Playback queue** — queue multiple texts, reorder, pause/resume, auto-read mode
 - **Floating overlay** — frosted-glass queue window that stays on top
 - **System tray** — hides to tray on close, left-click to show
-- **Persistent config** — hotkey, backend selection, and queue survive restarts
+- **Persistent config** — hotkey, model selection, and queue survive restarts
 
 ## Screenshots
 
@@ -73,7 +73,6 @@ See [docs/testing-strategy.md](docs/testing-strategy.md) for the testing approac
 │       ├── persist.rs         # JSON file persistence
 │       └── tts/               # TTS engine
 │           ├── mod.rs         # TtsManager, queue, playback
-│           ├── kokoro.rs      # Kokoro ONNX model
 │           ├── piper.rs       # Piper ONNX model
 │           ├── piper_models.rs # Voice catalog & downloads
 │           ├── processor.rs   # Async playback loop
@@ -91,7 +90,7 @@ See [docs/testing-strategy.md](docs/testing-strategy.md) for the testing approac
 2. Presses the global hotkey (default: configurable)
 3. Lisca reads the clipboard text
 4. Text is queued for synthesis
-5. ONNX model (Kokoro or Piper) generates audio
+5. ONNX model (Piper) generates audio
 6. rodio plays the audio through system output
 
 ## Tech Stack
@@ -101,8 +100,7 @@ See [docs/testing-strategy.md](docs/testing-strategy.md) for the testing approac
 | Framework | [Tauri v2](https://v2.tauri.app/) |
 | Frontend | React 18, TypeScript, Vite |
 | Backend | Rust (edition 2021) |
-| TTS (Kokoro) | ONNX Runtime, misaki-rs (G2P) |
-| TTS (Piper) | ONNX Runtime, espeak-ng |
+| TTS | ONNX Runtime, espeak-ng |
 | Audio | rodio |
 | Testing | cargo test, Vitest, Testing Library |
 
@@ -111,7 +109,7 @@ See [docs/testing-strategy.md](docs/testing-strategy.md) for the testing approac
 Config files are stored at `{app_data_dir}/lisca/`:
 
 - `hotkey.txt` — saved hotkey string
-- `config.json` — backend selection (Kokoro/Piper) and model paths
+- `config.json` — Piper model paths
 - `queue.json` — persistent playback queue
 - `queue_config.json` — queue settings (max items, auto-read, overlay)
 - `piper_voices_cache.json` — cached voice catalog

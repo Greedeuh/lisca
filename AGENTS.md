@@ -23,8 +23,7 @@ Uses **bun**, not npm or yarn. The lockfile is `bun.lock`.
 - `src-tauri/src/lib.rs` — Tauri setup and command registration
 - `src-tauri/src/main.rs` — entrypoint, calls `lisca_lib::run()`
 - `src-tauri/src/hotkey.rs` — global hotkey register/save/load, clipboard read
-- `src-tauri/src/tts/mod.rs` — TtsManager: speak, stop, preload (Kokoro ORT + rodio playback)
-- `src-tauri/src/tts/kokoro.rs` — Kokoro ONNX model: load, tokenize, synthesize
+- `src-tauri/src/tts/mod.rs` — TtsManager: speak, stop, preload (Piper ORT + rodio playback)
 - `src-tauri/src/tts/session.rs` — ONNX session creation with XNNPACK or CPU fallback
 - `time` crate pinned to `=0.3.47` due to Tauri upstream conflict (see Cargo.toml TODO)
 
@@ -42,7 +41,7 @@ Uses **bun**, not npm or yarn. The lockfile is `bun.lock`.
 
 Tauri process model: Rust core process + WebView. Frontend communicates with backend via `invoke()` (IPC). Hotkey config stored as plain text at `{app_data_dir}/lisca/hotkey.txt`. Global hotkey uses `tauri-plugin-global-shortcut`.
 
-Core flow: user selects text → presses hotkey → Rust reads clipboard → Kokoro synthesizes audio → rodio plays it.
+Core flow: user selects text → presses hotkey → Rust reads clipboard → Piper synthesizes audio → rodio plays it.
 
 ## Key config
 

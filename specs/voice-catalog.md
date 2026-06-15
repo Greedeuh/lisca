@@ -10,12 +10,10 @@ Browse, search, download, install, and manage Piper TTS voice models from the Hu
 - **As a user**, I can see each voice's quality level (x_low / low / medium / high) displayed as a colored badge, so I can compare quality at a glance.
 - **As a user**, I can see the file size of each voice before downloading, so I can decide if I want to download it.
 - **As a user**, I can click "Download" on a voice and see a progress bar, so I know the download is working and how long it will take.
-- **As a user**, after downloading, the voice appears in my "Installed Voices" list with a "Use" button, so I can activate it.
-- **As a user**, I can click "Use" on an installed voice to activate it immediately — the backend reloads and the config is saved.
+- **As a user**, after downloading, the voice appears in my "Installed Voices" list, so I know what's available.
 - **As a user**, I can see which voice is currently active (highlighted with an "Active" badge), so I know what's loaded.
 - **As a user**, I can delete an installed voice to free up disk space.
-- **As a user**, the voice catalog is cached locally so it loads fast on subsequent app starts, and I can manually refresh it.
-- **As a user**, if the catalog fetch fails (no internet), I see an error with a "Retry" button.
+- **As a user**, the voice catalog is fetched automatically on app start, and I can see an error with a "Retry" button if the fetch fails.
 
 ## Key Files
 - `src-tauri/src/tts/piper_models.rs` — catalog fetch, download, install, delete

@@ -17,7 +17,7 @@ All user preferences and state are persisted to disk and restored on app startup
 
 | File | Content |
 |------|---------|
-| `config.json` | BackendConfig (Kokoro or Piper paths) |
+| `config.json` | BackendConfig (Piper model paths) |
 | `queue.json` | Array of QueueItem (id, text, language) |
 | `queue_config.json` | QueueConfig (max_items, auto_read, show_overlay) |
 | `hotkey.txt` | Hotkey shortcut string (e.g. `Control+Shift+T`) |

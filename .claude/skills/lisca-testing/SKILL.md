@@ -66,7 +66,7 @@ it("calls onDownload when download button clicked", async () => {
   const onDownload = vi.fn();
   render(
     <VoiceRow voice={mockVoice} isDownloaded={false}
-      isDownloading={false} onDownload={onDownload} onSelect={vi.fn()} />
+      isDownloading={false} onDownload={onDownload} />
   );
   await user.click(screen.getByText("Download"));
   expect(onDownload).toHaveBeenCalledOnce();
@@ -98,7 +98,7 @@ it("loads queue state on mount", async () => {
 - **rodio audio playback** — platform-dependent, needs audio device
 - **ONNX inference correctness** — upstream dependency, not our code
 - **Overlay window positioning** — platform-specific Win32/X11 calls
-- **espeak-ng/misaki phonemization accuracy** — upstream
+- **espeak-ng phonemization accuracy** — upstream
 - **Tauri plugin internals** — global shortcut registration, clipboard access
 - **Piper catalog fetch/download** — hits HuggingFace network
 - **CSS/styling** — no visual regression for a small app
