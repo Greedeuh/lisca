@@ -267,8 +267,8 @@ impl TtsManager {
                 model_path,
                 config_path,
             } => {
-                let mp = BackendConfig::resolve_path(model_path, resource_dir);
-                let cp = BackendConfig::resolve_path(config_path, resource_dir);
+                let mp = BackendConfig::resolve_path(model_path, app_data_dir);
+                let cp = BackendConfig::resolve_path(config_path, app_data_dir);
 
                 if !mp.exists() || !cp.exists() {
                     eprintln!("Piper model files not found: {:?}, {:?}", mp, cp);
@@ -342,28 +342,37 @@ impl TtsManager {
 
     pub fn set_backend(&self, config: BackendConfig) -> Result<(), String> {
         self.stop();
+        eprintln!("[tts] set_backend: {:?}", config);
 
-        let new_backend = Self::load_backend_from_config(&config, &self.resource_dir, &self.app_data_dir)
-            .ok_or("Failed to load backend")?;
-
-        let (factory, active_backend) = match &config {
-            BackendConfig::Kokoro => {
-                let model_dir = BackendConfig::kokoro_model_dir(&self.app_data_dir);
-                let factory: Box<dyn BackendFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
-                (factory, ActiveBackend::Kokoro)
-            }
-            BackendConfig::Piper { .. } => {
-                let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory);
-                (factory, ActiveBackend::Piper)
-            }
-        };
-
-        let mut pool = self.pool.lock().unwrap();
-        pool.primary = Some(new_backend);
-        pool.factory = factory;
-        pool.set_active_backend(active_backend);
         config::save_config(&self.app_data_dir, &config)?;
-        Ok(())
+
+        match Self::load_backend_from_config(&config, &self.resource_dir, &self.app_data_dir) {
+            Some(new_backend) => {
+                eprintln!("[tts] Backend loaded successfully");
+                let (factory, active_backend) = match &config {
+                    BackendConfig::Kokoro => {
+                        let model_dir = BackendConfig::kokoro_model_dir(&self.app_data_dir);
+                        let factory: Box<dyn BackendFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
+                        (factory, ActiveBackend::Kokoro)
+                    }
+                    BackendConfig::Piper { .. } => {
+                        let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory);
+                        (factory, ActiveBackend::Piper)
+                    }
+                };
+                let mut pool = self.pool.lock().unwrap();
+                pool.primary = Some(new_backend);
+                pool.factory = factory;
+                pool.set_active_backend(active_backend);
+                Ok(())
+            }
+            None => {
+                eprintln!("[tts] Backend load failed, config saved for next launch");
+                let mut pool = self.pool.lock().unwrap();
+                pool.primary = None;
+                Ok(())
+            }
+        }
     }
 
     pub fn get_config(&self) -> BackendConfig {

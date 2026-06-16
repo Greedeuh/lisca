@@ -18,8 +18,8 @@ pub enum BackendConfig {
 impl Default for BackendConfig {
     fn default() -> Self {
         Self::Piper {
-            model_path: "models/en_US-lessac-medium.onnx".into(),
-            config_path: "models/en_US-lessac-medium.onnx.json".into(),
+            model_path: "lisca/piper_models/en_US-lessac-medium.onnx".into(),
+            config_path: "lisca/piper_models/en_US-lessac-medium.onnx.json".into(),
         }
     }
 }
@@ -62,7 +62,7 @@ mod tests {
         let config = BackendConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("\"type\":\"piper\""));
-        assert!(json.contains("en_US-lessac-medium.onnx"));
+        assert!(json.contains("lisca/piper_models/en_US-lessac-medium.onnx"));
     }
 
     #[test]
