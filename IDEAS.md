@@ -20,6 +20,10 @@ Feature ideas for Lisca — Text to Speech app.
 
 - **Auto-start**: Launch on system login
 
+## Model
+
+- **Kokoro**: Propose Kokoro as an alternative of Piper
+
 ## UI/UX
 
 - **History**: List of recently spoken texts
