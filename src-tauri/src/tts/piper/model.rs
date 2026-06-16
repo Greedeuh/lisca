@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use unicode_normalization::UnicodeNormalization;
 
-use super::TtsBackend;
+use crate::tts::{BackendFactory, TtsBackend};
 
 static INSTALLED_LANGUAGES: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
@@ -241,5 +241,20 @@ impl TtsBackend for PiperModel {
 
     fn sample_rate(&self) -> u32 {
         self.config.audio.sample_rate
+    }
+}
+
+pub struct PiperBackendFactory;
+
+impl BackendFactory for PiperBackendFactory {
+    fn load(
+        &self,
+        model_path: &str,
+        config_path: &str,
+        resource_dir: &Path,
+    ) -> Result<Box<dyn TtsBackend>, String> {
+        let mp = PathBuf::from(model_path);
+        let cp = PathBuf::from(config_path);
+        PiperModel::load(&mp, &cp, resource_dir).map(|m| Box::new(m) as Box<dyn TtsBackend>)
     }
 }

@@ -1,6 +1,6 @@
 use whatlang::Lang;
 
-fn lang_to_piper_family(lang: Lang) -> Option<&'static str> {
+fn lang_to_family(lang: Lang) -> Option<&'static str> {
     match lang {
         Lang::Eng => Some("en"),
         Lang::Fra => Some("fr"),
@@ -31,7 +31,7 @@ pub fn detect_language_family(text: &str) -> Option<&'static str> {
     if info.confidence() < 0.1 {
         return None;
     }
-    lang_to_piper_family(info.lang())
+    lang_to_family(info.lang())
 }
 
 #[cfg(test)]
@@ -79,26 +79,26 @@ mod tests {
     }
 
     #[test]
-    fn lang_to_piper_family_covers_known_languages() {
-        assert_eq!(lang_to_piper_family(Lang::Eng), Some("en"));
-        assert_eq!(lang_to_piper_family(Lang::Fra), Some("fr"));
-        assert_eq!(lang_to_piper_family(Lang::Deu), Some("de"));
-        assert_eq!(lang_to_piper_family(Lang::Spa), Some("es"));
-        assert_eq!(lang_to_piper_family(Lang::Ita), Some("it"));
-        assert_eq!(lang_to_piper_family(Lang::Por), Some("pt"));
-        assert_eq!(lang_to_piper_family(Lang::Nld), Some("nl"));
-        assert_eq!(lang_to_piper_family(Lang::Rus), Some("ru"));
-        assert_eq!(lang_to_piper_family(Lang::Pol), Some("pl"));
-        assert_eq!(lang_to_piper_family(Lang::Swe), Some("sv"));
-        assert_eq!(lang_to_piper_family(Lang::Dan), Some("da"));
-        assert_eq!(lang_to_piper_family(Lang::Fin), Some("fi"));
-        assert_eq!(lang_to_piper_family(Lang::Nob), Some("no"));
-        assert_eq!(lang_to_piper_family(Lang::Ces), Some("cs"));
-        assert_eq!(lang_to_piper_family(Lang::Hun), Some("hu"));
-        assert_eq!(lang_to_piper_family(Lang::Tur), Some("tr"));
-        assert_eq!(lang_to_piper_family(Lang::Ell), Some("el"));
-        assert_eq!(lang_to_piper_family(Lang::Ron), Some("ro"));
-        assert_eq!(lang_to_piper_family(Lang::Ukr), Some("uk"));
-        assert_eq!(lang_to_piper_family(Lang::Hin), Some("hi"));
+    fn lang_to_family_covers_known_languages() {
+        assert_eq!(lang_to_family(Lang::Eng), Some("en"));
+        assert_eq!(lang_to_family(Lang::Fra), Some("fr"));
+        assert_eq!(lang_to_family(Lang::Deu), Some("de"));
+        assert_eq!(lang_to_family(Lang::Spa), Some("es"));
+        assert_eq!(lang_to_family(Lang::Ita), Some("it"));
+        assert_eq!(lang_to_family(Lang::Por), Some("pt"));
+        assert_eq!(lang_to_family(Lang::Nld), Some("nl"));
+        assert_eq!(lang_to_family(Lang::Rus), Some("ru"));
+        assert_eq!(lang_to_family(Lang::Pol), Some("pl"));
+        assert_eq!(lang_to_family(Lang::Swe), Some("sv"));
+        assert_eq!(lang_to_family(Lang::Dan), Some("da"));
+        assert_eq!(lang_to_family(Lang::Fin), Some("fi"));
+        assert_eq!(lang_to_family(Lang::Nob), Some("no"));
+        assert_eq!(lang_to_family(Lang::Ces), Some("cs"));
+        assert_eq!(lang_to_family(Lang::Hun), Some("hu"));
+        assert_eq!(lang_to_family(Lang::Tur), Some("tr"));
+        assert_eq!(lang_to_family(Lang::Ell), Some("el"));
+        assert_eq!(lang_to_family(Lang::Ron), Some("ro"));
+        assert_eq!(lang_to_family(Lang::Ukr), Some("uk"));
+        assert_eq!(lang_to_family(Lang::Hin), Some("hi"));
     }
 }

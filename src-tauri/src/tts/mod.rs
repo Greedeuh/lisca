@@ -1,11 +1,9 @@
 mod language;
-mod piper;
-mod session;
+pub mod piper;
 pub mod audio;
 pub mod commands;
 pub mod config;
 pub mod playback;
-pub mod piper_models;
 pub mod processor;
 pub mod queue;
 pub mod queue_manager;
@@ -13,18 +11,16 @@ pub mod text;
 pub mod voice_mapping;
 
 use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
 use tauri::Manager;
 
-use piper::PiperModel;
-
 use self::config::BackendConfig;
 use self::playback::{PlaybackController, STATE_IDLE, STATE_PAUSED, STATE_PLAYING};
-use self::piper_models::InstalledModel;
+use self::piper::InstalledModel;
 use self::queue::{QueueConfig, QueueEvent, QueueItem, QueueSnapshot};
 use self::queue_manager::QueueManager;
 use self::voice_mapping::VoiceMapping;
@@ -32,11 +28,20 @@ use self::voice_mapping::VoiceMapping;
 const AUDIO_CHANNEL_BUFFER: usize = 8;
 const DEFAULT_SAMPLE_RATE: u32 = 24000;
 const I16_SAMPLE_SCALE: f32 = 32767.0;
-const MAX_CACHED_PIPER_BACKENDS: usize = 4;
+const MAX_CACHED_BACKENDS: usize = 4;
 
 pub trait TtsBackend: Send {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String>;
     fn sample_rate(&self) -> u32;
+}
+
+pub(crate) trait BackendFactory: Send + Sync {
+    fn load(
+        &self,
+        model_path: &str,
+        config_path: &str,
+        resource_dir: &Path,
+    ) -> Result<Box<dyn TtsBackend>, String>;
 }
 
 enum AudioChunk {
@@ -51,10 +56,11 @@ pub(crate) struct BackendPool {
     mapping: VoiceMapping,
     resource_dir: PathBuf,
     lru_order: VecDeque<String>,
+    factory: Box<dyn BackendFactory>,
 }
 
 impl BackendPool {
-    fn new(resource_dir: PathBuf, mapping: VoiceMapping) -> Self {
+    fn new(resource_dir: PathBuf, mapping: VoiceMapping, factory: Box<dyn BackendFactory>) -> Self {
         Self {
             primary: None,
             cache: HashMap::new(),
@@ -62,6 +68,7 @@ impl BackendPool {
             mapping,
             resource_dir,
             lru_order: VecDeque::new(),
+            factory,
         }
     }
 
@@ -129,22 +136,25 @@ impl BackendPool {
             return false;
         }
 
-        eprintln!("Loading Piper model: {} ({})", voice_key, model.name);
+        eprintln!("Loading model: {} ({})", voice_key, model.name);
         let start = std::time::Instant::now();
 
-        match PiperModel::load(&mp, &cp, &self.resource_dir) {
+        match self
+            .factory
+            .load(&model.model_path, &model.config_path, &self.resource_dir)
+        {
             Ok(m) => {
                 eprintln!(
-                    "Piper model {} loaded in {}ms",
+                    "Model {} loaded in {}ms",
                     voice_key,
                     start.elapsed().as_millis()
                 );
                 self.evict_if_full();
-                self.cache.insert(voice_key.to_string(), Box::new(m));
+                self.cache.insert(voice_key.to_string(), m);
                 true
             }
             Err(e) => {
-                eprintln!("Failed to load Piper model {}: {}", voice_key, e);
+                eprintln!("Failed to load model {}: {}", voice_key, e);
                 false
             }
         }
@@ -156,10 +166,10 @@ impl BackendPool {
     }
 
     fn evict_if_full(&mut self) {
-        while self.cache.len() >= MAX_CACHED_PIPER_BACKENDS {
+        while self.cache.len() >= MAX_CACHED_BACKENDS {
             if let Some(oldest) = self.lru_order.pop_front() {
                 self.cache.remove(&oldest);
-                eprintln!("Evicted cached Piper backend: {}", oldest);
+                eprintln!("Evicted cached backend: {}", oldest);
             } else {
                 break;
             }
@@ -196,9 +206,14 @@ pub struct TtsManager {
 impl TtsManager {
     pub fn new(app_data_dir: PathBuf, resource_dir: PathBuf, app_handle: AppHandle) -> Self {
         let mapping = voice_mapping::load(&app_data_dir);
+        let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory);
 
         Self {
-            pool: Arc::new(std::sync::Mutex::new(BackendPool::new(resource_dir.clone(), mapping))),
+            pool: Arc::new(std::sync::Mutex::new(BackendPool::new(
+                resource_dir.clone(),
+                mapping,
+                factory,
+            ))),
             app_data_dir: app_data_dir.clone(),
             resource_dir,
             queue_mgr: QueueManager::new(app_data_dir),
@@ -225,7 +240,7 @@ impl TtsManager {
                 eprintln!("Preloading Piper model...");
                 let start = std::time::Instant::now();
 
-                match PiperModel::load(&mp, &cp, base_dir) {
+                match piper::PiperModel::load(&mp, &cp, base_dir) {
                     Ok(model) => {
                         eprintln!(
                             "Piper model preloaded in {}ms",

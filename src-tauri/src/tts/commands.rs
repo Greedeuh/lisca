@@ -3,12 +3,12 @@ use tauri::AppHandle;
 use tauri::Manager;
 
 use super::config::BackendConfig;
-use super::piper_models;
+use super::piper;
 use super::queue::{QueueConfig, QueueItem, QueueSnapshot};
 use super::voice_mapping::VoiceMapping;
 use super::TtsManager;
 
-type SharedPiperModelManager = Arc<tokio::sync::Mutex<piper_models::PiperModelManager>>;
+type SharedPiperModelManager = Arc<tokio::sync::Mutex<piper::PiperModelManager>>;
 
 #[tauri::command]
 pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
@@ -66,7 +66,7 @@ pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper_models::VoiceCatalog, String> {
+pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper::VoiceCatalog, String> {
     let manager = app.state::<SharedPiperModelManager>();
     let mut manager = manager.lock().await;
     manager.fetch_voices().await.cloned()
@@ -76,14 +76,14 @@ pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper_models::VoiceCat
 pub async fn piper_download_model(
     app: AppHandle,
     voice_key: String,
-) -> Result<piper_models::InstalledModel, String> {
+) -> Result<piper::InstalledModel, String> {
     let manager = app.state::<SharedPiperModelManager>();
     let manager = manager.lock().await;
     manager.download_voice(&voice_key, &app).await
 }
 
 #[tauri::command]
-pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper_models::InstalledModel>, String> {
+pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper::InstalledModel>, String> {
     let manager = app.state::<SharedPiperModelManager>();
     let manager = manager.lock().await;
     let models = manager.list_installed();

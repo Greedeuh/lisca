@@ -43,7 +43,7 @@ fn setup_tts(app: &mut tauri::App, app_data_dir: &std::path::Path, resource_dir:
 }
 
 fn setup_piper_models(app: &mut tauri::App, app_data_dir: &std::path::Path) {
-    let mut manager = tts::piper_models::PiperModelManager::new(app_data_dir);
+    let mut manager = tts::piper::PiperModelManager::new(app_data_dir);
     manager.load_cached_voices();
     let models = manager.list_installed();
     app.manage(Arc::new(tokio::sync::Mutex::new(manager)));
