@@ -1,5 +1,5 @@
 mod model;
-mod session;
+pub mod session;
 pub mod manager;
 
 pub use model::{PiperBackendFactory, PiperModel};

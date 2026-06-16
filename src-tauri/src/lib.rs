@@ -144,5 +144,6 @@ fn register_commands() -> impl Fn(tauri::ipc::Invoke) -> bool {
         tts::commands::tts_get_queue_config,
         tts::commands::tts_get_voice_mapping,
         tts::commands::tts_set_voice_mapping,
+        tts::commands::tts_set_backend_type,
     ]
 }

@@ -1,5 +1,6 @@
 mod language;
 pub mod piper;
+pub mod kokoro;
 pub mod audio;
 pub mod commands;
 pub mod config;
@@ -30,6 +31,12 @@ const DEFAULT_SAMPLE_RATE: u32 = 24000;
 const I16_SAMPLE_SCALE: f32 = 32767.0;
 const MAX_CACHED_BACKENDS: usize = 4;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActiveBackend {
+    Piper,
+    Kokoro,
+}
+
 pub trait TtsBackend: Send {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String>;
     fn sample_rate(&self) -> u32;
@@ -57,10 +64,16 @@ pub(crate) struct BackendPool {
     resource_dir: PathBuf,
     lru_order: VecDeque<String>,
     factory: Box<dyn BackendFactory>,
+    active_backend: ActiveBackend,
 }
 
 impl BackendPool {
-    fn new(resource_dir: PathBuf, mapping: VoiceMapping, factory: Box<dyn BackendFactory>) -> Self {
+    fn new(
+        resource_dir: PathBuf,
+        mapping: VoiceMapping,
+        factory: Box<dyn BackendFactory>,
+        active_backend: ActiveBackend,
+    ) -> Self {
         Self {
             primary: None,
             cache: HashMap::new(),
@@ -69,7 +82,14 @@ impl BackendPool {
             resource_dir,
             lru_order: VecDeque::new(),
             factory,
+            active_backend,
         }
+    }
+
+    fn set_active_backend(&mut self, backend: ActiveBackend) {
+        self.active_backend = backend;
+        self.cache.clear();
+        self.lru_order.clear();
     }
 
     fn resolve_voice_key(&self, language: Option<&str>) -> Option<String> {
@@ -96,9 +116,11 @@ impl BackendPool {
     }
 
     fn get_for_language(&mut self, language: Option<&str>) -> &mut dyn TtsBackend {
-        if let Some(key) = self.resolve_voice_key(language) {
-            if self.ensure_cached(&key) {
-                return &mut **self.cache.get_mut(&key).unwrap();
+        if self.active_backend == ActiveBackend::Piper {
+            if let Some(key) = self.resolve_voice_key(language) {
+                if self.ensure_cached(&key) {
+                    return &mut **self.cache.get_mut(&key).unwrap();
+                }
             }
         }
         &mut **self.primary.as_mut().unwrap()
@@ -206,13 +228,25 @@ pub struct TtsManager {
 impl TtsManager {
     pub fn new(app_data_dir: PathBuf, resource_dir: PathBuf, app_handle: AppHandle) -> Self {
         let mapping = voice_mapping::load(&app_data_dir);
-        let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory);
+        let config = config::load_config(&app_data_dir);
+        let (factory, active_backend) = match &config {
+            BackendConfig::Kokoro => {
+                let model_dir = BackendConfig::kokoro_model_dir(&app_data_dir);
+                let factory: Box<dyn BackendFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
+                (factory, ActiveBackend::Kokoro)
+            }
+            BackendConfig::Piper { .. } => {
+                let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory);
+                (factory, ActiveBackend::Piper)
+            }
+        };
 
         Self {
             pool: Arc::new(std::sync::Mutex::new(BackendPool::new(
                 resource_dir.clone(),
                 mapping,
                 factory,
+                active_backend,
             ))),
             app_data_dir: app_data_dir.clone(),
             resource_dir,
@@ -223,14 +257,18 @@ impl TtsManager {
         }
     }
 
-    fn load_backend_from_config(config: &BackendConfig, base_dir: &std::path::Path) -> Option<Box<dyn TtsBackend>> {
+    fn load_backend_from_config(
+        config: &BackendConfig,
+        resource_dir: &std::path::Path,
+        app_data_dir: &std::path::Path,
+    ) -> Option<Box<dyn TtsBackend>> {
         match config {
             BackendConfig::Piper {
                 model_path,
                 config_path,
             } => {
-                let mp = BackendConfig::resolve_path(model_path, base_dir);
-                let cp = BackendConfig::resolve_path(config_path, base_dir);
+                let mp = BackendConfig::resolve_path(model_path, resource_dir);
+                let cp = BackendConfig::resolve_path(config_path, resource_dir);
 
                 if !mp.exists() || !cp.exists() {
                     eprintln!("Piper model files not found: {:?}, {:?}", mp, cp);
@@ -240,13 +278,41 @@ impl TtsManager {
                 eprintln!("Preloading Piper model...");
                 let start = std::time::Instant::now();
 
-                match piper::PiperModel::load(&mp, &cp, base_dir) {
+                match piper::PiperModel::load(&mp, &cp, resource_dir) {
                     Ok(model) => {
                         eprintln!(
                             "Piper model preloaded in {}ms",
                             start.elapsed().as_millis()
                         );
                         Some(Box::new(model))
+                    }
+                    Err(e) => {
+                        eprintln!("Preload failed: {}", e);
+                        None
+                    }
+                }
+            }
+            BackendConfig::Kokoro => {
+                let model_dir = BackendConfig::kokoro_model_dir(app_data_dir);
+                let model = model_dir.join("model_q8f16.onnx");
+                let voice = model_dir.join("af.bin");
+                let tokenizer = model_dir.join("tokenizer.json");
+
+                if !model.exists() || !voice.exists() || !tokenizer.exists() {
+                    eprintln!("Kokoro files not found: {:?}", model_dir);
+                    return None;
+                }
+
+                eprintln!("Preloading Kokoro model...");
+                let start = std::time::Instant::now();
+
+                match kokoro::KokoroModel::load(&model, &voice, &tokenizer) {
+                    Ok(m) => {
+                        eprintln!(
+                            "Kokoro model preloaded in {}ms",
+                            start.elapsed().as_millis()
+                        );
+                        Some(Box::new(m))
                     }
                     Err(e) => {
                         eprintln!("Preload failed: {}", e);
@@ -266,9 +332,10 @@ impl TtsManager {
 
         let pool = self.pool.clone();
         let base_dir = self.resource_dir.clone();
+        let app_data = self.app_data_dir.clone();
 
         std::thread::spawn(move || {
-            let new_backend = Self::load_backend_from_config(&config, &base_dir);
+            let new_backend = Self::load_backend_from_config(&config, &base_dir, &app_data);
             pool.lock().unwrap().primary = new_backend;
         });
     }
@@ -276,11 +343,25 @@ impl TtsManager {
     pub fn set_backend(&self, config: BackendConfig) -> Result<(), String> {
         self.stop();
 
-        let new_backend = Self::load_backend_from_config(&config, &self.resource_dir)
+        let new_backend = Self::load_backend_from_config(&config, &self.resource_dir, &self.app_data_dir)
             .ok_or("Failed to load backend")?;
+
+        let (factory, active_backend) = match &config {
+            BackendConfig::Kokoro => {
+                let model_dir = BackendConfig::kokoro_model_dir(&self.app_data_dir);
+                let factory: Box<dyn BackendFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
+                (factory, ActiveBackend::Kokoro)
+            }
+            BackendConfig::Piper { .. } => {
+                let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory);
+                (factory, ActiveBackend::Piper)
+            }
+        };
 
         let mut pool = self.pool.lock().unwrap();
         pool.primary = Some(new_backend);
+        pool.factory = factory;
+        pool.set_active_backend(active_backend);
         config::save_config(&self.app_data_dir, &config)?;
         Ok(())
     }

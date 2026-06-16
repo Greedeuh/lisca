@@ -1,5 +1,7 @@
 export type VoiceQuality = "x_low" | "low" | "medium" | "high";
 
+export type BackendType = "piper" | "kokoro";
+
 export interface VoiceCatalog {
   [key: string]: VoiceEntry;
 }

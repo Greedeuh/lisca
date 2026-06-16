@@ -168,3 +168,14 @@ pub fn tts_set_voice_mapping(app: AppHandle, mapping: VoiceMapping) -> Result<()
     let tts = app.state::<Arc<TtsManager>>();
     tts.set_voice_mapping(mapping)
 }
+
+#[tauri::command]
+pub fn tts_set_backend_type(app: AppHandle, backend: String) -> Result<(), String> {
+    let tts = app.state::<Arc<TtsManager>>();
+    let config = match backend.as_str() {
+        "kokoro" => BackendConfig::Kokoro,
+        "piper" => tts.get_config(),
+        _ => return Err(format!("Unknown backend: {}", backend)),
+    };
+    tts.set_backend(config)
+}

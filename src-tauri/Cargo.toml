@@ -39,6 +39,7 @@ ort = { version = "=2.0.0-rc.12", optional = true, default-features = true }
 espeak-ng = { version = "0.1.2", features = ["bundled-data-en", "bundled-data-fr", "bundled-data-de", "bundled-data-es", "bundled-data-it", "bundled-data-pt", "bundled-data-nl", "bundled-data-ru", "bundled-data-pl", "bundled-data-sv", "bundled-data-da", "bundled-data-fi", "bundled-data-no", "bundled-data-cs", "bundled-data-hu", "bundled-data-tr", "bundled-data-el", "bundled-data-ro", "bundled-data-uk", "bundled-data-hi"] }
 unicode-normalization = "0.1.24"
 whatlang = "0.16"
+misaki-rs = { version = "0.3.0", default-features = false }
 
 # TODO: remove when fixed. Pin time, because of conflicts https://github.com/tauri-apps/tauri/issues/15525
 time = "=0.3.47"

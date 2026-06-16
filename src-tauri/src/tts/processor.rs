@@ -143,13 +143,22 @@ pub fn run_processor(
                     let mut pool_guard = pool_clone.lock().unwrap();
                     let model = pool_guard.get_for_language(item_lang.as_deref());
                     let chunks = split_text(&text);
+                    eprintln!("[processor] Synthesizing '{}' ({} chunks)", text, chunks.len());
                     let mut all_samples = Vec::new();
-                    for chunk in &chunks {
+                    for (i, chunk) in chunks.iter().enumerate() {
+                        eprintln!("[processor] Chunk {}: '{}' ({} chars)", i, chunk, chunk.len());
                         match model.synthesize(chunk, 1.0) {
-                            Ok(samples) => all_samples.extend(samples),
-                            Err(e) => return Err(e),
+                            Ok(samples) => {
+                                eprintln!("[processor] Chunk {} done: {} samples", i, samples.len());
+                                all_samples.extend(samples);
+                            }
+                            Err(e) => {
+                                eprintln!("[processor] Chunk {} failed: {}", i, e);
+                                return Err(e);
+                            }
                         }
                     }
+                    eprintln!("[processor] Total samples: {}", all_samples.len());
                     Ok(all_samples)
                 })
                 .await
@@ -167,6 +176,7 @@ pub fn run_processor(
                             let guard = state.pool.lock().unwrap();
                             guard.sample_rate_for_language(item.language.as_deref())
                         };
+                        eprintln!("[processor] Playing {} samples at {}Hz", samples.len(), sample_rate);
 
                         state.playback_state.store(STATE_PLAYING.into(), Ordering::SeqCst);
 

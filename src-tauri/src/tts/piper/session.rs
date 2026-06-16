@@ -1,6 +1,5 @@
 use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
-use ort::value::{TensorElementType, ValueType};
 use std::path::Path;
 
 const DEFAULT_NUM_CPUS: usize = 4;
@@ -11,30 +10,20 @@ pub fn create_session(path: &Path) -> Result<Session, ort::Error> {
         .map(|n| n.get())
         .unwrap_or(DEFAULT_NUM_CPUS);
 
-    // Try XNNPACK first (CPU SIMD acceleration)
     #[cfg(feature = "ort-xnnpack")]
     {
         eprintln!("Trying XNNPACK execution provider...");
         match try_create_session(path, num_cpus, "xnnpack") {
-            Ok(mut session) => {
-                eprintln!("XNNPACK session created, testing inference...");
-                match test_inference(&mut session) {
-                    Ok(()) => {
-                        eprintln!("XNNPACK inference OK");
-                        return Ok(session);
-                    }
-                    Err(e) => {
-                        eprintln!("XNNPACK inference failed: {}", e);
-                    }
-                }
+            Ok(session) => {
+                eprintln!("XNNPACK session created");
+                return Ok(session);
             }
             Err(e) => {
-                eprintln!("XNNPACK session creation failed: {}", e);
+                eprintln!("XNNPACK failed: {}", e);
             }
         }
     }
 
-    // CPU fallback
     eprintln!("Using CPU execution provider");
     try_create_session(path, num_cpus, "cpu")
 }
@@ -59,43 +48,4 @@ fn try_create_session(path: &Path, num_cpus: usize, provider: &str) -> Result<Se
     }
 
     builder.commit_from_file(path)
-}
-
-fn test_inference(session: &mut Session) -> Result<(), String> {
-    let mut named_inputs: Vec<(std::borrow::Cow<str>, ort::session::SessionInputValue)> = Vec::new();
-    for input in session.inputs() {
-        let name = input.name().to_string();
-        let (elem, shape) = match input.dtype() {
-            ValueType::Tensor { ty, shape, .. } => {
-                let shape: Vec<usize> = shape.iter().map(|&d| if d < 0 { 1 } else { d as usize }).collect();
-                (*ty, shape)
-            }
-            _ => return Err(format!("Input '{}' is not a tensor", name)),
-        };
-        match elem {
-            TensorElementType::Float32 => {
-                let data: Vec<f32> = vec![0.0; shape.iter().product()];
-                let tensor = ort::value::Tensor::from_array((shape.as_slice(), data))
-                    .map_err(|e| format!("Tensor {}: {}", name, e))?;
-                named_inputs.push((name.into(), tensor.into_dyn().into()));
-            }
-            TensorElementType::Int64 => {
-                let mut actual_shape = shape.clone();
-                if actual_shape.len() == 2 && actual_shape[1] == 1 {
-                    actual_shape[1] = 10;
-                }
-                let data: Vec<i64> = vec![1; actual_shape.iter().product()];
-                let tensor = ort::value::Tensor::from_array((actual_shape.as_slice(), data))
-                    .map_err(|e| format!("Tensor {}: {}", name, e))?;
-                named_inputs.push((name.into(), tensor.into_dyn().into()));
-            }
-            other => return Err(format!("Unsupported input dtype {:?} for '{}'", other, name)),
-        }
-    }
-
-    let _outputs = session
-        .run(named_inputs)
-        .map_err(|e| format!("Inference: {}", e))?;
-
-    Ok(())
 }

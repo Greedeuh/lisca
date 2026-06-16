@@ -11,6 +11,8 @@ pub enum BackendConfig {
         model_path: String,
         config_path: String,
     },
+    #[serde(rename = "kokoro")]
+    Kokoro,
 }
 
 impl Default for BackendConfig {
@@ -23,6 +25,10 @@ impl Default for BackendConfig {
 }
 
 impl BackendConfig {
+    pub fn kokoro_model_dir(app_data_dir: &Path) -> PathBuf {
+        app_data_dir.join("lisca").join("kokoro")
+    }
+
     pub fn resolve_path(path: &str, base_dir: &Path) -> PathBuf {
         let p = PathBuf::from(path);
         if p.is_absolute() {
@@ -67,9 +73,12 @@ mod tests {
         };
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: BackendConfig = serde_json::from_str(&json).unwrap();
-        let BackendConfig::Piper { model_path, config_path } = deserialized;
-        assert_eq!(model_path, "models/en_US-lessac-medium.onnx");
-        assert_eq!(config_path, "models/en_US-lessac-medium.onnx.json");
+        if let BackendConfig::Piper { model_path, config_path } = deserialized {
+            assert_eq!(model_path, "models/en_US-lessac-medium.onnx");
+            assert_eq!(config_path, "models/en_US-lessac-medium.onnx.json");
+        } else {
+            panic!("Expected Piper variant");
+        }
     }
 
     #[test]
@@ -95,9 +104,12 @@ mod tests {
         };
         save_config(dir.path(), &config).unwrap();
         let loaded = load_config(dir.path());
-        let BackendConfig::Piper { model_path, config_path } = loaded;
-        assert_eq!(model_path, "test.onnx");
-        assert_eq!(config_path, "test.onnx.json");
+        if let BackendConfig::Piper { model_path, config_path } = loaded {
+            assert_eq!(model_path, "test.onnx");
+            assert_eq!(config_path, "test.onnx.json");
+        } else {
+            panic!("Expected Piper variant");
+        }
     }
 
     #[test]
@@ -105,5 +117,21 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = load_config(dir.path());
         assert!(matches!(config, BackendConfig::Piper { .. }));
+    }
+
+    #[test]
+    fn kokoro_serde_roundtrip() {
+        let config = BackendConfig::Kokoro;
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("\"type\":\"kokoro\""));
+        let deserialized: BackendConfig = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, BackendConfig::Kokoro));
+    }
+
+    #[test]
+    fn kokoro_model_dir() {
+        let base = PathBuf::from("/home/user/.local/share/com.lisca.app");
+        let dir = BackendConfig::kokoro_model_dir(&base);
+        assert_eq!(dir, PathBuf::from("/home/user/.local/share/com.lisca.app/lisca/kokoro"));
     }
 }
