@@ -97,6 +97,38 @@ pub struct PiperModel {
 }
 
 impl PiperModel {
+    pub fn from_config(
+        model_path: &str,
+        config_path: &str,
+        resource_dir: &Path,
+        app_data_dir: &Path,
+    ) -> Option<Self> {
+        let mp = crate::tts::config::ModelSelection::resolve_path(model_path, app_data_dir);
+        let cp = crate::tts::config::ModelSelection::resolve_path(config_path, app_data_dir);
+
+        if !mp.exists() || !cp.exists() {
+            eprintln!("Piper model files not found: {:?}, {:?}", mp, cp);
+            return None;
+        }
+
+        eprintln!("Preloading Piper model...");
+        let start = std::time::Instant::now();
+
+        match Self::load(&mp, &cp, resource_dir) {
+            Ok(model) => {
+                eprintln!(
+                    "Piper model preloaded in {}ms",
+                    start.elapsed().as_millis()
+                );
+                Some(model)
+            }
+            Err(e) => {
+                eprintln!("Preload failed: {}", e);
+                None
+            }
+        }
+    }
+
     pub fn load(model_path: &Path, config_path: &Path, resource_dir: &Path) -> Result<Self, String> {
         if !model_path.exists() {
             return Err(format!("Model not found: {}", model_path.display()));

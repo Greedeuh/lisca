@@ -94,33 +94,8 @@ impl ModelsOrchestrator {
             ModelSelection::Piper {
                 model_path,
                 config_path,
-            } => {
-                // TODO: extract into PiperModel::from_config() — this path resolution logic is verbose
-                let mp = ModelSelection::resolve_path(model_path, app_data_dir);
-                let cp = ModelSelection::resolve_path(config_path, app_data_dir);
-
-                if !mp.exists() || !cp.exists() {
-                    eprintln!("Piper model files not found: {:?}, {:?}", mp, cp);
-                    return None;
-                }
-
-                eprintln!("Preloading Piper model...");
-                let start = std::time::Instant::now();
-
-                match piper::PiperModel::load(&mp, &cp, resource_dir) {
-                    Ok(model) => {
-                        eprintln!(
-                            "Piper model preloaded in {}ms",
-                            start.elapsed().as_millis()
-                        );
-                        Some(Box::new(model))
-                    }
-                    Err(e) => {
-                        eprintln!("Preload failed: {}", e);
-                        None
-                    }
-                }
-            }
+            } => piper::PiperModel::from_config(model_path, config_path, resource_dir, app_data_dir)
+                .map(|m| Box::new(m) as Box<dyn TtsModel>),
             ModelSelection::Kokoro => {
                 // TODO: extract into KokoroModel::from_config() — same pattern as Piper
                 let model_dir = ModelSelection::kokoro_model_dir(app_data_dir);
