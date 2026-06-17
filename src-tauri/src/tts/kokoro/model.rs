@@ -15,6 +15,35 @@ pub struct KokoroModel {
 }
 
 impl KokoroModel {
+    pub fn from_config(app_data_dir: &Path) -> Option<Self> {
+        let model_dir = crate::tts::config::ModelSelection::kokoro_model_dir(app_data_dir);
+        let model = model_dir.join("model_q8f16.onnx");
+        let voice = model_dir.join("af.bin");
+        let tokenizer = model_dir.join("tokenizer.json");
+
+        if !model.exists() || !voice.exists() || !tokenizer.exists() {
+            eprintln!("Kokoro files not found: {:?}", model_dir);
+            return None;
+        }
+
+        eprintln!("Preloading Kokoro model...");
+        let start = std::time::Instant::now();
+
+        match Self::load(&model, &voice, &tokenizer) {
+            Ok(m) => {
+                eprintln!(
+                    "Kokoro model preloaded in {}ms",
+                    start.elapsed().as_millis()
+                );
+                Some(m)
+            }
+            Err(e) => {
+                eprintln!("Preload failed: {}", e);
+                None
+            }
+        }
+    }
+
     pub fn load(
         model_path: &Path,
         voice_path: &Path,
