@@ -23,7 +23,6 @@ pub trait TtsModel: Send {
 }
 
 /// Factory trait for creating model instances from installed model metadata.
-// TODO: consider replacing with a static TtsModel::from_installed() method
 pub(crate) trait ModelFactory: Send + Sync {
     fn create_from_installed(
         &self,

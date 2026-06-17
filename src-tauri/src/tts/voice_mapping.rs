@@ -1,4 +1,3 @@
-/// TODO: Currently Piper-specific, but could be generalized for other model backends later.
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};

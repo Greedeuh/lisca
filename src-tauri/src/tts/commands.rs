@@ -120,7 +120,6 @@ pub async fn tts_queue_remove(app: AppHandle, id: u32) {
     tts.queue_remove(id).await;
 }
 
-// TODO: is tts_queue_move still used by the frontend?
 #[tauri::command]
 pub async fn tts_queue_move(app: AppHandle, id: u32, index: usize) {
     let tts = app.state::<Arc<ModelsOrchestrator>>();

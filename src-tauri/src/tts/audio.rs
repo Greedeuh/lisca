@@ -3,8 +3,7 @@ use rodio::{OutputStream, Sink};
 
 use super::I16_SAMPLE_SCALE;
 
-/// Converts f32 samples (range -1.0..1.0) to i16 for rodio playback.
-/// TODO: why do we need to do that?
+/// Converts f32 samples (range -1.0..1.0) to i16 for rodio's `SamplesBuffer`.
 pub(crate) fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
     samples
         .iter()

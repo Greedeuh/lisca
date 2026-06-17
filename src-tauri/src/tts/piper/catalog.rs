@@ -47,7 +47,7 @@ pub struct VoiceFile {
     pub md5_digest: String,
 }
 
-// TODO: why InstalledModel is in Piper and used in backend? => backend should not know about Piper
+/// Backend-agnostic metadata for a downloaded model on disk.
 #[derive(Debug, Clone, Serialize)]
 pub struct InstalledModel {
     pub voice_key: String,
