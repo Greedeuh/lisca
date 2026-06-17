@@ -3,12 +3,9 @@ use tauri::AppHandle;
 use tauri::Manager;
 
 use super::config::ModelSelection;
-use super::piper;
 use super::queue::{QueueConfig, QueueItem, QueueSnapshot};
 use super::voice_mapping::VoiceMapping;
 use super::ModelsOrchestrator;
-
-type SharedPiperCatalog = Arc<tokio::sync::Mutex<piper::PiperCatalog>>;
 
 #[tauri::command]
 pub async fn tts_speak(app: AppHandle, text: String) -> Result<(), String> {
@@ -63,48 +60,6 @@ pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
-    Ok(())
-}
-
-// TODO: Piper should be abstracted, or it should be in piper module
-#[tauri::command]
-pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper::VoiceCatalog, String> {
-    let catalog = app.state::<SharedPiperCatalog>();
-    let mut catalog = catalog.lock().await;
-    catalog.fetch_voices().await.cloned()
-}
-
-// TODO: Piper should be abstracted, or it should be in piper module
-#[tauri::command]
-pub async fn piper_download_model(
-    app: AppHandle,
-    voice_key: String,
-) -> Result<piper::InstalledModel, String> {
-    let catalog = app.state::<SharedPiperCatalog>();
-    let catalog = catalog.lock().await;
-    catalog.download_voice(&voice_key, &app).await
-}
-
-// TODO: Piper should be abstracted, or it should be in piper module
-#[tauri::command]
-pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper::InstalledModel>, String> {
-    let catalog = app.state::<SharedPiperCatalog>();
-    let catalog = catalog.lock().await;
-    let models = catalog.list_installed();
-    let tts = app.state::<Arc<ModelsOrchestrator>>();
-    tts.refresh_installed_models(models.clone());
-    Ok(models)
-}
-
-// TODO: Piper should be abstracted, or it should be in piper module
-#[tauri::command]
-pub async fn piper_delete_model(app: AppHandle, voice_key: String) -> Result<(), String> {
-    let catalog = app.state::<SharedPiperCatalog>();
-    let catalog = catalog.lock().await;
-    catalog.delete_model(&voice_key)?;
-    let models = catalog.list_installed();
-    let tts = app.state::<Arc<ModelsOrchestrator>>();
-    tts.refresh_installed_models(models);
     Ok(())
 }
 
