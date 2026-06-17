@@ -1,3 +1,4 @@
+mod app_commands;
 mod clipboard;
 mod hotkey;
 mod overlay;
@@ -131,7 +132,7 @@ fn register_commands() -> impl Fn(tauri::ipc::Invoke) -> bool {
         tts::commands::tts_stop,
         tts::commands::tts_get_config,
         tts::commands::tts_set_config,
-        tts::commands::tts_open_resource_dir,
+        app_commands::open_resource_dir,
         tts::piper::commands::piper_fetch_voices,
         tts::piper::commands::piper_download_model,
         tts::piper::commands::piper_list_installed,

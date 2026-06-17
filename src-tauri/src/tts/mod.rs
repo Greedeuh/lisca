@@ -163,7 +163,6 @@ impl ModelsOrchestrator {
         self.pool.lock().unwrap().refresh_installed(models);
     }
 
-    // TODO: see later what we do with this function
     pub fn get_voice_mapping(&self) -> VoiceMapping {
         voice_mapping::load(&self.app_data_dir)
     }

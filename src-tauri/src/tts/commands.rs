@@ -32,37 +32,6 @@ pub fn tts_set_config(app: AppHandle, config: ModelSelection) -> Result<(), Stri
     tts.set_backend(config)
 }
 
-// TODO: move to a generic app command module — not TTS-specific
-#[tauri::command]
-pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
-    let tts = app.state::<Arc<ModelsOrchestrator>>();
-    let dir = &tts.resource_dir;
-
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(dir)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn tts_queue_add(app: AppHandle, text: String) -> Result<QueueItem, String> {
     let tts = app.state::<Arc<ModelsOrchestrator>>();
@@ -117,14 +86,12 @@ pub fn tts_get_queue_config(app: AppHandle) -> QueueConfig {
     tts.get_queue_config()
 }
 
-// TODO: is it related to Piper? if yes, it should be in piper module or abstracted
 #[tauri::command]
 pub fn tts_get_voice_mapping(app: AppHandle) -> VoiceMapping {
     let tts = app.state::<Arc<ModelsOrchestrator>>();
     tts.get_voice_mapping()
 }
 
-// TODO: is it related to Piper? if yes, it should be in piper module or abstracted
 #[tauri::command]
 pub fn tts_set_voice_mapping(app: AppHandle, mapping: VoiceMapping) -> Result<(), String> {
     let tts = app.state::<Arc<ModelsOrchestrator>>();
