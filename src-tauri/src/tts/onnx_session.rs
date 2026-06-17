@@ -4,13 +4,13 @@ use std::path::Path;
 
 const DEFAULT_NUM_CPUS: usize = 4;
 
-/// Creates an ONNX inference session with XNNPACK (CPU SIMD) or CPU fallback.
+/// Creates an ONNX inference session. Tries XNNPACK (CPU SIMD) when the
+/// feature is enabled, falling back to the plain CPU provider.
 pub fn create_ort_model_session(path: &Path) -> Result<Session, ort::Error> {
     let num_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(DEFAULT_NUM_CPUS);
 
-    // TODO: should we do this for any models, maybe model should chose how to create the session
     #[cfg(feature = "ort-xnnpack")]
     {
         eprintln!("Trying XNNPACK execution provider...");

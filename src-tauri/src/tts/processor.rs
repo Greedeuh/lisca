@@ -76,6 +76,155 @@ impl ProcessorState {
             show_overlay: config.show_overlay,
         });
     }
+
+    /// Pop the next item from the queue and emit a QueueUpdated event.
+    async fn dequeue_item(&self) -> Option<QueueItem> {
+        let item = self.queue.lock().await.pop_front();
+        let q_ref = self.queue.lock().await;
+        self.emit_queue_updated(&q_ref);
+        drop(q_ref);
+        item
+    }
+
+    /// Resolve the voice key and sample rate for a queue item.
+    fn resolve_voice_for_item(&self, item: &QueueItem) -> (Option<String>, u32) {
+        let voice_key = {
+            let resolver_guard = self.resolver.lock().unwrap();
+            let lang = item.language.as_deref().or_else(|| language::detect_language_family(&item.text));
+            resolver_guard.resolve_voice_key(lang)
+        };
+        let sample_rate = {
+            let guard = self.pool.lock().unwrap();
+            guard.sample_rate_for_language(voice_key.as_deref())
+        };
+        (voice_key, sample_rate)
+    }
+
+    /// Synthesize all text chunks for a queue item, returning concatenated PCM samples.
+    async fn synthesize_item(&self, item: &QueueItem) -> Result<Vec<f32>, String> {
+        let pool_clone = self.pool.clone();
+        let resolver_clone = self.resolver.clone();
+        let item_lang = item.language.clone();
+        let text = item.text.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let voice_key = {
+                let resolver_guard = resolver_clone.lock().unwrap();
+                let lang = item_lang.as_deref().or_else(|| language::detect_language_family(&text));
+                resolver_guard.resolve_voice_key(lang)
+            };
+            let mut pool_guard = pool_clone.lock().unwrap();
+            let model = pool_guard.get_model_for_language(voice_key.as_deref());
+            let chunks = split_text(&text);
+
+            let mut all_samples = Vec::new();
+            for chunk in &chunks {
+                match model.synthesize(chunk, 1.0) {
+                    Ok(samples) => all_samples.extend(samples),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(all_samples)
+        })
+        .await
+        .map_err(|e| format!("Synthesis task panicked: {}", e))?
+    }
+
+    /// Play audio samples with pause/stop support. Returns true if playback
+    /// was interrupted (stop requested), false if it completed normally.
+    async fn play_item(&self, samples: Vec<f32>, sample_rate: u32) -> bool {
+        self.playback_state.store(STATE_PLAYING.into(), Ordering::SeqCst);
+
+        let play_stop = self.stop_flag.clone();
+        let play_pause = self.pause_flag.clone();
+        let play_state = self.playback_state.clone();
+
+        match tokio::task::spawn_blocking(move || {
+            let output = match super::audio::AudioOutput::try_new() {
+                Ok(o) => o,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    play_state.store(STATE_IDLE.into(), Ordering::SeqCst);
+                    return true;
+                }
+            };
+
+            let i16_samples = super::audio::f32_to_i16(&samples);
+            output.play_buffer(i16_samples, sample_rate);
+
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+
+                if play_stop.load(Ordering::SeqCst) {
+                    play_stop.store(false, Ordering::SeqCst);
+                    play_pause.store(false, Ordering::SeqCst);
+                    play_state.store(STATE_IDLE.into(), Ordering::SeqCst);
+                    return true;
+                }
+
+                if play_pause.load(Ordering::SeqCst) {
+                    output.pause();
+                    play_state.store(STATE_PAUSED.into(), Ordering::SeqCst);
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                        if play_stop.load(Ordering::SeqCst) || !play_pause.load(Ordering::SeqCst) {
+                            break;
+                        }
+                    }
+                    if play_stop.load(Ordering::SeqCst) {
+                        play_stop.store(false, Ordering::SeqCst);
+                        play_pause.store(false, Ordering::SeqCst);
+                        play_state.store(STATE_IDLE.into(), Ordering::SeqCst);
+                        return true;
+                    }
+                    play_pause.store(false, Ordering::SeqCst);
+                    play_state.store(STATE_PLAYING.into(), Ordering::SeqCst);
+                    output.play();
+                }
+
+                if output.is_empty() {
+                    break;
+                }
+            }
+
+            output.sleep_until_end();
+            false
+        })
+        .await
+        {
+            Ok(interrupted) => interrupted,
+            Err(e) => {
+                eprintln!("Playback task panicked: {}", e);
+                self.playback_state.store(STATE_IDLE.into(), Ordering::SeqCst);
+                true
+            }
+        }
+    }
+
+    /// Handle successful playback completion: save queue, emit events.
+    async fn on_item_completed(&self, item: &QueueItem) {
+        self.playback_state.store(STATE_IDLE.into(), Ordering::SeqCst);
+        let q_ref = self.queue.lock().await;
+        super::queue::save_queue(&self.app_data_dir, &q_ref)
+            .map_err(|e| eprintln!("Failed to save queue: {}", e))
+            .ok();
+        self.emit_queue_updated(&q_ref);
+        self.emit(QueueEvent::ItemCompleted { id: item.id });
+    }
+
+    /// Handle synthesis/playback error: emit error, remove item, save queue.
+    async fn on_item_error(&self, item: &QueueItem, error: String) {
+        self.emit(QueueEvent::Error {
+            id: Some(item.id),
+            message: error,
+        });
+        let mut q = self.queue.lock().await;
+        q.retain(|i| i.id != item.id);
+        self.emit_queue_updated(&q);
+        super::queue::save_queue(&self.app_data_dir, &q)
+            .map_err(|e| eprintln!("Failed to save queue: {}", e))
+            .ok();
+    }
 }
 
 pub fn run_processor(
@@ -105,13 +254,10 @@ pub fn run_processor(
         app_handle,
     };
 
-    // TODO: this loop is doing too much — split into handle_item(), handle_playback(), etc.
     tokio::spawn(async move {
         loop {
             state.notify.notified().await;
 
-            // Inner loop processes items until queue is empty or auto_read is off.
-            // should_exit: false = interrupted (stop/pause, re-wait), true = done (idle).
             let should_exit = 'outer: loop {
                 if state.check_stop() {
                     break 'outer false;
@@ -120,166 +266,26 @@ pub fn run_processor(
                     break 'outer false;
                 }
 
-                let item = {
-                    let mut q = state.queue.lock().await;
-                    q.pop_front()
-                };
-
-                let item = match item {
+                let item = match state.dequeue_item().await {
                     Some(i) => i,
                     None => {
-                        let q_ref = state.queue.lock().await;
-                        state.emit_queue_updated(&q_ref);
-                        drop(q_ref);
                         state.emit(QueueEvent::ProcessorIdle);
                         break 'outer true;
                     }
                 };
 
-                {
-                    let q_ref = state.queue.lock().await;
-                    state.emit_queue_updated(&q_ref);
-                }
+                state.emit(QueueEvent::PlaybackStarted { item: item.clone() });
 
-                state.emit(QueueEvent::PlaybackStarted {
-                    item: item.clone(),
-                });
-
-                let pool_clone = state.pool.clone();
-                let resolver_clone = state.resolver.clone();
-                let item_lang = item.language.clone();
-                let text = item.text.clone();
-                let synth_result = match tokio::task::spawn_blocking(move || {
-                    let voice_key = {
-                        let resolver_guard = resolver_clone.lock().unwrap();
-                        let lang = item_lang.as_deref().or_else(|| language::detect_language_family(&text));
-                        resolver_guard.resolve_voice_key(lang)
-                    };
-                    let mut pool_guard = pool_clone.lock().unwrap();
-                    let model = pool_guard.get_model_for_language(voice_key.as_deref());
-                    let chunks = split_text(&text);
-                    eprintln!("[processor] Synthesizing '{}' ({} chunks)", text, chunks.len());
-                    let mut all_samples = Vec::new();
-                    for (i, chunk) in chunks.iter().enumerate() {
-                        eprintln!("[processor] Chunk {}: '{}' ({} chars)", i, chunk, chunk.len());
-                        match model.synthesize(chunk, 1.0) {
-                            Ok(samples) => {
-                                eprintln!("[processor] Chunk {} done: {} samples", i, samples.len());
-                                all_samples.extend(samples);
-                            }
-                            Err(e) => {
-                                eprintln!("[processor] Chunk {} failed: {}", i, e);
-                                return Err(e);
-                            }
-                        }
-                    }
-                    eprintln!("[processor] Total samples: {}", all_samples.len());
-                    Ok(all_samples)
-                })
-                .await
-                {
-                    Ok(result) => result,
-                    Err(e) => {
-                        eprintln!("Synthesis task panicked: {}", e);
-                        Err(format!("Synthesis failed: {}", e))
-                    }
-                };
-
-                match synth_result {
+                match state.synthesize_item(&item).await {
                     Ok(samples) => {
-                        let sample_rate = {
-                            let resolver_guard = state.resolver.lock().unwrap();
-                            let lang = item.language.as_deref().or_else(|| language::detect_language_family(&item.text));
-                            let voice_key = resolver_guard.resolve_voice_key(lang);
-                            let guard = state.pool.lock().unwrap();
-                            guard.sample_rate_for_language(voice_key.as_deref())
-                        };
-                        eprintln!("[processor] Playing {} samples at {}Hz", samples.len(), sample_rate);
+                        let (_, sample_rate) = state.resolve_voice_for_item(&item);
 
-                        state.playback_state.store(STATE_PLAYING.into(), Ordering::SeqCst);
-
-                        let play_stop = state.stop_flag.clone();
-                        let play_pause = state.pause_flag.clone();
-                        let play_state = state.playback_state.clone();
-                        let play_result = match tokio::task::spawn_blocking(move || {
-                            let output = match super::audio::AudioOutput::try_new() {
-                                Ok(o) => o,
-                                Err(e) => {
-                                    eprintln!("{}", e);
-                                    play_state.store(STATE_IDLE.into(), Ordering::SeqCst);
-                                    return true;
-                                }
-                            };
-
-                            let i16_samples = super::audio::f32_to_i16(&samples);
-                            output.play_buffer(i16_samples, sample_rate);
-
-                            loop {
-                                std::thread::sleep(std::time::Duration::from_millis(50));
-
-                                if play_stop.load(Ordering::SeqCst) {
-                                    play_stop.store(false, Ordering::SeqCst);
-                                    play_pause.store(false, Ordering::SeqCst);
-                                    play_state.store(STATE_IDLE.into(), Ordering::SeqCst);
-                                    return true;
-                                }
-
-                                if play_pause.load(Ordering::SeqCst) {
-                                    output.pause();
-                                    play_state.store(STATE_PAUSED.into(), Ordering::SeqCst);
-                                    loop {
-                                        std::thread::sleep(std::time::Duration::from_millis(50));
-                                        if play_stop.load(Ordering::SeqCst) || !play_pause.load(Ordering::SeqCst) {
-                                            break;
-                                        }
-                                    }
-                                    if play_stop.load(Ordering::SeqCst) {
-                                        play_stop.store(false, Ordering::SeqCst);
-                                        play_pause.store(false, Ordering::SeqCst);
-                                        play_state.store(STATE_IDLE.into(), Ordering::SeqCst);
-                                        return true;
-                                    }
-                                    play_pause.store(false, Ordering::SeqCst);
-                                    play_state.store(STATE_PLAYING.into(), Ordering::SeqCst);
-                                    output.play();
-                                }
-
-                                if output.is_empty() {
-                                    break;
-                                }
-                            }
-
-                            output.sleep_until_end();
-                            false
-                        })
-                        .await
-                        {
-                            Ok(result) => result,
-                            Err(e) => {
-                                eprintln!("Playback task panicked: {}", e);
-                                state.playback_state.store(STATE_IDLE.into(), Ordering::SeqCst);
-                                continue;
-                            }
-                        };
-
-                        // play_result: true = playback was interrupted (stop requested),
-                        // false = playback completed normally.
-                        if play_result {
+                        if state.play_item(samples, sample_rate).await {
                             state.emit(QueueEvent::PlaybackStopped);
                             continue;
                         }
 
-                        state.playback_state.store(STATE_IDLE.into(), Ordering::SeqCst);
-                        {
-                            let q_ref = state.queue.lock().await;
-                            super::queue::save_queue(&state.app_data_dir, &q_ref)
-                                .map_err(|e| eprintln!("Failed to save queue: {}", e))
-                                .ok();
-                            state.emit_queue_updated(&q_ref);
-                        }
-                        state.emit(QueueEvent::ItemCompleted {
-                            id: item.id,
-                        });
+                        state.on_item_completed(&item).await;
 
                         if !state.queue_config.lock().unwrap().auto_read {
                             state.emit(QueueEvent::ProcessorIdle);
@@ -287,19 +293,7 @@ pub fn run_processor(
                         }
                     }
                     Err(e) => {
-                        state.emit(QueueEvent::Error {
-                            id: Some(item.id),
-                            message: e,
-                        });
-
-                        {
-                            let mut q = state.queue.lock().await;
-                            q.retain(|i| i.id != item.id);
-                            state.emit_queue_updated(&q);
-                            super::queue::save_queue(&state.app_data_dir, &q)
-                                .map_err(|e| eprintln!("Failed to save queue: {}", e))
-                                .ok();
-                        }
+                        state.on_item_error(&item, e).await;
                         continue;
                     }
                 }

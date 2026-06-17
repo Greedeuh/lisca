@@ -30,12 +30,6 @@ pub(crate) trait ModelFactory: Send + Sync {
     ) -> Result<Box<dyn TtsModel>, String>;
 }
 
-/// A chunk of synthesized audio samples, or end-of-stream marker.
-pub(crate) enum AudioChunk {
-    Samples(Vec<f32>),
-    Eof,
-}
-
 /// Manages TTS model instances. Holds a primary (preloaded) model and an LRU
 /// cache of additional voice models. When a request targets a specific voice
 /// that isn't primary, the pool loads it into cache (evicting the oldest if

@@ -19,7 +19,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tauri::AppHandle;
 
-use self::model::{ActiveBackend, AudioChunk, ModelFactory, ModelPool, VoiceResolver};
+use self::model::{ActiveBackend, ModelFactory, ModelPool, VoiceResolver};
 use self::config::ModelSelection;
 use self::playback::PlaybackController;
 use self::piper::InstalledModel;
@@ -30,7 +30,6 @@ use self::voice_mapping::VoiceMapping;
 
 pub use self::model::TtsModel;
 
-const AUDIO_CHANNEL_BUFFER: usize = 8;
 const I16_SAMPLE_SCALE: f32 = 32767.0;
 
 /// Central orchestrator for TTS. Coordinates model pool, voice resolution,
@@ -174,72 +173,68 @@ impl ModelsOrchestrator {
         Ok(())
     }
 
-    // TODO: maybe we can refactor this into several steps fn
+    /// Detect the language of `text` and resolve it to a voice key.
+    fn resolve_voice(&self, text: &str) -> Option<String> {
+        let lang = language::detect_language_family(text);
+        self.resolver.lock().unwrap().resolve_voice_key(lang)
+    }
+
+    /// Split `text` into chunks, synthesize each via the model, and return the
+    /// concatenated f32 PCM samples.
+    async fn synthesize_chunks(&self, text: &str, voice_key: &Option<String>) -> Result<Vec<f32>, String> {
+        let pool = self.pool.clone();
+        let vk = voice_key.clone();
+        let text = text.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let mut pool_guard = pool.lock().unwrap();
+            let model = pool_guard.get_model_for_language(vk.as_deref());
+            let chunks = text::split_text(&text);
+
+            let mut all_samples = Vec::new();
+            for chunk in &chunks {
+                match model.synthesize(chunk, 1.0) {
+                    Ok(s) => all_samples.extend(s),
+                    Err(e) => return Err(e),
+                }
+            }
+            Ok(all_samples)
+        })
+        .await
+        .map_err(|e| format!("Synthesis task panicked: {}", e))?
+    }
+
+    /// Play f32 PCM samples through the audio output. Runs on a blocking
+    /// thread so the caller can `.await` the returned JoinHandle.
+    fn play_samples(samples: Vec<f32>, sample_rate: u32) {
+        let output = match audio::AudioOutput::try_new() {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("{}", e);
+                return;
+            }
+        };
+        let i16_samples = audio::f32_to_i16(&samples);
+        output.play_buffer(i16_samples, sample_rate);
+        output.sleep_until_end();
+    }
+
+    /// Detect language, synthesize text, and play the result.
     pub async fn speak(&self, text: &str) -> Result<(), String> {
         if text.trim().is_empty() {
             return Err("No text to speak".into());
         }
 
-        let (audio_tx, mut audio_rx) = tokio::sync::mpsc::channel::<AudioChunk>(AUDIO_CHANNEL_BUFFER);
-
-        let lang = language::detect_language_family(text);
-        let voice_key = self.resolver.lock().unwrap().resolve_voice_key(lang);
-
-        let pool = self.pool.clone();
-        let vk = voice_key.clone();
-        let text_clone = text.to_string();
-        let synth_handle = tokio::task::spawn_blocking(move || {
-            let mut pool_guard = pool.lock().unwrap();
-            let model = pool_guard.get_model_for_language(vk.as_deref());
-
-            let chunks = text::split_text(&text_clone);
-            for chunk in &chunks {
-                match model.synthesize(chunk, 1.0) {
-                    Ok(audio) => {
-                        if audio_tx.blocking_send(AudioChunk::Samples(audio)).is_err() {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Synthesis error: {}", e);
-                        break;
-                    }
-                }
-            }
-            drop(pool_guard);
-            let _ = audio_tx.blocking_send(AudioChunk::Eof);
-        });
-
+        let voice_key = self.resolve_voice(text);
         let sample_rate = {
             let guard = self.pool.lock().unwrap();
             guard.sample_rate_for_language(voice_key.as_deref())
         };
 
-        let play_handle = tokio::task::spawn_blocking(move || {
-            let output = match audio::AudioOutput::try_new() {
-                Ok(o) => o,
-                Err(e) => {
-                    eprintln!("{}", e);
-                    return;
-                }
-            };
-
-            loop {
-                let chunk = audio_rx.blocking_recv();
-                match chunk {
-                    Some(AudioChunk::Samples(samples)) => {
-                        let i16_samples = audio::f32_to_i16(&samples);
-                        output.play_buffer(i16_samples, sample_rate);
-                    }
-                    _ => break,
-                }
-            }
-
-            output.sleep_until_end();
-        });
-
-        let _ = synth_handle.await;
-        let _ = play_handle.await;
+        let samples = self.synthesize_chunks(text, &voice_key).await?;
+        tokio::task::spawn_blocking(move || Self::play_samples(samples, sample_rate))
+            .await
+            .map_err(|e| format!("Playback task panicked: {}", e))?;
 
         Ok(())
     }
