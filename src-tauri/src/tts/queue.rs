@@ -1,3 +1,4 @@
+// TODO: seems like the heart of the queue system? explain, and maybe we should have a module for the queue
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::Path;

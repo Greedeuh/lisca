@@ -1,3 +1,4 @@
+// TODO: not a big fan of backend, it should be more explicit that it's about actual Models
 mod voice_resolver;
 
 use std::collections::{HashMap, VecDeque};
@@ -20,6 +21,7 @@ pub trait TtsBackend: Send {
     fn sample_rate(&self) -> u32;
 }
 
+// TODO: Do we need a factory could be a static TtsBackend fn?
 pub(crate) trait BackendFactory: Send + Sync {
     fn create_from_installed(
         &self,
@@ -27,18 +29,20 @@ pub(crate) trait BackendFactory: Send + Sync {
     ) -> Result<Box<dyn TtsBackend>, String>;
 }
 
+// TODO: let's add comments to explain
 pub(crate) enum AudioChunk {
     Samples(Vec<f32>),
     Eof,
 }
 
+// TODO: let's add comments to explain
 pub(crate) struct BackendPool {
-    pub primary: Option<Box<dyn TtsBackend>>,
-    cache: HashMap<String, Box<dyn TtsBackend>>,
-    installed: Vec<InstalledModel>,
-    lru_order: VecDeque<String>,
+    pub primary: Option<Box<dyn TtsBackend>>, // TODO: explain why we need this and what it does
+    cache: HashMap<String, Box<dyn TtsBackend>>, // TODO: explain why we need this and what it does
+    installed: Vec<InstalledModel>, // TODO: rename, installed what?
+    lru_order: VecDeque<String>, // TODO: explain why we need this and what it does
     pub factory: Box<dyn BackendFactory>,
-    active_backend: ActiveBackend,
+    active_backend: ActiveBackend, // TODO: explain why we need this and what it does
 }
 
 impl BackendPool {
@@ -62,11 +66,13 @@ impl BackendPool {
         self.lru_order.clear();
     }
 
+    // TODO: explain what this does and why it's needed
     pub fn clear_cache(&mut self) {
         self.cache.clear();
         self.lru_order.clear();
     }
 
+    // TODO: explain what this does and why it's needed
     fn ensure_cached(&mut self, voice_key: &str) -> bool {
         if self.cache.contains_key(voice_key) {
             self.touch_lru(voice_key);
@@ -79,6 +85,7 @@ impl BackendPool {
         false
     }
 
+    // TODO: rename, get what?
     pub fn get_for_language(&mut self, voice_key: Option<&str>) -> &mut dyn TtsBackend {
         if self.active_backend == ActiveBackend::Piper {
             if let Some(key) = voice_key {
@@ -90,6 +97,7 @@ impl BackendPool {
         &mut **self.primary.as_mut().unwrap()
     }
 
+    // TODO: explain what is sample rate
     pub fn sample_rate_for_language(&self, voice_key: Option<&str>) -> u32 {
         if let Some(key) = voice_key {
             if let Some(backend) = self.cache.get(key) {
@@ -133,11 +141,13 @@ impl BackendPool {
         }
     }
 
+    // TODO: explain what is LRU and why we need it
     fn touch_lru(&mut self, voice_key: &str) {
         self.lru_order.retain(|k| k != voice_key);
         self.lru_order.push_back(voice_key.to_string());
     }
 
+    // TODO: explain what it is and why we need it
     fn evict_if_full(&mut self) {
         while self.cache.len() >= MAX_CACHED_BACKENDS {
             if let Some(oldest) = self.lru_order.pop_front() {
@@ -149,6 +159,7 @@ impl BackendPool {
         }
     }
 
+    // TODO: explain what it is and why we need it + rename
     pub fn refresh_installed(&mut self, models: Vec<InstalledModel>) {
         let valid_keys: std::collections::HashSet<&str> =
             models.iter().map(|m| m.voice_key.as_str()).collect();

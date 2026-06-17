@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::persist;
 
+// TODO: rename, config is quite generic, it should tell that's about what model are we currenlty using for TTS
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum BackendConfig {

@@ -1,3 +1,5 @@
+// TODO: check if it's related to piper, could it be used for other model later?
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};

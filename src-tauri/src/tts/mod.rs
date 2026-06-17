@@ -33,6 +33,7 @@ pub use self::backend::TtsBackend;
 const AUDIO_CHANNEL_BUFFER: usize = 8;
 const I16_SAMPLE_SCALE: f32 = 32767.0;
 
+// TODO: let's add comments to explain, maybe rename since we don't understand what manager means here
 pub struct TtsManager {
     pool: Arc<std::sync::Mutex<BackendPool>>,
     resolver: Arc<std::sync::Mutex<VoiceResolver>>,
@@ -93,6 +94,7 @@ impl TtsManager {
                 model_path,
                 config_path,
             } => {
+                // TODO: this a bit long, maybe we can refactor it to a function in PiperModel or PiperBackend
                 let mp = BackendConfig::resolve_path(model_path, app_data_dir);
                 let cp = BackendConfig::resolve_path(config_path, app_data_dir);
 
@@ -119,6 +121,7 @@ impl TtsManager {
                 }
             }
             BackendConfig::Kokoro => {
+                // TODO: this a bit long, maybe we can refactor it to a function in PiperModel or PiperBackend
                 let model_dir = BackendConfig::kokoro_model_dir(app_data_dir);
                 let model = model_dir.join("model_q8f16.onnx");
                 let voice = model_dir.join("af.bin");
@@ -211,6 +214,7 @@ impl TtsManager {
         self.pool.lock().unwrap().refresh_installed(models);
     }
 
+    // TODO: see later what we do with this function
     pub fn get_voice_mapping(&self) -> VoiceMapping {
         voice_mapping::load(&self.app_data_dir)
     }
@@ -222,6 +226,7 @@ impl TtsManager {
         Ok(())
     }
 
+    // TODO: maybe we can refactor this into several steps fn
     pub async fn speak(&self, text: &str) -> Result<(), String> {
         if text.trim().is_empty() {
             return Err("No text to speak".into());

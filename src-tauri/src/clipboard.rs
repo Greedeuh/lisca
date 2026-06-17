@@ -1,3 +1,4 @@
+// TODO: explain why we need clipboard
 use std::time::Duration;
 use enigo::{Direction::{Click, Press, Release}, Enigo, Key, Keyboard, Settings};
 use tauri::AppHandle;

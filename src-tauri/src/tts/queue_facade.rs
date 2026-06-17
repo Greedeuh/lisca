@@ -19,6 +19,7 @@ pub(crate) struct QueueFacade {
     app_handle: AppHandle,
 }
 
+// TODO: explain why façade, why do we need a facade?
 impl QueueFacade {
     pub fn new(
         queue_mgr: QueueManager,
@@ -146,6 +147,7 @@ impl QueueFacade {
             .unwrap_or(true)
     }
 
+    // TODO: what's the goal of this function, need explanation, maybe we can rename it because we don't get it directly from the name
     fn sync_overlay(&self, has_items: bool) {
         if self.is_main_window_visible() {
             return;

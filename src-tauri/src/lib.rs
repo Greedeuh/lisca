@@ -52,6 +52,7 @@ fn setup_piper_models(app: &mut tauri::App, app_data_dir: &std::path::Path) {
     tts.refresh_installed_models(models);
 }
 
+// TODO: explain, why do we need a close handler, what is it doing? maybe rename it to something more descriptive
 fn setup_close_handler(app: &mut tauri::App) {
     let Some(window) = app.get_webview_window("main") else {
         return;

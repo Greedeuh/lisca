@@ -34,6 +34,7 @@ impl KokoroModel {
         let session = crate::tts::onnx_session::create_session(model_path)
             .map_err(|e| format!("Session: {}", e))?;
 
+        // TODO: why do we need to print the model inputs and outputs? what are inputs and outputs?
         eprintln!("[kokoro] Model inputs:");
         for input in session.inputs() {
             eprintln!("  - {} : {:?}", input.name(), input.dtype());
@@ -93,9 +94,9 @@ impl KokoroModel {
             let s = ch.to_string();
             if let Some(&id) = self.char_to_id.get(&s) {
                 ids.push(id);
-            } else if ch == '\u{200d}' {
+            } else if ch == '\u{200d}' { // TODO: explain what this character is and why we need to handle it
                 continue;
-            } else {
+            } else { // TODO: explain why we need to handle unknown characters and what we do with them
                 if let Some(&id) = self.char_to_id.get(" ") {
                     ids.push(id);
                 }
@@ -105,6 +106,7 @@ impl KokoroModel {
         Ok(ids)
     }
 
+    // TODO: explain what this function does and why we need it
     fn get_style(&self, num_tokens: usize) -> &[f32] {
         let idx = num_tokens.min(MAX_STYLE_INDEX);
         let offset = idx * STYLE_DIM;
@@ -138,8 +140,8 @@ impl TtsBackend for KokoroModel {
             .session
             .run(ort::inputs![
                 "input_ids" => t_input.into_dyn(),
-                "style" => t_style.into_dyn(),
-                "speed" => t_speed.into_dyn(),
+                "style" => t_style.into_dyn(), // TODO: explain what is style and why we need it
+                "speed" => t_speed.into_dyn(), // TODO: explain what is speed and why we need it
             ])
             .map_err(|e| format!("Inference: {}", e))?;
         eprintln!("[kokoro] Inference: {}ms", start.elapsed().as_millis());
@@ -152,6 +154,7 @@ impl TtsBackend for KokoroModel {
     }
 
     fn sample_rate(&self) -> u32 {
+        // TODO: why this value?
         24000
     }
 }

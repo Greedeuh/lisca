@@ -1,3 +1,4 @@
+// TODO: let's explain what this file is for, maybe rename it's hard to tell what it is processing
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -102,6 +103,7 @@ pub fn run_processor(
         app_handle,
     };
 
+    // TODO: big one, we should probably split this into several functions, it's a bit hard to read and understand
     tokio::spawn(async move {
         loop {
             state.notify.notified().await;

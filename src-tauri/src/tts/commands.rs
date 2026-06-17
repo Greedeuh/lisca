@@ -35,6 +35,7 @@ pub fn tts_set_config(app: AppHandle, config: BackendConfig) -> Result<(), Strin
     tts.set_backend(config)
 }
 
+// TODO: is it really here the best place for this command? it's generic app folder... not really TTS specific
 #[tauri::command]
 pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
     let tts = app.state::<Arc<TtsManager>>();
@@ -65,6 +66,7 @@ pub fn tts_open_resource_dir(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// TODO: Piper should be abstracted, or it should be in piper module
 #[tauri::command]
 pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper::VoiceCatalog, String> {
     let manager = app.state::<SharedPiperModelManager>();
@@ -72,6 +74,7 @@ pub async fn piper_fetch_voices(app: AppHandle) -> Result<piper::VoiceCatalog, S
     manager.fetch_voices().await.cloned()
 }
 
+// TODO: Piper should be abstracted, or it should be in piper module
 #[tauri::command]
 pub async fn piper_download_model(
     app: AppHandle,
@@ -82,6 +85,7 @@ pub async fn piper_download_model(
     manager.download_voice(&voice_key, &app).await
 }
 
+// TODO: Piper should be abstracted, or it should be in piper module
 #[tauri::command]
 pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper::InstalledModel>, String> {
     let manager = app.state::<SharedPiperModelManager>();
@@ -92,6 +96,7 @@ pub async fn piper_list_installed(app: AppHandle) -> Result<Vec<piper::Installed
     Ok(models)
 }
 
+// TODO: Piper should be abstracted, or it should be in piper module
 #[tauri::command]
 pub async fn piper_delete_model(app: AppHandle, voice_key: String) -> Result<(), String> {
     let manager = app.state::<SharedPiperModelManager>();
@@ -115,6 +120,7 @@ pub async fn tts_queue_remove(app: AppHandle, id: u32) {
     tts.queue_remove(id).await;
 }
 
+// TODO: do we use it?
 #[tauri::command]
 pub async fn tts_queue_move(app: AppHandle, id: u32, index: usize) {
     let tts = app.state::<Arc<TtsManager>>();
@@ -157,12 +163,14 @@ pub fn tts_get_queue_config(app: AppHandle) -> QueueConfig {
     tts.get_queue_config()
 }
 
+// TODO: is it related to Piper? if yes, it should be in piper module or abstracted
 #[tauri::command]
 pub fn tts_get_voice_mapping(app: AppHandle) -> VoiceMapping {
     let tts = app.state::<Arc<TtsManager>>();
     tts.get_voice_mapping()
 }
 
+// TODO: is it related to Piper? if yes, it should be in piper module or abstracted
 #[tauri::command]
 pub fn tts_set_voice_mapping(app: AppHandle, mapping: VoiceMapping) -> Result<(), String> {
     let tts = app.state::<Arc<TtsManager>>();

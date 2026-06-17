@@ -4,12 +4,15 @@ use std::path::Path;
 
 const DEFAULT_NUM_CPUS: usize = 4;
 
+// TODO: can we rename Session to something clearer for our context
+
 /// Create an ONNX session with XNNPACK (CPU SIMD) or CPU fallback.
 pub fn create_session(path: &Path) -> Result<Session, ort::Error> {
     let num_cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(DEFAULT_NUM_CPUS);
 
+    // TODO: should we do this for any models, maybe model should chose how to create the session
     #[cfg(feature = "ort-xnnpack")]
     {
         eprintln!("Trying XNNPACK execution provider...");

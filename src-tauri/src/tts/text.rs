@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+// TODO: explain, split text but based on what? what goal?
 pub fn split_text(text: &str) -> Vec<String> {
     static RE: OnceLock<regex::Regex> = OnceLock::new();
     let re = RE.get_or_init(|| regex::Regex::new(r"([.!?;])\s+").unwrap());

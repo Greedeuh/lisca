@@ -3,6 +3,7 @@ use rodio::{OutputStream, Sink};
 
 use super::I16_SAMPLE_SCALE;
 
+// TODO: explain what this function does and why we need it
 pub(crate) fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
     samples
         .iter()
@@ -10,6 +11,7 @@ pub(crate) fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
         .collect()
 }
 
+// TODO: explain the attributes of this struct and why we need it
 pub(crate) struct AudioOutput {
     _stream: OutputStream,
     sink: Sink,

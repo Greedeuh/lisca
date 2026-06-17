@@ -1,6 +1,7 @@
 use super::super::piper::InstalledModel;
 use super::super::voice_mapping::VoiceMapping;
 
+// TODO: let's add comments to explain
 pub(crate) struct VoiceResolver {
     mapping: VoiceMapping,
     installed: Vec<InstalledModel>,

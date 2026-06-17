@@ -1,3 +1,5 @@
+// TODO: let's explain what this file is for
+
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 

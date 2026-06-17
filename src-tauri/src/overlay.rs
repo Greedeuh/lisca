@@ -34,6 +34,7 @@ pub fn create_overlay(app: &AppHandle) {
     builder.build().expect("failed to create overlay window");
 }
 
+// TODO: explain, what are the good things to know about this?
 pub fn show_overlay(app: &AppHandle) {
     if !POSITIONED.swap(true, Ordering::SeqCst) {
         if let Some(w) = app.get_webview_window("overlay") {
@@ -85,6 +86,7 @@ fn position_top_right(app: &AppHandle, window: &tauri::webview::WebviewWindow) {
     ));
 }
 
+// TODO: explain why windows has this need?
 #[cfg(target_os = "windows")]
 fn force_topmost(window: &tauri::webview::WebviewWindow) {
     use windows::Win32::UI::WindowsAndMessaging::{

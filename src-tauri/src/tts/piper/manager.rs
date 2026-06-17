@@ -1,3 +1,5 @@
+// TODO: not a big fan of manager, it should be more explicit that it's about installation/dowload...
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
@@ -44,6 +46,7 @@ pub struct VoiceFile {
     pub md5_digest: String,
 }
 
+// TODO: why InstalledModel is in Piper and used in backend? => backend should not know about Piper
 #[derive(Debug, Clone, Serialize)]
 pub struct InstalledModel {
     pub voice_key: String,

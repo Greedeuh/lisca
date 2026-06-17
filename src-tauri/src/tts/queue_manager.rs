@@ -1,3 +1,4 @@
+// TODO: explain, why do we need a manager, what are we managing? maybe rename it to something more descriptive
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
