@@ -1,4 +1,5 @@
-// TODO: explain why we need clipboard
+/// Clipboard operations for the global hotkey flow: reads selected text by
+/// simulating Ctrl+C/Cmd+C, then restores the original clipboard contents.
 use std::time::Duration;
 use enigo::{Direction::{Click, Press, Release}, Enigo, Key, Keyboard, Settings};
 use tauri::AppHandle;

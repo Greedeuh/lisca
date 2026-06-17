@@ -6,7 +6,7 @@ mod tts;
 
 use std::sync::Arc;
 use tauri::Manager;
-use tts::TtsManager;
+use tts::ModelsOrchestrator;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,14 +26,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     setup_tts(app, &app_data_dir, resource_dir);
     setup_piper_models(app, &app_data_dir);
     overlay::create_overlay(app.handle());
-    setup_close_handler(app);
+    setup_exit_to_tray(app);
     setup_tray(app)?;
 
     Ok(())
 }
 
 fn setup_tts(app: &mut tauri::App, app_data_dir: &std::path::Path, resource_dir: std::path::PathBuf) {
-    let tts = Arc::new(TtsManager::new(
+    let tts = Arc::new(ModelsOrchestrator::new(
         app_data_dir.to_path_buf(),
         resource_dir,
         app.handle().clone(),
@@ -43,17 +43,19 @@ fn setup_tts(app: &mut tauri::App, app_data_dir: &std::path::Path, resource_dir:
 }
 
 fn setup_piper_models(app: &mut tauri::App, app_data_dir: &std::path::Path) {
-    let mut manager = tts::piper::PiperModelManager::new(app_data_dir);
-    manager.load_cached_voices();
-    let models = manager.list_installed();
-    app.manage(Arc::new(tokio::sync::Mutex::new(manager)));
+    let mut catalog = tts::piper::PiperCatalog::new(app_data_dir);
+    catalog.load_cached_voices();
+    let models = catalog.list_installed();
+    app.manage(Arc::new(tokio::sync::Mutex::new(catalog)));
 
-    let tts = app.state::<Arc<TtsManager>>();
+    let tts = app.state::<Arc<ModelsOrchestrator>>();
     tts.refresh_installed_models(models);
 }
 
-// TODO: explain, why do we need a close handler, what is it doing? maybe rename it to something more descriptive
-fn setup_close_handler(app: &mut tauri::App) {
+/// Intercepts the window close event: instead of quitting, the app hides the
+/// main window and shows the queue overlay if there are items queued. The user
+/// can quit from the system tray. This is the standard tray-app pattern.
+fn setup_exit_to_tray(app: &mut tauri::App) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };

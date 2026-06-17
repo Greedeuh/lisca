@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use unicode_normalization::UnicodeNormalization;
 
-use crate::tts::{BackendFactory, TtsBackend};
+use crate::tts::{ModelFactory, TtsModel};
 use super::InstalledModel;
 
 static INSTALLED_LANGUAGES: LazyLock<Mutex<HashSet<String>>> =
@@ -113,7 +113,7 @@ impl PiperModel {
         // Initialize espeak-ng with the correct language from config
         ensure_espeak_data(resource_dir, &config.espeak.voice);
 
-        let session = crate::tts::onnx_session::create_session(model_path)
+        let session = crate::tts::onnx_session::create_ort_model_session(model_path)
             .map_err(|e| format!("Session: {}", e))?;
 
         let mut phoneme_to_id = HashMap::new();
@@ -125,7 +125,7 @@ impl PiperModel {
             }
         }
 
-        let mut model = Self {
+        let model = Self {
             session,
             phoneme_to_id,
             config,
@@ -154,7 +154,8 @@ impl PiperModel {
         let mut ids = Vec::new();
         ids.push(bos);
 
-        // TODO: explain that and make sure it's correct/required
+        // BOS, PAD, and EOS markers are special phoneme IDs in Piper's config.
+        // We skip them here to avoid duplicating them in the output sequence. (not sure it's needed)
         for ch in decomposed.chars() {
             if ch == '^' || ch == '_' || ch == '$' {
                 continue;
@@ -177,7 +178,7 @@ impl PiperModel {
     }
 }
 
-impl TtsBackend for PiperModel {
+impl TtsModel for PiperModel {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
         let ids = self.text_to_phoneme_ids(text);
         if ids.is_empty() {
@@ -207,7 +208,8 @@ impl TtsBackend for PiperModel {
             ])
             .map_err(|e| format!("Inference: {}", e))?;
 
-        // TODO: explain what is shape and why we don't use it
+        // The model returns a 1-D tensor of f32 audio samples. We extract the
+        // raw data and discard the shape metadata since we know it's flat.
         let (_shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("Output: {}", e))?;
@@ -224,13 +226,13 @@ pub struct PiperBackendFactory {
     pub resource_dir: PathBuf,
 }
 
-impl BackendFactory for PiperBackendFactory {
+impl ModelFactory for PiperBackendFactory {
     fn create_from_installed(
         &self,
         model: &InstalledModel,
-    ) -> Result<Box<dyn TtsBackend>, String> {
+    ) -> Result<Box<dyn TtsModel>, String> {
         let mp = PathBuf::from(&model.model_path);
         let cp = PathBuf::from(&model.config_path);
-        PiperModel::load(&mp, &cp, &self.resource_dir).map(|m| Box::new(m) as Box<dyn TtsBackend>)
+        PiperModel::load(&mp, &cp, &self.resource_dir).map(|m| Box::new(m) as Box<dyn TtsModel>)
     }
 }

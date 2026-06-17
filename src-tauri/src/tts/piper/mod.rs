@@ -1,5 +1,5 @@
 mod model;
-pub mod manager;
+pub mod catalog;
 
 pub use model::{PiperBackendFactory, PiperModel};
-pub use manager::{InstalledModel, PiperModelManager, VoiceCatalog};
+pub use catalog::{InstalledModel, PiperCatalog, VoiceCatalog};

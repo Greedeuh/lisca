@@ -1,4 +1,6 @@
-// TODO: let's explain what this file is for, maybe rename it's hard to tell what it is processing
+/// Background processor that dequeues TTS items, synthesizes audio, and plays
+/// it through the audio output. Runs as a tokio task, woken by the playback
+/// notify when new items are added.
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -7,14 +9,14 @@ use tauri::{AppHandle, Emitter};
 
 use super::queue::{QueueConfig, QueueEvent, QueueItem};
 use super::text::split_text;
-use super::backend::{BackendPool, VoiceResolver};
+use super::model::{ModelPool, VoiceResolver};
 use super::language;
 use super::playback::{STATE_IDLE, STATE_PAUSED, STATE_PLAYING};
 
 struct ProcessorState {
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
     queue_config: Arc<std::sync::Mutex<QueueConfig>>,
-    pool: Arc<std::sync::Mutex<BackendPool>>,
+    pool: Arc<std::sync::Mutex<ModelPool>>,
     resolver: Arc<std::sync::Mutex<VoiceResolver>>,
     app_data_dir: PathBuf,
     stop_flag: Arc<AtomicBool>,
@@ -79,7 +81,7 @@ impl ProcessorState {
 pub fn run_processor(
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
     queue_config: Arc<std::sync::Mutex<QueueConfig>>,
-    pool: Arc<std::sync::Mutex<BackendPool>>,
+    pool: Arc<std::sync::Mutex<ModelPool>>,
     resolver: Arc<std::sync::Mutex<VoiceResolver>>,
     app_data_dir: PathBuf,
     stop_flag: Arc<AtomicBool>,
@@ -103,7 +105,7 @@ pub fn run_processor(
         app_handle,
     };
 
-    // TODO: big one, we should probably split this into several functions, it's a bit hard to read and understand
+    // TODO: this loop is doing too much — split into handle_item(), handle_playback(), etc.
     tokio::spawn(async move {
         loop {
             state.notify.notified().await;
@@ -154,7 +156,7 @@ pub fn run_processor(
                         resolver_guard.resolve_voice_key(lang)
                     };
                     let mut pool_guard = pool_clone.lock().unwrap();
-                    let model = pool_guard.get_for_language(voice_key.as_deref());
+                    let model = pool_guard.get_model_for_language(voice_key.as_deref());
                     let chunks = split_text(&text);
                     eprintln!("[processor] Synthesizing '{}' ({} chunks)", text, chunks.len());
                     let mut all_samples = Vec::new();

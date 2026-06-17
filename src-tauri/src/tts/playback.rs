@@ -1,5 +1,5 @@
-// TODO: let's explain what this file is for
-
+/// Playback state management for the TTS queue processor. Provides atomic
+/// stop/pause/resume flags and a notify channel to wake the processor loop.
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 

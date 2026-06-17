@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::tts::{BackendFactory, TtsBackend};
+use crate::tts::{ModelFactory, TtsModel};
 use crate::tts::piper::InstalledModel;
 
 const STYLE_DIM: usize = 256;
@@ -31,10 +31,10 @@ impl KokoroModel {
         }
 
         eprintln!("[kokoro] Loading model: {}", model_path.display());
-        let session = crate::tts::onnx_session::create_session(model_path)
+        let session = crate::tts::onnx_session::create_ort_model_session(model_path)
             .map_err(|e| format!("Session: {}", e))?;
 
-        // TODO: why do we need to print the model inputs and outputs? what are inputs and outputs?
+        // Debug: print model I/O schema to verify expected tensor names/dtypes.
         eprintln!("[kokoro] Model inputs:");
         for input in session.inputs() {
             eprintln!("  - {} : {:?}", input.name(), input.dtype());
@@ -94,9 +94,9 @@ impl KokoroModel {
             let s = ch.to_string();
             if let Some(&id) = self.char_to_id.get(&s) {
                 ids.push(id);
-            } else if ch == '\u{200d}' { // TODO: explain what this character is and why we need to handle it
+            } else if ch == '\u{200d}' { // Zero-width joiner (U+200D) — not in the vocab, skip.
                 continue;
-            } else { // TODO: explain why we need to handle unknown characters and what we do with them
+            } else { // Unknown phoneme — substitute a space to avoid synthesis errors.
                 if let Some(&id) = self.char_to_id.get(" ") {
                     ids.push(id);
                 }
@@ -106,7 +106,8 @@ impl KokoroModel {
         Ok(ids)
     }
 
-    // TODO: explain what this function does and why we need it
+    /// Selects the voice style vector based on input length. Shorter texts
+    /// get an earlier style (index 0), longer texts use later styles.
     fn get_style(&self, num_tokens: usize) -> &[f32] {
         let idx = num_tokens.min(MAX_STYLE_INDEX);
         let offset = idx * STYLE_DIM;
@@ -118,7 +119,7 @@ impl KokoroModel {
     }
 }
 
-impl TtsBackend for KokoroModel {
+impl TtsModel for KokoroModel {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
         let ids = self.text_to_tokens(text)?;
         if ids.is_empty() {
@@ -140,8 +141,8 @@ impl TtsBackend for KokoroModel {
             .session
             .run(ort::inputs![
                 "input_ids" => t_input.into_dyn(),
-                "style" => t_style.into_dyn(), // TODO: explain what is style and why we need it
-                "speed" => t_speed.into_dyn(), // TODO: explain what is speed and why we need it
+                "style" => t_style.into_dyn(), // Style vector: encodes speaker identity/tone for the voice.
+                "speed" => t_speed.into_dyn(), // Speed multiplier: 1.0 = normal, <1 = slower, >1 = faster.
             ])
             .map_err(|e| format!("Inference: {}", e))?;
         eprintln!("[kokoro] Inference: {}ms", start.elapsed().as_millis());
@@ -154,8 +155,7 @@ impl TtsBackend for KokoroModel {
     }
 
     fn sample_rate(&self) -> u32 {
-        // TODO: why this value?
-        24000
+        24000 // Kokoro models are trained at 24kHz.
     }
 }
 
@@ -163,14 +163,14 @@ pub struct KokoroBackendFactory {
     pub model_dir: PathBuf,
 }
 
-impl BackendFactory for KokoroBackendFactory {
+impl ModelFactory for KokoroBackendFactory {
     fn create_from_installed(
         &self,
         _model: &InstalledModel,
-    ) -> Result<Box<dyn TtsBackend>, String> {
+    ) -> Result<Box<dyn TtsModel>, String> {
         let model = self.model_dir.join("model_q8f16.onnx");
         let voice = self.model_dir.join("af.bin");
         let tokenizer = self.model_dir.join("tokenizer.json");
-        KokoroModel::load(&model, &voice, &tokenizer).map(|m| Box::new(m) as Box<dyn TtsBackend>)
+        KokoroModel::load(&model, &voice, &tokenizer).map(|m| Box::new(m) as Box<dyn TtsModel>)
     }
 }

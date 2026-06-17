@@ -1,4 +1,7 @@
-// TODO: seems like the heart of the queue system? explain, and maybe we should have a module for the queue
+/// Core queue data types and file persistence. Defines QueueItem, QueueConfig,
+/// QueueEvent, and the JSON file I/O for persisting queue state across restarts.
+/// TODO: seems like the heart of the queue system? maybe we should have a module for the queue
+
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::Path;

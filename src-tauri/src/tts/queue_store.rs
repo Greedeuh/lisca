@@ -1,4 +1,5 @@
-// TODO: explain, why do we need a manager, what are we managing? maybe rename it to something more descriptive
+/// Manages the TTS queue: adding/removing/moving items, persisting to disk,
+/// and providing snapshots for the frontend.
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -6,14 +7,14 @@ use std::sync::Arc;
 use super::language;
 use super::queue::{QueueConfig, QueueItem, QueueSnapshot};
 
-pub(crate) struct QueueManager {
+pub(crate) struct QueueStore {
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
     config: Arc<std::sync::Mutex<QueueConfig>>,
     next_id: Arc<std::sync::Mutex<u32>>,
     app_data_dir: PathBuf,
 }
 
-impl QueueManager {
+impl QueueStore {
     pub fn new(app_data_dir: PathBuf) -> Self {
         let queue = super::queue::load_queue(&app_data_dir);
         let config = super::queue::load_queue_config(&app_data_dir);
@@ -142,9 +143,9 @@ mod tests {
     use super::*;
     use super::super::queue::PlaybackState;
 
-    fn temp_qm() -> (tempfile::TempDir, QueueManager) {
+    fn temp_qm() -> (tempfile::TempDir, QueueStore) {
         let dir = tempfile::tempdir().unwrap();
-        let qm = QueueManager::new(dir.path().to_path_buf());
+        let qm = QueueStore::new(dir.path().to_path_buf());
         (dir, qm)
     }
 
@@ -266,11 +267,11 @@ mod tests {
     async fn new_loads_from_disk() {
         let dir = tempfile::tempdir().unwrap();
         {
-            let qm = QueueManager::new(dir.path().to_path_buf());
+            let qm = QueueStore::new(dir.path().to_path_buf());
             qm.add("persisted".into()).await.unwrap();
         }
-        // create new QM from same dir
-        let qm2 = QueueManager::new(dir.path().to_path_buf());
+        // create new QueueStore from same dir
+        let qm2 = QueueStore::new(dir.path().to_path_buf());
         let snap = qm2.snapshot().await;
         assert_eq!(snap.items.len(), 1);
         assert_eq!(snap.items[0].text, "persisted");

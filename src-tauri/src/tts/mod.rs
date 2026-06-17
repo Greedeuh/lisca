@@ -7,11 +7,11 @@ pub mod config;
 pub mod playback;
 pub mod processor;
 pub mod queue;
-pub mod queue_manager;
+pub mod queue_store;
 pub mod text;
 pub mod voice_mapping;
 mod onnx_session;
-pub(crate) mod backend;
+pub(crate) mod model;
 mod queue_facade;
 
 use std::path::PathBuf;
@@ -19,47 +19,48 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tauri::AppHandle;
 
-use self::backend::{ActiveBackend, AudioChunk, BackendFactory, BackendPool, VoiceResolver};
-use self::config::BackendConfig;
+use self::model::{ActiveBackend, AudioChunk, ModelFactory, ModelPool, VoiceResolver};
+use self::config::ModelSelection;
 use self::playback::PlaybackController;
 use self::piper::InstalledModel;
 use self::queue::{QueueConfig, QueueItem, QueueSnapshot};
 use self::queue_facade::QueueFacade;
-use self::queue_manager::QueueManager;
+use self::queue_store::QueueStore;
 use self::voice_mapping::VoiceMapping;
 
-pub use self::backend::TtsBackend;
+pub use self::model::TtsModel;
 
 const AUDIO_CHANNEL_BUFFER: usize = 8;
 const I16_SAMPLE_SCALE: f32 = 32767.0;
 
-// TODO: let's add comments to explain, maybe rename since we don't understand what manager means here
-pub struct TtsManager {
-    pool: Arc<std::sync::Mutex<BackendPool>>,
+/// Central orchestrator for TTS. Coordinates model pool, voice resolution,
+/// queue management, and audio playback.
+pub struct ModelsOrchestrator {
+    pool: Arc<std::sync::Mutex<ModelPool>>,
     resolver: Arc<std::sync::Mutex<VoiceResolver>>,
-    config: Arc<std::sync::Mutex<BackendConfig>>,
+    config: Arc<std::sync::Mutex<ModelSelection>>,
     queue: QueueFacade,
     pub(crate) app_data_dir: PathBuf,
     pub(crate) resource_dir: PathBuf,
 }
 
-impl TtsManager {
+impl ModelsOrchestrator {
     pub fn new(app_data_dir: PathBuf, resource_dir: PathBuf, app_handle: AppHandle) -> Self {
         let mapping = voice_mapping::load(&app_data_dir);
         let config = config::load_config(&app_data_dir);
         let (factory, active_backend) = match &config {
-            BackendConfig::Kokoro => {
-                let model_dir = BackendConfig::kokoro_model_dir(&app_data_dir);
-                let factory: Box<dyn BackendFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
+            ModelSelection::Kokoro => {
+                let model_dir = ModelSelection::kokoro_model_dir(&app_data_dir);
+                let factory: Box<dyn ModelFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
                 (factory, ActiveBackend::Kokoro)
             }
-            BackendConfig::Piper { .. } => {
-                let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory { resource_dir: resource_dir.clone() });
+            ModelSelection::Piper { .. } => {
+                let factory: Box<dyn ModelFactory> = Box::new(piper::PiperBackendFactory { resource_dir: resource_dir.clone() });
                 (factory, ActiveBackend::Piper)
             }
         };
 
-        let pool = Arc::new(std::sync::Mutex::new(BackendPool::new(
+        let pool = Arc::new(std::sync::Mutex::new(ModelPool::new(
             factory,
             active_backend,
         )));
@@ -68,7 +69,7 @@ impl TtsManager {
 
         Self {
             queue: QueueFacade::new(
-                QueueManager::new(app_data_dir.clone()),
+                QueueStore::new(app_data_dir.clone()),
                 PlaybackController::new(),
                 processor_running,
                 pool.clone(),
@@ -84,19 +85,19 @@ impl TtsManager {
         }
     }
 
-    fn load_backend_from_config(
-        config: &BackendConfig,
+    fn load_model_from_selection(
+        selection: &ModelSelection,
         resource_dir: &std::path::Path,
         app_data_dir: &std::path::Path,
-    ) -> Option<Box<dyn TtsBackend>> {
-        match config {
-            BackendConfig::Piper {
+    ) -> Option<Box<dyn TtsModel>> {
+        match selection {
+            ModelSelection::Piper {
                 model_path,
                 config_path,
             } => {
-                // TODO: this a bit long, maybe we can refactor it to a function in PiperModel or PiperBackend
-                let mp = BackendConfig::resolve_path(model_path, app_data_dir);
-                let cp = BackendConfig::resolve_path(config_path, app_data_dir);
+                // TODO: extract into PiperModel::from_config() — this path resolution logic is verbose
+                let mp = ModelSelection::resolve_path(model_path, app_data_dir);
+                let cp = ModelSelection::resolve_path(config_path, app_data_dir);
 
                 if !mp.exists() || !cp.exists() {
                     eprintln!("Piper model files not found: {:?}, {:?}", mp, cp);
@@ -120,9 +121,9 @@ impl TtsManager {
                     }
                 }
             }
-            BackendConfig::Kokoro => {
-                // TODO: this a bit long, maybe we can refactor it to a function in PiperModel or PiperBackend
-                let model_dir = BackendConfig::kokoro_model_dir(app_data_dir);
+            ModelSelection::Kokoro => {
+                // TODO: extract into KokoroModel::from_config() — same pattern as Piper
+                let model_dir = ModelSelection::kokoro_model_dir(app_data_dir);
                 let model = model_dir.join("model_q8f16.onnx");
                 let voice = model_dir.join("af.bin");
                 let tokenizer = model_dir.join("tokenizer.json");
@@ -164,29 +165,29 @@ impl TtsManager {
         let app_data = self.app_data_dir.clone();
 
         std::thread::spawn(move || {
-            let new_backend = Self::load_backend_from_config(&config, &base_dir, &app_data);
+            let new_backend = Self::load_model_from_selection(&config, &base_dir, &app_data);
             pool.lock().unwrap().primary = new_backend;
         });
     }
 
-    pub fn set_backend(&self, config: BackendConfig) -> Result<(), String> {
+    pub fn set_backend(&self, config: ModelSelection) -> Result<(), String> {
         self.stop();
         eprintln!("[tts] set_backend: {:?}", config);
 
         config::save_config(&self.app_data_dir, &config)?;
         *self.config.lock().unwrap() = config.clone();
 
-        match Self::load_backend_from_config(&config, &self.resource_dir, &self.app_data_dir) {
+        match Self::load_model_from_selection(&config, &self.resource_dir, &self.app_data_dir) {
             Some(new_backend) => {
                 eprintln!("[tts] Backend loaded successfully");
                 let (factory, active_backend) = match &config {
-                    BackendConfig::Kokoro => {
-                        let model_dir = BackendConfig::kokoro_model_dir(&self.app_data_dir);
-                        let factory: Box<dyn BackendFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
+                    ModelSelection::Kokoro => {
+                        let model_dir = ModelSelection::kokoro_model_dir(&self.app_data_dir);
+                        let factory: Box<dyn ModelFactory> = Box::new(kokoro::KokoroBackendFactory { model_dir });
                         (factory, ActiveBackend::Kokoro)
                     }
-                    BackendConfig::Piper { .. } => {
-                        let factory: Box<dyn BackendFactory> = Box::new(piper::PiperBackendFactory { resource_dir: self.resource_dir.clone() });
+                    ModelSelection::Piper { .. } => {
+                        let factory: Box<dyn ModelFactory> = Box::new(piper::PiperBackendFactory { resource_dir: self.resource_dir.clone() });
                         (factory, ActiveBackend::Piper)
                     }
                 };
@@ -205,7 +206,7 @@ impl TtsManager {
         }
     }
 
-    pub fn get_config(&self) -> BackendConfig {
+    pub fn get_config(&self) -> ModelSelection {
         self.config.lock().unwrap().clone()
     }
 
@@ -242,7 +243,7 @@ impl TtsManager {
         let text_clone = text.to_string();
         let synth_handle = tokio::task::spawn_blocking(move || {
             let mut pool_guard = pool.lock().unwrap();
-            let model = pool_guard.get_for_language(vk.as_deref());
+            let model = pool_guard.get_model_for_language(vk.as_deref());
 
             let chunks = text::split_text(&text_clone);
             for chunk in &chunks {

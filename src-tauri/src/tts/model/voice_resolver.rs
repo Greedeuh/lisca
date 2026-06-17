@@ -1,7 +1,9 @@
 use super::super::piper::InstalledModel;
 use super::super::voice_mapping::VoiceMapping;
 
-// TODO: let's add comments to explain
+/// Resolves a language family (e.g. "en", "fr") to a concrete voice key
+/// for the active TTS model. First checks the user's explicit voice mapping,
+/// then falls back to the first installed model matching that language.
 pub(crate) struct VoiceResolver {
     mapping: VoiceMapping,
     installed: Vec<InstalledModel>,

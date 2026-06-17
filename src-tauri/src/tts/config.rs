@@ -3,10 +3,11 @@ use std::path::{Path, PathBuf};
 
 use crate::persist;
 
-// TODO: rename, config is quite generic, it should tell that's about what model are we currenlty using for TTS
+/// Represents which TTS model backend is currently selected by the user.
+/// Persisted to disk so it survives app restarts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum BackendConfig {
+pub enum ModelSelection {
     #[serde(rename = "piper")]
     Piper {
         model_path: String,
@@ -16,7 +17,7 @@ pub enum BackendConfig {
     Kokoro,
 }
 
-impl Default for BackendConfig {
+impl Default for ModelSelection {
     fn default() -> Self {
         Self::Piper {
             model_path: "lisca/piper_models/en_US-lessac-medium.onnx".into(),
@@ -25,7 +26,7 @@ impl Default for BackendConfig {
     }
 }
 
-impl BackendConfig {
+impl ModelSelection {
     pub fn kokoro_model_dir(app_data_dir: &Path) -> PathBuf {
         app_data_dir.join("lisca").join("kokoro")
     }
@@ -44,12 +45,12 @@ pub fn config_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("lisca").join("config.json")
 }
 
-pub fn load_config(app_data_dir: &Path) -> BackendConfig {
+pub fn load_config(app_data_dir: &Path) -> ModelSelection {
     let path = config_path(app_data_dir);
     persist::load_json(&path)
 }
 
-pub fn save_config(app_data_dir: &Path, config: &BackendConfig) -> Result<(), String> {
+pub fn save_config(app_data_dir: &Path, config: &ModelSelection) -> Result<(), String> {
     let path = config_path(app_data_dir);
     persist::save_json(&path, config)
 }
@@ -60,7 +61,7 @@ mod tests {
 
     #[test]
     fn piper_default() {
-        let config = BackendConfig::default();
+        let config = ModelSelection::default();
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("\"type\":\"piper\""));
         assert!(json.contains("lisca/piper_models/en_US-lessac-medium.onnx"));
@@ -68,13 +69,13 @@ mod tests {
 
     #[test]
     fn piper_serde_roundtrip() {
-        let config = BackendConfig::Piper {
+        let config = ModelSelection::Piper {
             model_path: "models/en_US-lessac-medium.onnx".into(),
             config_path: "models/en_US-lessac-medium.onnx.json".into(),
         };
         let json = serde_json::to_string(&config).unwrap();
-        let deserialized: BackendConfig = serde_json::from_str(&json).unwrap();
-        if let BackendConfig::Piper { model_path, config_path } = deserialized {
+        let deserialized: ModelSelection = serde_json::from_str(&json).unwrap();
+        if let ModelSelection::Piper { model_path, config_path } = deserialized {
             assert_eq!(model_path, "models/en_US-lessac-medium.onnx");
             assert_eq!(config_path, "models/en_US-lessac-medium.onnx.json");
         } else {
@@ -85,27 +86,27 @@ mod tests {
     #[test]
     fn resolve_path_absolute() {
         let base = PathBuf::from("/base/dir");
-        let result = BackendConfig::resolve_path("/absolute/path", &base);
+        let result = ModelSelection::resolve_path("/absolute/path", &base);
         assert_eq!(result, PathBuf::from("/absolute/path"));
     }
 
     #[test]
     fn resolve_path_relative() {
         let base = PathBuf::from("/base/dir");
-        let result = BackendConfig::resolve_path("models/voice.onnx", &base);
+        let result = ModelSelection::resolve_path("models/voice.onnx", &base);
         assert_eq!(result, PathBuf::from("/base/dir/models/voice.onnx"));
     }
 
     #[test]
     fn save_and_load_config() {
         let dir = tempfile::tempdir().unwrap();
-        let config = BackendConfig::Piper {
+        let config = ModelSelection::Piper {
             model_path: "test.onnx".into(),
             config_path: "test.onnx.json".into(),
         };
         save_config(dir.path(), &config).unwrap();
         let loaded = load_config(dir.path());
-        if let BackendConfig::Piper { model_path, config_path } = loaded {
+        if let ModelSelection::Piper { model_path, config_path } = loaded {
             assert_eq!(model_path, "test.onnx");
             assert_eq!(config_path, "test.onnx.json");
         } else {
@@ -117,22 +118,22 @@ mod tests {
     fn load_missing_config_returns_default() {
         let dir = tempfile::tempdir().unwrap();
         let config = load_config(dir.path());
-        assert!(matches!(config, BackendConfig::Piper { .. }));
+        assert!(matches!(config, ModelSelection::Piper { .. }));
     }
 
     #[test]
     fn kokoro_serde_roundtrip() {
-        let config = BackendConfig::Kokoro;
+        let config = ModelSelection::Kokoro;
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("\"type\":\"kokoro\""));
-        let deserialized: BackendConfig = serde_json::from_str(&json).unwrap();
-        assert!(matches!(deserialized, BackendConfig::Kokoro));
+        let deserialized: ModelSelection = serde_json::from_str(&json).unwrap();
+        assert!(matches!(deserialized, ModelSelection::Kokoro));
     }
 
     #[test]
     fn kokoro_model_dir() {
         let base = PathBuf::from("/home/user/.local/share/com.lisca.app");
-        let dir = BackendConfig::kokoro_model_dir(&base);
+        let dir = ModelSelection::kokoro_model_dir(&base);
         assert_eq!(dir, PathBuf::from("/home/user/.local/share/com.lisca.app/lisca/kokoro"));
     }
 }

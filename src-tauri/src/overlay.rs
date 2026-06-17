@@ -34,7 +34,8 @@ pub fn create_overlay(app: &AppHandle) {
     builder.build().expect("failed to create overlay window");
 }
 
-// TODO: explain, what are the good things to know about this?
+/// Shows the overlay window, positioning it at top-right of the current
+/// monitor on first show. On Windows, also forces it above other windows.
 pub fn show_overlay(app: &AppHandle) {
     if !POSITIONED.swap(true, Ordering::SeqCst) {
         if let Some(w) = app.get_webview_window("overlay") {
@@ -86,7 +87,9 @@ fn position_top_right(app: &AppHandle, window: &tauri::webview::WebviewWindow) {
     ));
 }
 
-// TODO: explain why windows has this need?
+/// Windows-specific: SetWindowPos with HWND_TOPMOST to ensure the overlay
+/// stays above other windows, even when the app isn't focused. Without this,
+/// the overlay can fall behind the active window.
 #[cfg(target_os = "windows")]
 fn force_topmost(window: &tauri::webview::WebviewWindow) {
     use windows::Win32::UI::WindowsAndMessaging::{

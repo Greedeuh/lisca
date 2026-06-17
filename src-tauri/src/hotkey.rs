@@ -6,7 +6,7 @@ use tauri::Manager;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use crate::clipboard;
-use crate::tts::TtsManager;
+use crate::tts::ModelsOrchestrator;
 
 fn hotkey_path(app: &AppHandle) -> PathBuf {
     let dir = app.path().app_data_dir().expect("no app data dir");
@@ -174,7 +174,7 @@ pub fn hotkey_set(app: AppHandle, shortcut: String) -> Result<(), String> {
     let (mods, code) = parse_shortcut(&shortcut)?;
     let sc = Shortcut::new(Some(mods), code);
 
-    let tts = app.state::<Arc<TtsManager>>().inner().clone();
+    let tts = app.state::<Arc<ModelsOrchestrator>>().inner().clone();
     app.global_shortcut()
         .on_shortcut(sc, move |app_handle, _shortcut, event| {
             if event.state == ShortcutState::Pressed {

@@ -3,29 +3,31 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::backend::{BackendPool, VoiceResolver};
+use super::model::{ModelPool, VoiceResolver};
 use super::playback::PlaybackController;
 use super::processor;
 use super::queue::{QueueConfig, QueueEvent, QueueItem, QueueSnapshot};
-use super::queue_manager::QueueManager;
+use super::queue_store::QueueStore;
 
+/// Facade over QueueStore + PlaybackController + processor. Provides a clean
+/// public API for ModelsOrchestrator to interact with the queue system without
+/// coupling to internal details.
 pub(crate) struct QueueFacade {
-    queue_mgr: QueueManager,
+    queue_mgr: QueueStore,
     pub playback: PlaybackController,
     processor_running: Arc<AtomicBool>,
-    pool: Arc<std::sync::Mutex<BackendPool>>,
+    pool: Arc<std::sync::Mutex<ModelPool>>,
     resolver: Arc<std::sync::Mutex<VoiceResolver>>,
     app_data_dir: PathBuf,
     app_handle: AppHandle,
 }
 
-// TODO: explain why façade, why do we need a facade?
 impl QueueFacade {
     pub fn new(
-        queue_mgr: QueueManager,
+        queue_mgr: QueueStore,
         playback: PlaybackController,
         processor_running: Arc<AtomicBool>,
-        pool: Arc<std::sync::Mutex<BackendPool>>,
+    pool: Arc<std::sync::Mutex<ModelPool>>,
         resolver: Arc<std::sync::Mutex<VoiceResolver>>,
         app_data_dir: PathBuf,
         app_handle: AppHandle,
@@ -147,7 +149,8 @@ impl QueueFacade {
             .unwrap_or(true)
     }
 
-    // TODO: what's the goal of this function, need explanation, maybe we can rename it because we don't get it directly from the name
+    /// Shows or hides the overlay window depending on queue state. No-op if
+    /// the main window is visible (the overlay is only for tray mode).
     fn sync_overlay(&self, has_items: bool) {
         if self.is_main_window_visible() {
             return;

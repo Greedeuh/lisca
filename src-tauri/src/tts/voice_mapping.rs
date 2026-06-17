@@ -1,5 +1,4 @@
-// TODO: check if it's related to piper, could it be used for other model later?
-
+/// TODO: Currently Piper-specific, but could be generalized for other model backends later.
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};

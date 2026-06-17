@@ -1,4 +1,5 @@
-// TODO: not a big fan of manager, it should be more explicit that it's about installation/dowload...
+/// Manages the Piper voice catalog: fetching the remote voice list, downloading
+/// model files, listing installed models, and deleting them.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -70,14 +71,14 @@ pub enum DownloadProgress {
     Complete { voice_key: String },
 }
 
-pub struct PiperModelManager {
+pub struct PiperCatalog {
     models_dir: PathBuf,
     cache_path: PathBuf,
     catalog: Option<VoiceCatalog>,
     http_client: reqwest::Client,
 }
 
-impl PiperModelManager {
+impl PiperCatalog {
     pub fn new(app_data_dir: &Path) -> Self {
         let models_dir = app_data_dir.join("lisca").join("piper_models");
         let cache_path = app_data_dir.join("lisca").join("piper_voices_cache.json");

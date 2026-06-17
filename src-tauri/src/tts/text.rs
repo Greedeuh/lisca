@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
-// TODO: explain, split text but based on what? what goal?
+/// Splits text into chunks at sentence boundaries (. ! ? ; followed by
+/// whitespace). This allows the processor to queue each sentence separately.
 pub fn split_text(text: &str) -> Vec<String> {
     static RE: OnceLock<regex::Regex> = OnceLock::new();
     let re = RE.get_or_init(|| regex::Regex::new(r"([.!?;])\s+").unwrap());
