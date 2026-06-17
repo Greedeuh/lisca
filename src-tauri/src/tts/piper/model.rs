@@ -4,6 +4,7 @@ use std::sync::{LazyLock, Mutex};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::tts::{BackendFactory, TtsBackend};
+use super::InstalledModel;
 
 static INSTALLED_LANGUAGES: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
@@ -112,7 +113,7 @@ impl PiperModel {
         // Initialize espeak-ng with the correct language from config
         ensure_espeak_data(resource_dir, &config.espeak.voice);
 
-        let session = super::session::create_session(model_path)
+        let session = crate::tts::onnx_session::create_session(model_path)
             .map_err(|e| format!("Session: {}", e))?;
 
         let mut phoneme_to_id = HashMap::new();
@@ -244,17 +245,17 @@ impl TtsBackend for PiperModel {
     }
 }
 
-pub struct PiperBackendFactory;
+pub struct PiperBackendFactory {
+    pub resource_dir: PathBuf,
+}
 
 impl BackendFactory for PiperBackendFactory {
-    fn load(
+    fn create_from_installed(
         &self,
-        model_path: &str,
-        config_path: &str,
-        resource_dir: &Path,
+        model: &InstalledModel,
     ) -> Result<Box<dyn TtsBackend>, String> {
-        let mp = PathBuf::from(model_path);
-        let cp = PathBuf::from(config_path);
-        PiperModel::load(&mp, &cp, resource_dir).map(|m| Box::new(m) as Box<dyn TtsBackend>)
+        let mp = PathBuf::from(&model.model_path);
+        let cp = PathBuf::from(&model.config_path);
+        PiperModel::load(&mp, &cp, &self.resource_dir).map(|m| Box::new(m) as Box<dyn TtsBackend>)
     }
 }

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::tts::{BackendFactory, TtsBackend};
+use crate::tts::piper::InstalledModel;
 
 const STYLE_DIM: usize = 256;
 const MAX_STYLE_INDEX: usize = 509;
@@ -30,7 +31,7 @@ impl KokoroModel {
         }
 
         eprintln!("[kokoro] Loading model: {}", model_path.display());
-        let session = super::super::piper::session::create_session(model_path)
+        let session = crate::tts::onnx_session::create_session(model_path)
             .map_err(|e| format!("Session: {}", e))?;
 
         eprintln!("[kokoro] Model inputs:");
@@ -87,14 +88,17 @@ impl KokoroModel {
     fn text_to_tokens(&self, text: &str) -> Result<Vec<i64>, String> {
         let (phonemes, _tokens) = self.g2p.g2p(text)
             .map_err(|e| format!("G2P: {}", e))?;
-
         let mut ids: Vec<i64> = vec![0];
         for ch in phonemes.chars() {
             let s = ch.to_string();
             if let Some(&id) = self.char_to_id.get(&s) {
                 ids.push(id);
-            } else if let Some(&id) = self.char_to_id.get(" ") {
-                ids.push(id);
+            } else if ch == '\u{200d}' {
+                continue;
+            } else {
+                if let Some(&id) = self.char_to_id.get(" ") {
+                    ids.push(id);
+                }
             }
         }
         ids.push(0);
@@ -115,7 +119,6 @@ impl KokoroModel {
 impl TtsBackend for KokoroModel {
     fn synthesize(&mut self, text: &str, speed: f32) -> Result<Vec<f32>, String> {
         let ids = self.text_to_tokens(text)?;
-        eprintln!("[kokoro] synthesize '{}' -> {} tokens, first few: {:?}", text, ids.len(), &ids[..ids.len().min(20)]);
         if ids.is_empty() {
             return Err("No tokens generated from text".into());
         }
@@ -139,13 +142,12 @@ impl TtsBackend for KokoroModel {
                 "speed" => t_speed.into_dyn(),
             ])
             .map_err(|e| format!("Inference: {}", e))?;
-        eprintln!("[kokoro] Inference done in {}ms", start.elapsed().as_millis());
+        eprintln!("[kokoro] Inference: {}ms", start.elapsed().as_millis());
 
         let (_shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("Output: {}", e))?;
 
-        eprintln!("[kokoro] Output: {} samples, first few: {:?}", data.len(), &data[..data.len().min(10)]);
         Ok(data.to_vec())
     }
 
@@ -159,11 +161,9 @@ pub struct KokoroBackendFactory {
 }
 
 impl BackendFactory for KokoroBackendFactory {
-    fn load(
+    fn create_from_installed(
         &self,
-        _model_path: &str,
-        _config_path: &str,
-        _resource_dir: &Path,
+        _model: &InstalledModel,
     ) -> Result<Box<dyn TtsBackend>, String> {
         let model = self.model_dir.join("model_q8f16.onnx");
         let voice = self.model_dir.join("af.bin");

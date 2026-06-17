@@ -6,12 +6,15 @@ use tauri::{AppHandle, Emitter};
 
 use super::queue::{QueueConfig, QueueEvent, QueueItem};
 use super::text::split_text;
-use super::{BackendPool, STATE_IDLE, STATE_PAUSED, STATE_PLAYING};
+use super::backend::{BackendPool, VoiceResolver};
+use super::language;
+use super::playback::{STATE_IDLE, STATE_PAUSED, STATE_PLAYING};
 
 struct ProcessorState {
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
     queue_config: Arc<std::sync::Mutex<QueueConfig>>,
     pool: Arc<std::sync::Mutex<BackendPool>>,
+    resolver: Arc<std::sync::Mutex<VoiceResolver>>,
     app_data_dir: PathBuf,
     stop_flag: Arc<AtomicBool>,
     pause_flag: Arc<AtomicBool>,
@@ -76,6 +79,7 @@ pub fn run_processor(
     queue: Arc<tokio::sync::Mutex<VecDeque<QueueItem>>>,
     queue_config: Arc<std::sync::Mutex<QueueConfig>>,
     pool: Arc<std::sync::Mutex<BackendPool>>,
+    resolver: Arc<std::sync::Mutex<VoiceResolver>>,
     app_data_dir: PathBuf,
     stop_flag: Arc<AtomicBool>,
     pause_flag: Arc<AtomicBool>,
@@ -88,6 +92,7 @@ pub fn run_processor(
         queue,
         queue_config,
         pool,
+        resolver,
         app_data_dir,
         stop_flag,
         pause_flag,
@@ -137,11 +142,17 @@ pub fn run_processor(
                 });
 
                 let pool_clone = state.pool.clone();
+                let resolver_clone = state.resolver.clone();
                 let item_lang = item.language.clone();
                 let text = item.text.clone();
                 let synth_result = match tokio::task::spawn_blocking(move || {
+                    let voice_key = {
+                        let resolver_guard = resolver_clone.lock().unwrap();
+                        let lang = item_lang.as_deref().or_else(|| language::detect_language_family(&text));
+                        resolver_guard.resolve_voice_key(lang)
+                    };
                     let mut pool_guard = pool_clone.lock().unwrap();
-                    let model = pool_guard.get_for_language(item_lang.as_deref());
+                    let model = pool_guard.get_for_language(voice_key.as_deref());
                     let chunks = split_text(&text);
                     eprintln!("[processor] Synthesizing '{}' ({} chunks)", text, chunks.len());
                     let mut all_samples = Vec::new();
@@ -173,8 +184,11 @@ pub fn run_processor(
                 match synth_result {
                     Ok(samples) => {
                         let sample_rate = {
+                            let resolver_guard = state.resolver.lock().unwrap();
+                            let lang = item.language.as_deref().or_else(|| language::detect_language_family(&item.text));
+                            let voice_key = resolver_guard.resolve_voice_key(lang);
                             let guard = state.pool.lock().unwrap();
-                            guard.sample_rate_for_language(item.language.as_deref())
+                            guard.sample_rate_for_language(voice_key.as_deref())
                         };
                         eprintln!("[processor] Playing {} samples at {}Hz", samples.len(), sample_rate);
 
