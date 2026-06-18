@@ -20,21 +20,21 @@ And finally before going to the next phase: ask user review.
 **Goal:** Fresh Tauri v2 project with clean module layout, buildable and passing CI.
 
 ### Tasks
-- [ ] Create fresh Tauri v2 project from POC (copy configs, clean up demo code)
-- [ ] Organize Rust backend into domain modules: `queue/`, `transcriber/`, `speech_player/`, `models/`, `voice_prefs/`
-- [ ] Organize frontend into feature folders: `components/queue/`, `components/voices/`, `components/settings/`, `overlay/`
-- [ ] Define shared IPC event channel types (queue, transcription, playback, model, download)
-- [ ] Set up CI: `.github/workflows/test.yml` running `cargo test`, `bun run build`, `bun run vitest run`
+- [x] Create fresh Tauri v2 project from POC (copy configs, clean up demo code)
+- [x] Organize Rust backend into domain modules: `queue/`, `transcriber/`, `speech_player/`, `models/`, `voice_prefs/`
+- [x] Organize frontend into feature folders: `components/queue/`, `components/voices/`, `components/settings/`, `overlay/`
+- [x] Define shared IPC event channel types (queue, transcription, playback, model, download)
+- [x] Set up CI: `.github/workflows/test.yml` running `cargo test`, `bun run build`, `bun run vitest run`
 
 ### Acceptance Criteria
 - [ ] `bun run tauri build` completes without errors on Linux
-- [ ] `cargo test --lib` from `src-tauri/` passes (0 failures)
-- [ ] `bun run vitest run` passes (0 failures)
-- [ ] `bun run build` (type check) passes
-- [ ] Rust source tree has top-level modules: `queue`, `transcriber`, `speech_player`, `models`, `voice_prefs`
-- [ ] Frontend `src/` has directories: `components/queue/`, `components/voices/`, `components/settings/`, `overlay/`
-- [ ] IPC event channel type definitions exist (TypeScript types + Rust enums)
-- [ ] No dead/demo code remains (e.g. placeholder TTS commands, unused components)
+- [x] `cargo test --lib` from `src-tauri/` passes (0 failures)
+- [x] `bun run vitest run` passes (0 failures)
+- [x] `bun run build` (type check) passes
+- [x] Rust source tree has top-level modules: `queue`, `transcriber`, `speech_player`, `models`, `voice_prefs`
+- [x] Frontend `src/` has directories: `components/queue/`, `components/voices/`, `components/settings/`, `overlay/`
+- [x] IPC event channel type definitions exist (TypeScript types + Rust enums)
+- [x] No dead/demo code remains (e.g. placeholder TTS commands, unused components)
 
 ---
 

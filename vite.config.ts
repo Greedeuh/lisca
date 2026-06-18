@@ -6,6 +6,11 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test-setup.ts"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+  },
   plugins: [react()],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
