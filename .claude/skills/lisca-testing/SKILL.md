@@ -27,8 +27,6 @@ bun run build           # Type check + vite build
 
 Pure functions — no Tauri runtime, no models, no network.
 
-Example: `hotkey.rs`, `tts/text.rs`, `tts/queue.rs`, `persist.rs`.
-
 **Pattern**: inline `#[cfg(test)] mod tests` in each file. Use `tempfile::tempdir()` for file tests.
 
 ```rust
@@ -50,48 +48,11 @@ mod tests {
 
 Presentational components — render correctly, call callbacks on interaction.
 
-Example: `VoiceRow`, `InstalledModels`, `TtsQueue`, `format.ts`.
-
-| `format.ts` | KB/MB formatting edge cases |
-
 **Pattern**: Vitest + `@testing-library/react` + `@testing-library/user-event`.
-
-```tsx
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { VoiceRow } from "../VoiceRow";
-
-it("calls onDownload when download button clicked", async () => {
-  const user = userEvent.setup();
-  const onDownload = vi.fn();
-  render(
-    <VoiceRow voice={mockVoice} isDownloaded={false}
-      isDownloading={false} onDownload={onDownload} />
-  );
-  await user.click(screen.getByText("Download"));
-  expect(onDownload).toHaveBeenCalledOnce();
-});
-```
 
 ### Testing Hooks
 
 Use `renderHook` from `@testing-library/react`. Mock IPC with `mockIPC` from `@tauri-apps/api/mocks`. Simulate events with `emit` from `@tauri-apps/api/event`.
-
-```ts
-import { renderHook, waitFor } from "@testing-library/react";
-import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
-
-beforeEach(() => { clearMocks(); mockWindows("main"); });
-
-it("loads queue state on mount", async () => {
-  mockIPC((cmd) => {
-    if (cmd === "tts_queue_state")
-      return { items: [], playback: "idle", auto_read: true, show_overlay: true };
-  });
-  const { result } = renderHook(() => useTtsQueue());
-  await waitFor(() => expect(result.current.playback).toBe("idle"));
-});
-```
 
 ## What NOT to Test
 
@@ -100,7 +61,7 @@ it("loads queue state on mount", async () => {
 - **Overlay window positioning** — platform-specific Win32/X11 calls
 - **espeak-ng phonemization accuracy** — upstream
 - **Tauri plugin internals** — global shortcut registration, clipboard access
-- **Piper catalog fetch/download** — hits HuggingFace network
+- **Catalog fetch/download** — hits HuggingFace network
 - **CSS/styling** — no visual regression for a small app
 
 ## Tech Details
@@ -122,11 +83,7 @@ Three things happen before each test:
 
 ### Rust Dev Dependency
 
-`tempfile = "3"` in `src-tauri/Cargo.toml` `[dev-dependencies]` — used for file-based tests (queue persistence, config persistence, `save_json`/`load_json`).
-
-### QueueConfig PartialEq
-
-`QueueConfig` derives `PartialEq` (added for test assertions). This is a non-breaking addition — only enables `==`/`!=`.
+`tempfile = "3"` in `src-tauri/Cargo.toml` `[dev-dependencies]` — used for file-based tests
 
 ### Mocking `@tauri-apps/api/event` `listen`
 
@@ -139,8 +96,6 @@ vi.mock("@tauri-apps/api/event", () => ({
 ```
 
 ### Mocking hooks with `vi.mock`
-
-Components that use custom hooks (like `QueueOverlay`, `TtsQueue`) should mock the hook module, not the Tauri APIs. Import the mocked hook and use `vi.mocked()` to control return values:
 
 ```ts
 vi.mock("../../hooks/useTtsQueue", () => ({
