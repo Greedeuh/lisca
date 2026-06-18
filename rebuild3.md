@@ -4,6 +4,22 @@
 
 A desktop text-to-speech application. User selects text anywhere → presses hotkey → app reads clipboard → synthesizes speech → plays audio. Queue system manages multiple items. Multi-backend support (Piper, Kokoro). Overlay window shows queue status when main window is closed.
 
+
+
+### IPC Contract
+
+**Event Channels** (backend → frontend, separate per concern):
+
+| Channel | Purpose |
+|---------|---------|
+| `queue` | Queue state changes |
+| `transcription` | Text→Speech pipeline |
+| `playback` | Audio playback lifecycle |
+| `model` | Model pool changes |
+| `download` | Voice download progress |
+
+**Commands** (frontend → backend via `invoke()`): listed per UI section below.
+
 ---
 
 ## App & UI
@@ -18,10 +34,13 @@ Browse available voices/models by language. Each entry shows:
 - Quality score (1-5)
 - Size (MB)
 - Memory usage (MB)
-- Speed (seconde to speek)
+- Speed (second to speek)
 - Model type (Piper, Kokoro, ...)
 
 Catalog is hardcoded metadata + download URLs. Downloaded items appear in "Installed Voices".
+
+> **📡 Commands:** `fetch_voice_catalog`, `install_voice`, `uninstall_voice`
+> **🔔 Events:** `download_progress`, `download_complete`, `voice_installed`, `voice_uninstalled`
 
 #### Installed Voices
 
@@ -31,13 +50,22 @@ List of downloaded voice/model pairs. Each shows:
 - Status: active/inactive for language
 - Action: set as active, uninstall, set as fallback
 
+> **📡 Commands:** `list_installed_voices`, `set_active_voice`, `set_fallback_voice`, `uninstall_voice`
+> **🔔 Events:** `voice_installed`, `voice_uninstalled`, `active_voice_changed`
+
 #### Queue List
 
 Same as Queue Overlay but embedded in main window. No frosted glass. Shows all queue items with controls.
 
+> **📡 Commands:** `queue_add`, `queue_state`, `queue_remove`, `queue_move`, `queue_clear`
+> **🔔 Events:** `queue_updated`, `playback_started`, `item_completed`, `error`, `processor_idle`
+
 #### Hotkey Configuration
 
 Record global hotkey for clipboard read + TTS. Store as text in `{app_data_dir}/hotkey.txt`.
+
+> **📡 Commands:** `hotkey_get`, `hotkey_set`
+> **🔔 Events:** (none)
 
 ### Tray Icon
 
@@ -48,9 +76,9 @@ When main window is closed, app minimizes to system tray. Tray menu:
 
 ### Queue Overlay
 
-Frosted glass window. Top-right corner. Only visible when queue has items. Shows:
+Frosted glass window. Top-right corner. Only visible when queue has items pending. Shows:
 
-#### TextMessage items
+#### Text Message items
 - Text preview (truncated)
 - Status: to transcribe, transcribing
 - Controls: remove
@@ -64,6 +92,9 @@ Frosted glass window. Top-right corner. Only visible when queue has items. Shows
 - Auto-play toggle (process next item automatically)
 - Clear all
 
+> **📡 Commands:** `queue_add`, `queue_state`, `queue_remove`, `queue_move`, `queue_clear`, `playback_pause`, `playback_resume`, `playback_stop`
+> **🔔 Events:** `queue_updated`, `playback_started`, `playback_paused`, `playback_resumed`, `playback_stopped`, `item_completed`, `error`, `processor_idle`
+
 ---
 
 ## Backend
@@ -71,16 +102,19 @@ Frosted glass window. Top-right corner. Only visible when queue has items. Shows
 ### Queue System
 
 Central data structure. Stores items of two kinds. Supports:
-- Enqueue TextMessage
-- Replace TextMessage → Speech (same ID, preserves position)
+- Enqueue Text Message
+- Replace Text Message → Speech (same ID, preserves position)
 - Reorder items
 - Remove items
-- Get next TextMessage (for Transcriber)
+- Get next Text Message (for Transcriber)
 - Get next Speech (for SpeechPlayer)
 - hold transcriber cursor (state: to transcribe, transcribing)
 - hold speech player cursor (state: to play, playing, paused, played)
 
-#### TextMessage
+> **📡 Commands:** `queue_add`, `queue_remove`, `queue_move`, `queue_clear`, `queue_state`
+> **🔔 Events:** `queue_updated`
+
+#### Text Message
 
 Simple text.
 
@@ -94,14 +128,19 @@ Lifecycle: `Pending → Processing → (replaced by Speech)`
 
 ### Transcriber
 
-Consumer that converts TextMessage → Speech.
+Consumer that converts Text Message → Speech.
 
-- Dequeues next TextMessage (state: to transcribe)
-- Detects language (if not set)
+- Dequeues next Text Message (state: to transcribe)
+- Detects language (whatlang lib)
 - Resolves active voice for language via VoicePreferences
 - Loads model if not loaded
 - Make model speak the text
-- Replaces TextMessage with Speech
+- Replaces Text Message with Speech
+
+The transcriber runs in it's own context concurrently to others.
+
+> **📡 Commands:** (none — runs in background)
+> **🔔 Events:** `transcription_started`, `transcription_completed`, `transcription_error`
 
 ### SpeechPlayer
 
@@ -114,6 +153,11 @@ Consumer that plays Speech items.
 
 If auto_read is enabled, player automatically processes next item.
 
+The SpeechPlayer runs in it's own context concurrently to others.
+
+> **📡 Commands:** `playback_pause`, `playback_resume`, `playback_stop`, `playback_skip`
+> **🔔 Events:** `playback_started`, `playback_paused`, `playback_resumed`, `playback_stopped`, `item_completed`
+
 ---
 
 ## Models
@@ -122,6 +166,9 @@ If auto_read is enabled, player automatically processes next item.
 
 Hardcoded list of available voices with metadata. Per-engine catalog.
 Merge each model catalog in one abstract layer.
+
+> **📡 Commands:** `fetch_voice_catalog`, `install_voice`, `uninstall_voice`, `list_installed_voices`
+> **🔔 Events:** `download_progress`, `download_complete`
 
 #### Piper Catalog
 
@@ -162,6 +209,13 @@ Operations:
 - get preferred
 - set preferred for language
 
+If active voice for detected language → use it
+Else if fallback voice set → use it
+Else → error (surface to user)
+
+> **📡 Commands:** `get_voice_preference`, `set_voice_preference`
+> **🔔 Events:** (none)
+
 ### Model 
 
 Abstraction with following capabilities:
@@ -186,7 +240,10 @@ Capabilities:
 
 Hold config
 - Max cached: 4 (configurable)
-- How long until auto unload (seconde or infinite)
+- How long until auto unload (second or infinite)
+
+> **📡 Commands:** `model_load`, `model_unload`
+> **🔔 Events:** `model_loaded`, `model_unloaded`
 
 ## General Error handling
 
