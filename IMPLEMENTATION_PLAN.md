@@ -9,9 +9,11 @@ Each phase lists concrete tasks and **Acceptance Criteria** — testable conditi
 - Layer 3a: Pure frontend component tests (`bun run vitest run`)
 - New code in each phase should include tests where applicable (Layer 1 for Rust logic, Layer 3a for presentational components)
 
-So first think, implement, review, improve.
+So first think (learn from ./poc when needed, but do not copy), implement, review, improve. 
 Then ensure Acceptance Criteria are met, think, improve.
 And finally before going to the next phase: ask user review.
+
+Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
