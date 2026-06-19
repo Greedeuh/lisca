@@ -70,3 +70,25 @@ export function getHotkey(): Promise<ShortcutConfig | null> {
 export function saveHotkey(shortcut: string): Promise<ShortcutConfig> {
   return invoke("save_hotkey_cmd", { shortcut });
 }
+
+// ── Overlay commands ──────────────────────────────────────────────
+
+export function createOverlayWindow(): Promise<void> {
+  return invoke("create_overlay_window");
+}
+
+export function showOverlayWindow(): Promise<void> {
+  return invoke("show_overlay_window");
+}
+
+export function hideOverlayWindow(): Promise<void> {
+  return invoke("hide_overlay_window");
+}
+
+export function toggleOverlayWindow(): Promise<boolean> {
+  return invoke("toggle_overlay_window");
+}
+
+export function queueToggleOverlay(): Promise<boolean> {
+  return invoke("queue_toggle_overlay");
+}

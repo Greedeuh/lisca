@@ -6,6 +6,7 @@ pub mod clipboard;
 pub mod commands;
 pub mod hotkey;
 pub mod models;
+pub mod overlay;
 pub mod persist;
 pub mod queue;
 pub mod speech_player;
@@ -70,6 +71,11 @@ pub fn run() {
             commands::set_fallback_voice,
             commands::get_hotkey,
             commands::save_hotkey_cmd,
+            commands::create_overlay_window,
+            commands::show_overlay_window,
+            commands::hide_overlay_window,
+            commands::toggle_overlay_window,
+            commands::queue_toggle_overlay,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

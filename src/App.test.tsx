@@ -10,6 +10,15 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(() => Promise.resolve(vi.fn())),
 }));
 
+vi.mock("@tauri-apps/api/window", () => ({
+  getCurrentWindow: vi.fn(() => ({
+    hide: vi.fn().mockResolvedValue(undefined),
+    show: vi.fn().mockResolvedValue(undefined),
+    startDragging: vi.fn().mockResolvedValue(undefined),
+    is_visible: vi.fn().mockResolvedValue(false),
+  })),
+}));
+
 describe("App", () => {
   it("renders the app title", () => {
     render(<App />);

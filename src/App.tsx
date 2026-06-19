@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { VoiceBrowser, InstalledVoices } from "./components/voices";
 import { QueueList } from "./components/queue";
 import { HotkeyRecorder } from "./components/settings";
@@ -23,6 +24,9 @@ import {
   setFallbackVoice,
   getHotkey,
   saveHotkey,
+  createOverlayWindow,
+  showOverlayWindow,
+  queueToggleOverlay,
 } from "./types/ipc";
 import "./App.css";
 
@@ -34,6 +38,7 @@ function App() {
   const [installedVoices, setInstalledVoices] = useState<InstalledVoice[]>([]);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [autoRead, setAutoRead] = useState(true);
+  const [showOverlay, setShowOverlay] = useState(true);
   const [voiceMapping, setVoiceMapping] = useState<VoiceMapping>({
     language_voice: {},
     fallback_voice_key: null,
@@ -53,6 +58,7 @@ function App() {
       const snapshot: QueueSnapshot = await getQueueState();
       setQueueItems(snapshot.items);
       setAutoRead(snapshot.auto_read);
+      setShowOverlay(snapshot.show_overlay);
     } catch {}
   }, []);
 
@@ -70,6 +76,8 @@ function App() {
     refreshVoiceMapping();
     getHotkey().then(setHotkey).catch(() => {});
 
+    createOverlayWindow().catch(() => {});
+
     const unlistenProgress = listen<DownloadProgress>("download_progress", (event) => {
       setDownloading((prev) => new Map(prev).set(event.payload.voice_key, event.payload));
     });
@@ -81,10 +89,20 @@ function App() {
       refreshQueue();
     });
 
+    const win = getCurrentWindow();
+    const unlistenClose = listen("tauri://close-requested", async () => {
+      const snapshot = await getQueueState().catch(() => null);
+      if (snapshot && snapshot.items.length > 0 && snapshot.show_overlay) {
+        await showOverlayWindow().catch(() => {});
+      }
+      await win.hide();
+    });
+
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
       unlistenQueue.then((fn) => fn());
+      unlistenClose.then((fn) => fn());
     };
   }, [refreshInstalled, refreshQueue, refreshVoiceMapping]);
 
@@ -169,6 +187,13 @@ function App() {
     } catch {}
   }, []);
 
+  const handleToggleOverlay = useCallback(async () => {
+    try {
+      const val = await queueToggleOverlay();
+      setShowOverlay(val);
+    } catch {}
+  }, []);
+
   const installedKeys = new Set(installedVoices.map((v) => v.voice_key));
 
   return (
@@ -237,6 +262,17 @@ function App() {
 
         {tab === "settings" && (
           <div className="app-settings">
+            <section className="app-section">
+              <h2 className="app-section-title">Overlay</h2>
+              <label className="app-setting-row">
+                <input
+                  type="checkbox"
+                  checked={showOverlay}
+                  onChange={handleToggleOverlay}
+                />
+                Show overlay when main window is closed
+              </label>
+            </section>
             <section className="app-section">
               <HotkeyRecorder currentHotkey={hotkey} onSave={handleSaveHotkey} />
             </section>

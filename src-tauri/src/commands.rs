@@ -159,6 +159,37 @@ pub fn save_hotkey_cmd(state: tauri::State<AppState>, shortcut: String) -> Resul
     Ok(config)
 }
 
+// ── Overlay commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn create_overlay_window(app: AppHandle) -> Result<(), String> {
+    crate::overlay::create_overlay(&app)
+}
+
+#[tauri::command]
+pub fn show_overlay_window(app: AppHandle) -> Result<(), String> {
+    crate::overlay::show_overlay(&app)
+}
+
+#[tauri::command]
+pub fn hide_overlay_window(app: AppHandle) -> Result<(), String> {
+    crate::overlay::hide_overlay(&app)
+}
+
+#[tauri::command]
+pub fn toggle_overlay_window(app: AppHandle) -> Result<bool, String> {
+    crate::overlay::toggle_overlay(&app)
+}
+
+#[tauri::command]
+pub fn queue_toggle_overlay(state: tauri::State<AppState>) -> Result<bool, String> {
+    let mut queue = state.queue.lock().unwrap();
+    queue.config.show_overlay = !queue.config.show_overlay;
+    let val = queue.config.show_overlay;
+    queue.save_config().ok();
+    Ok(val)
+}
+
 // ── DTO types ─────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
