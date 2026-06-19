@@ -53,7 +53,9 @@ pub async fn install_voice(
                 DownloadProgress::Complete { .. } => "download_complete",
                 DownloadProgress::Error { .. } => "download_error",
             };
-            let _ = app.emit(event_name, &progress);
+            if let Err(e) = app.emit(event_name, &progress) {
+                log::warn!("Failed to emit download event: {e}");
+            }
         })
         .await?;
     Ok(InstalledVoiceDto::from(result))
@@ -66,61 +68,92 @@ pub fn uninstall_voice(
     voice_key: String,
 ) -> Result<(), String> {
     state.catalog.uninstall(&voice_key)?;
-    let _ = app.emit("voice_uninstalled", &voice_key);
+    if let Err(e) = app.emit("voice_uninstalled", &voice_key) {
+        log::warn!("Failed to emit voice_uninstalled event: {e}");
+    }
     Ok(())
 }
 
 // ── Queue commands ────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn queue_state(state: tauri::State<AppState>) -> QueueSnapshotDto {
-    let queue = state.queue.lock().unwrap();
-    QueueSnapshotDto {
+pub fn queue_state(state: tauri::State<AppState>) -> Result<QueueSnapshotDto, String> {
+    let queue = state
+        .queue
+        .lock()
+        .map_err(|e| format!("failed to lock queue: {e}"))?;
+    Ok(QueueSnapshotDto {
         items: queue.items().iter().map(QueueItemDto::from).collect(),
         auto_read: queue.config().auto_read,
         show_overlay: queue.config().show_overlay,
-    }
+    })
 }
 
 #[tauri::command]
 pub fn queue_add(state: tauri::State<AppState>, text: String) -> Result<u64, String> {
-    let mut queue = state.queue.lock().unwrap();
-    queue.add_text(text)
+    let mut queue = state
+        .queue
+        .lock()
+        .map_err(|e| format!("failed to lock queue: {e}"))?;
+    let id = queue.add_text(text)?;
+    log::info!("Added item {id} to queue");
+    Ok(id)
 }
 
 #[tauri::command]
 pub fn queue_remove(state: tauri::State<AppState>, id: u64) -> Result<(), String> {
-    let mut queue = state.queue.lock().unwrap();
-    queue.remove(id)
+    let mut queue = state
+        .queue
+        .lock()
+        .map_err(|e| format!("failed to lock queue: {e}"))?;
+    queue.remove(id)?;
+    log::info!("Removed item {id} from queue");
+    Ok(())
 }
 
 #[tauri::command]
 pub fn queue_move(state: tauri::State<AppState>, id: u64, index: usize) -> Result<(), String> {
-    let mut queue = state.queue.lock().unwrap();
+    let mut queue = state
+        .queue
+        .lock()
+        .map_err(|e| format!("failed to lock queue: {e}"))?;
     queue.reorder(id, index)
 }
 
 #[tauri::command]
 pub fn queue_clear(state: tauri::State<AppState>) -> Result<(), String> {
-    let mut queue = state.queue.lock().unwrap();
-    queue.clear()
+    let mut queue = state
+        .queue
+        .lock()
+        .map_err(|e| format!("failed to lock queue: {e}"))?;
+    queue.clear()?;
+    log::info!("Queue cleared");
+    Ok(())
 }
 
 #[tauri::command]
 pub fn queue_toggle_auto_read(state: tauri::State<AppState>) -> Result<bool, String> {
-    let mut queue = state.queue.lock().unwrap();
+    let mut queue = state
+        .queue
+        .lock()
+        .map_err(|e| format!("failed to lock queue: {e}"))?;
     queue.config.auto_read = !queue.config.auto_read;
     let val = queue.config.auto_read;
-    queue.save_config().ok();
+    if let Err(e) = queue.save_config() {
+        log::error!("Failed to save queue config: {e}");
+    }
     Ok(val)
 }
 
 // ── Voice mapping commands ────────────────────────────────────────
 
 #[tauri::command]
-pub fn get_voice_preference(state: tauri::State<AppState>) -> VoiceMappingDto {
-    let mapping = state.voice_mapping.lock().unwrap();
-    VoiceMappingDto::from(&*mapping)
+pub fn get_voice_preference(state: tauri::State<AppState>) -> Result<VoiceMappingDto, String> {
+    let mapping = state
+        .voice_mapping
+        .lock()
+        .map_err(|e| format!("failed to lock voice mapping: {e}"))?;
+    Ok(VoiceMappingDto::from(&*mapping))
 }
 
 #[tauri::command]
@@ -129,7 +162,10 @@ pub fn set_voice_preference(
     language: String,
     voice_key: String,
 ) -> Result<(), String> {
-    let mut mapping = state.voice_mapping.lock().unwrap();
+    let mut mapping = state
+        .voice_mapping
+        .lock()
+        .map_err(|e| format!("failed to lock voice mapping: {e}"))?;
     mapping.language_voice.insert(language, voice_key);
     let path = state.app_data_dir.join("voice_mapping.json");
     mapping.save(&path)
@@ -137,7 +173,10 @@ pub fn set_voice_preference(
 
 #[tauri::command]
 pub fn set_fallback_voice(state: tauri::State<AppState>, voice_key: Option<String>) -> Result<(), String> {
-    let mut mapping = state.voice_mapping.lock().unwrap();
+    let mut mapping = state
+        .voice_mapping
+        .lock()
+        .map_err(|e| format!("failed to lock voice mapping: {e}"))?;
     mapping.fallback_voice_key = voice_key;
     let path = state.app_data_dir.join("voice_mapping.json");
     mapping.save(&path)
@@ -183,10 +222,15 @@ pub fn toggle_overlay_window(app: AppHandle) -> Result<bool, String> {
 
 #[tauri::command]
 pub fn queue_toggle_overlay(state: tauri::State<AppState>) -> Result<bool, String> {
-    let mut queue = state.queue.lock().unwrap();
+    let mut queue = state
+        .queue
+        .lock()
+        .map_err(|e| format!("failed to lock queue: {e}"))?;
     queue.config.show_overlay = !queue.config.show_overlay;
     let val = queue.config.show_overlay;
-    queue.save_config().ok();
+    if let Err(e) = queue.save_config() {
+        log::error!("Failed to save queue config: {e}");
+    }
     Ok(val)
 }
 

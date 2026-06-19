@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { VoiceBrowser, InstalledVoices } from "./components/voices";
 import { QueueList } from "./components/queue";
 import { HotkeyRecorder } from "./components/settings";
+import { ErrorToast, type ErrorToastItem } from "./components/common";
 import type { VoiceEntry, InstalledVoice, DownloadProgress } from "./types/voice-catalog";
 import type { QueueItem, QueueSnapshot } from "./types/queue";
 import type { VoiceMapping } from "./types/voice-prefs";
@@ -42,13 +43,26 @@ function App() {
   });
   const [hotkey, setHotkey] = useState<ShortcutConfig | null>(null);
   const [downloading, setDownloading] = useState<Map<string, DownloadProgress>>(new Map());
+  const [toasts, setToasts] = useState<ErrorToastItem[]>([]);
+  const toastIdRef = useRef(0);
+
+  const addToast = useCallback((message: string) => {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, message }]);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   const refreshInstalled = useCallback(async () => {
     try {
       const voices = await listInstalledVoices();
       setInstalledVoices(voices);
-    } catch {}
-  }, []);
+    } catch (e) {
+      addToast(`Failed to load installed voices: ${e}`);
+    }
+  }, [addToast]);
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -56,22 +70,30 @@ function App() {
       setQueueItems(snapshot.items);
       setAutoRead(snapshot.auto_read);
       setShowOverlay(snapshot.show_overlay);
-    } catch {}
-  }, []);
+    } catch (e) {
+      addToast(`Failed to load queue: ${e}`);
+    }
+  }, [addToast]);
 
   const refreshVoiceMapping = useCallback(async () => {
     try {
       const mapping = await getVoicePreference();
       setVoiceMapping(mapping);
-    } catch {}
-  }, []);
+    } catch (e) {
+      addToast(`Failed to load voice preferences: ${e}`);
+    }
+  }, [addToast]);
 
   useEffect(() => {
-    listCatalogVoices().then(setCatalogVoices).catch(() => {});
+    listCatalogVoices()
+      .then(setCatalogVoices)
+      .catch((e) => addToast(`Failed to load catalog: ${e}`));
     refreshInstalled();
     refreshQueue();
     refreshVoiceMapping();
-    getHotkey().then(setHotkey).catch(() => {});
+    getHotkey()
+      .then(setHotkey)
+      .catch((e) => addToast(`Failed to load hotkey: ${e}`));
 
     const unlistenProgress = listen<DownloadProgress>("download_progress", (event) => {
       setDownloading((prev) => new Map(prev).set(event.payload.voice_key, event.payload));
@@ -83,22 +105,39 @@ function App() {
     const unlistenQueue = listen("queue_updated", () => {
       refreshQueue();
     });
+    const unlistenTranscriptionError = listen<{ id: number; error: string }>(
+      "transcription_error",
+      (event) => {
+        addToast(`Transcription failed: ${event.payload.error}`);
+        refreshQueue();
+      },
+    );
+    const unlistenDownloadError = listen<{ voice_key: string; reason: string }>(
+      "download_error",
+      (event) => {
+        addToast(`Download failed for ${event.payload.voice_key}: ${event.payload.reason}`);
+      },
+    );
 
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
       unlistenQueue.then((fn) => fn());
+      unlistenTranscriptionError.then((fn) => fn());
+      unlistenDownloadError.then((fn) => fn());
     };
-  }, [refreshInstalled, refreshQueue, refreshVoiceMapping]);
+  }, [addToast, refreshInstalled, refreshQueue, refreshVoiceMapping]);
 
   const handleInstall = useCallback(
     async (voiceKey: string) => {
       try {
         await installVoice(voiceKey);
         await refreshInstalled();
-      } catch {}
+      } catch (e) {
+        addToast(`Failed to install voice: ${e}`);
+      }
     },
-    [refreshInstalled],
+    [addToast, refreshInstalled],
   );
 
   const handleUninstall = useCallback(
@@ -106,9 +145,11 @@ function App() {
       try {
         await uninstallVoice(voiceKey);
         await refreshInstalled();
-      } catch {}
+      } catch (e) {
+        addToast(`Failed to uninstall voice: ${e}`);
+      }
     },
-    [refreshInstalled],
+    [addToast, refreshInstalled],
   );
 
   const handleSetActive = useCallback(
@@ -116,9 +157,11 @@ function App() {
       try {
         await setVoicePreference(language, voiceKey);
         await refreshVoiceMapping();
-      } catch {}
+      } catch (e) {
+        addToast(`Failed to set voice preference: ${e}`);
+      }
     },
-    [refreshVoiceMapping],
+    [addToast, refreshVoiceMapping],
   );
 
   const handleSetFallback = useCallback(
@@ -126,9 +169,11 @@ function App() {
       try {
         await setFallbackVoice(voiceKey);
         await refreshVoiceMapping();
-      } catch {}
+      } catch (e) {
+        addToast(`Failed to set fallback voice: ${e}`);
+      }
     },
-    [refreshVoiceMapping],
+    [addToast, refreshVoiceMapping],
   );
 
   const handleRemove = useCallback(
@@ -136,9 +181,11 @@ function App() {
       try {
         await queueRemove(id);
         await refreshQueue();
-      } catch {}
+      } catch (e) {
+        addToast(`Failed to remove item: ${e}`);
+      }
     },
-    [refreshQueue],
+    [addToast, refreshQueue],
   );
 
   const handleMove = useCallback(
@@ -146,43 +193,57 @@ function App() {
       try {
         await queueMove(id, index);
         await refreshQueue();
-      } catch {}
+      } catch (e) {
+        addToast(`Failed to move item: ${e}`);
+      }
     },
-    [refreshQueue],
+    [addToast, refreshQueue],
   );
 
   const handleClear = useCallback(async () => {
     try {
       await queueClear();
       await refreshQueue();
-    } catch {}
-  }, [refreshQueue]);
+    } catch (e) {
+      addToast(`Failed to clear queue: ${e}`);
+    }
+  }, [addToast, refreshQueue]);
 
   const handleToggleAutoRead = useCallback(async () => {
     try {
       const val = await queueToggleAutoRead();
       setAutoRead(val);
-    } catch {}
-  }, []);
+    } catch (e) {
+      addToast(`Failed to toggle auto-read: ${e}`);
+    }
+  }, [addToast]);
 
-  const handleSaveHotkey = useCallback(async (shortcut: string) => {
-    try {
-      const config = await saveHotkey(shortcut);
-      setHotkey(config);
-    } catch {}
-  }, []);
+  const handleSaveHotkey = useCallback(
+    async (shortcut: string) => {
+      try {
+        const config = await saveHotkey(shortcut);
+        setHotkey(config);
+      } catch (e) {
+        addToast(`Failed to save hotkey: ${e}`);
+      }
+    },
+    [addToast],
+  );
 
   const handleToggleOverlay = useCallback(async () => {
     try {
       const val = await queueToggleOverlay();
       setShowOverlay(val);
-    } catch {}
-  }, []);
+    } catch (e) {
+      addToast(`Failed to toggle overlay: ${e}`);
+    }
+  }, [addToast]);
 
   const installedKeys = new Set(installedVoices.map((v) => v.voice_key));
 
   return (
     <main className="app-container">
+      <ErrorToast toasts={toasts} onDismiss={dismissToast} />
       <header className="app-header">
         <h1 className="app-title">Lisca</h1>
         <nav className="app-tabs">

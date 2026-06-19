@@ -61,6 +61,7 @@ impl ModelPool {
             self.evict_lru();
         }
 
+        log::debug!("Creating model for voice: {voice_key}");
         let model = factory.create(voice_key)?;
 
         self.cache.insert(

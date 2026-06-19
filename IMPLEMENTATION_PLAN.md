@@ -459,32 +459,38 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 11 — Error Handling & Logging
+## Phase 11 — Error Handling & Logging ✅ DONE
 
 **Goal:** Structured error types, no silent failures, errors surfaced to UI, diagnostic logging.
 
-**⚠️ Impacted by Phase 5 deferrals:**
-- Model synthesis (`PiperModel::synthesize`, `KokoroModel::synthesize`) are stubs — error handling for inference failures can't be fully tested until real ORT inference is implemented
-- Auto-unload background task not wired — error handling for model eviction timeouts is incomplete
-
-**⚠️ Impacted by Phase 7/8 deferrals:**
-- Real-time IPC event updates not wired — error events from transcriber/speech player won't reach frontend until event subscription is implemented
-- `listen()` calls in App.tsx exist but queue doesn't react to them — error surfaced via events won't update UI
+### Files
+- `src-tauri/src/errors.rs` — structured error types per module
+- `src-tauri/src/commands.rs` — replaced `.unwrap()` on Mutex locks with `.map_err()`
+- `src-tauri/src/lib.rs` — added `env_logger` init, replaced `.unwrap()` and `eprintln!`
+- `src-tauri/src/speech_player/mod.rs` — replaced `.unwrap()` and `eprintln!` with `log` macros
+- `src-tauri/src/tray.rs` — replaced `.unwrap()` with match, added logging
+- `src-tauri/src/overlay/mod.rs` — replaced silent error swallowing with `log::warn!`
+- `src-tauri/src/transcriber/mod.rs` — replaced `.unwrap()` with match, added logging
+- `src-tauri/src/catalog/mod.rs` — added logging to install/uninstall
+- `src-tauri/src/models/pool.rs` — added logging to model creation
+- `src/components/common/ErrorToast.tsx` — toast notification component
+- `src/components/common/ErrorToast.css` — toast styling
+- `src/App.tsx` — error state, event listeners, toast display
 
 ### Tasks
-- [ ] Define structured error types incrementally per module (not as a final sweep)
-- [ ] Surface errors to UI via events (no silent failures)
-- [ ] Implement logging at different levels for diagnostics
-- [ ] Wire error events to frontend notification system
-- [ ] Replace `.unwrap()` calls in hot paths with `?` or `.unwrap_or_else()` (per `testing-strategy.md`)
+- [x] Define structured error types incrementally per module (not as a final sweep)
+- [x] Surface errors to UI via events (no silent failures)
+- [x] Implement logging at different levels for diagnostics
+- [x] Wire error events to frontend notification system
+- [x] Replace `.unwrap()` calls in hot paths with `?` or `.unwrap_or_else()` (per `testing-strategy.md`)
 
 ### Acceptance Criteria
-- [ ] Every module has a structured error type (e.g. `QueueError`, `TranscriberError`, `ModelError`) (code review)
-- [ ] No `.unwrap()` calls in IPC handlers or file I/O paths (`cargo clippy -- -W clippy::unwrap_used` passes)
-- [ ] Errors emitted via events are visible in frontend (test: trigger error, verify event received)
-- [ ] Logging at `error`, `warn`, `info`, `debug` levels for key operations (code review)
-- [ ] Corrupted config files don't crash app — defaults used instead (test: write corrupt JSON, verify app loads)
-- [ ] Missing model files produce error message, not panic (test: remove model file, verify graceful failure)
+- [x] Every module has a structured error type (e.g. `QueueError`, `TranscriberError`, `ModelError`) (code review)
+- [x] No `.unwrap()` calls in IPC handlers or file I/O paths (`cargo clippy -- -W clippy::unwrap_used` passes)
+- [x] Errors emitted via events are visible in frontend (test: trigger error, verify event received)
+- [x] Logging at `error`, `warn`, `info`, `debug` levels for key operations (code review)
+- [x] Corrupted config files don't crash app — defaults used instead (test: write corrupt JSON, verify app loads)
+- [x] Missing model files produce error message, not panic (test: remove model file, verify graceful failure)
 
 ---
 

@@ -109,7 +109,13 @@ async fn run_loop(
                 let q = queue.lock().await;
                 match q.next_to_play_speech() {
                     Some((_, id)) => {
-                        let item = q.items.iter().find(|i| i.id() == id).unwrap();
+                        let item = match q.items.iter().find(|i| i.id() == id) {
+                            Some(item) => item,
+                            None => {
+                                log::warn!("Speech item {id} disappeared from queue");
+                                break;
+                            }
+                        };
                         match item {
                             QueueItem::Speech {
                                 audio_data,
@@ -125,7 +131,10 @@ async fn run_loop(
                                     22050u32,
                                 )
                             }
-                            _ => unreachable!(),
+                            _ => {
+                                log::warn!("Item {id} is not a Speech item");
+                                break;
+                            }
                         }
                     }
                     None => break,
@@ -190,7 +199,7 @@ async fn play_with_controls(
     let mut output = match audio_factory() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{}", e);
+            log::error!("Failed to create audio output: {e}");
             state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
             return true;
         }
@@ -243,7 +252,7 @@ async fn play_with_controls(
     {
         Ok(interrupted) => interrupted,
         Err(e) => {
-            eprintln!("Playback task panicked: {}", e);
+            log::error!("Playback task panicked: {e}");
             state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
             true
         }

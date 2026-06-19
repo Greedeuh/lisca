@@ -4,6 +4,7 @@
 pub mod catalog;
 pub mod clipboard;
 pub mod commands;
+pub mod errors;
 pub mod hotkey;
 pub mod models;
 pub mod overlay;
@@ -23,16 +24,24 @@ use voice_prefs::VoiceMapping;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    env_logger::init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("failed to resolve app data dir");
-            std::fs::create_dir_all(&app_data_dir).ok();
+            let app_data_dir = match app.path().app_data_dir() {
+                Ok(dir) => dir,
+                Err(e) => {
+                    log::error!("Failed to resolve app data dir: {e}");
+                    return Err(e.into());
+                }
+            };
+            if let Err(e) = std::fs::create_dir_all(&app_data_dir) {
+                log::warn!("Failed to create app data dir: {e}");
+            }
+            log::info!("App data dir: {}", app_data_dir.display());
 
             let piper_models_dir = app_data_dir.join("piper_models");
             let kokoro_models_dir = app_data_dir.join("kokoro");
@@ -78,15 +87,22 @@ pub fn run() {
                     };
 
                     let state = app_handle.state::<AppState>();
-                    let queue = state.queue.lock().unwrap();
-                    let has_items = !queue.is_empty();
-                    let show_overlay = queue.config().show_overlay;
-                    drop(queue);
+                    let (has_items, show_overlay) = match state.queue.lock() {
+                        Ok(queue) => (!queue.is_empty(), queue.config().show_overlay),
+                        Err(e) => {
+                            log::error!("Failed to lock queue: {e}");
+                            return;
+                        }
+                    };
 
                     api.prevent_close();
-                    let _ = win.hide();
+                    if let Err(e) = win.hide() {
+                        log::warn!("Failed to hide main window: {e}");
+                    }
                     if has_items && show_overlay {
-                        let _ = overlay::show_overlay(&app_handle);
+                        if let Err(e) = overlay::show_overlay(&app_handle) {
+                            log::warn!("Failed to show overlay: {e}");
+                        }
                     }
                 });
             }
@@ -99,6 +115,7 @@ pub fn run() {
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             if let Some(config) = hotkey_config {
                 let shortcut_str = config.to_string_repr();
+                log::info!("Registering global shortcut: {shortcut_str}");
                 let app_handle = app.handle().clone();
                 if let Ok(shortcut) = shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                     if let Err(e) = app_handle.global_shortcut().on_shortcut(
@@ -109,15 +126,30 @@ pub fn run() {
                                     let text = text.to_string();
                                     if !text.is_empty() {
                                         let state = _app.state::<commands::AppState>();
-                                        let mut queue = state.queue.lock().unwrap();
-                                        let _ = queue.add_text(text);
+                                        let result = state
+                                            .queue
+                                            .lock()
+                                            .map(|mut q| q.add_text(text));
+                                        match result {
+                                            Ok(Ok(_)) => {}
+                                            Ok(Err(e)) => {
+                                                log::error!("Failed to add text to queue: {e}");
+                                            }
+                                            Err(e) => {
+                                                log::error!("Failed to lock queue: {e}");
+                                            }
+                                        }
                                     }
+                                } else {
+                                    log::warn!("Failed to read clipboard");
                                 }
                             }
                         },
                     ) {
-                        eprintln!("Failed to register global shortcut: {e}");
+                        log::error!("Failed to register global shortcut: {e}");
                     }
+                } else {
+                    log::error!("Failed to parse shortcut string: {shortcut_str}");
                 }
             }
 

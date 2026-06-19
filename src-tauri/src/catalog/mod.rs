@@ -82,9 +82,10 @@ impl VoiceCatalog {
     where
         F: FnMut(DownloadProgress),
     {
+        log::info!("Installing voice: {voice_key}");
         let all = self.list_available();
         let entry = all.iter().find(|v| v.voice_key == voice_key);
-        match entry {
+        let result = match entry {
             Some(e) if e.model_type == ModelType::Piper => {
                 self.piper.install(voice_key, on_progress).await
             }
@@ -92,7 +93,12 @@ impl VoiceCatalog {
                 self.kokoro.install(voice_key, on_progress).await
             }
             _ => Err(format!("voice '{}' not found in catalog", voice_key)),
+        };
+        match &result {
+            Ok(_) => log::info!("Voice {voice_key} installed successfully"),
+            Err(e) => log::error!("Failed to install voice {voice_key}: {e}"),
         }
+        result
     }
 }
 
@@ -110,13 +116,18 @@ impl VoiceCatalogOps for VoiceCatalog {
     }
 
     fn uninstall(&self, voice_key: &str) -> Result<(), String> {
+        log::info!("Uninstalling voice: {voice_key}");
         let installed = self.list_installed();
         let voice = installed.iter().find(|v| v.voice_key == voice_key);
-        match voice {
+        let result = match voice {
             Some(v) if v.model_type == ModelType::Piper => self.piper.uninstall(voice_key),
             Some(v) if v.model_type == ModelType::Kokoro => self.kokoro.uninstall(voice_key),
             _ => Ok(()),
+        };
+        if let Err(e) = &result {
+            log::error!("Failed to uninstall voice {voice_key}: {e}");
         }
+        result
     }
 }
 

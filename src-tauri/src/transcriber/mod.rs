@@ -60,23 +60,35 @@ async fn run_loop(
                 let mut q = queue.lock().await;
                 match q.next_pending_text_message() {
                     Some((_, id)) => {
-                        let item = q.items().iter().find(|i| i.id() == id).unwrap();
+                        let item = match q.items().iter().find(|i| i.id() == id) {
+                            Some(item) => item,
+                            None => {
+                                log::warn!("TextMessage {id} disappeared from queue");
+                                continue;
+                            }
+                        };
                         let (text, language) = match item {
                             crate::queue::QueueItem::TextMessage {
                                 text,
                                 language,
                                 ..
                             } => (text.clone(), language.clone()),
-                            _ => unreachable!(),
+                            _ => {
+                                log::warn!("Item {id} is not a TextMessage");
+                                continue;
+                            }
                         };
-                        q.set_text_message_status(id, TextMessageStatus::Processing)
-                            .unwrap();
+                        if let Err(e) = q.set_text_message_status(id, TextMessageStatus::Processing) {
+                            log::error!("Failed to set status for item {id}: {e}");
+                            continue;
+                        }
                         (id, text, language)
                     }
                     None => break,
                 }
             };
 
+            log::debug!("Transcribing item {id}: {}", &text[..text.len().min(50)]);
             on_event(TranscriptionEvent::Started {
                 id,
                 text: text.clone(),

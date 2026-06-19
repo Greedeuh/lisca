@@ -14,7 +14,10 @@ fn position_overlay(win: &tauri::WebviewWindow) {
         let scale = monitor.scale_factor();
         let x = (size.width as f64 / scale) - OVERLAY_WIDTH - 16.0;
         let y = 48.0;
-        let _ = win.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)));
+        if let Err(e) = win.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)))
+        {
+            log::warn!("Failed to position overlay: {e}");
+        }
     }
 }
 
@@ -72,8 +75,12 @@ pub fn update_overlay_visibility(app: &AppHandle, has_items: bool) {
     if !has_items {
         if let Some(win) = app.get_webview_window(OVERLAY_LABEL) {
             if win.is_visible().unwrap_or(false) {
-                let _ = win.hide();
-                let _ = app.emit("overlay_hidden", ());
+                if let Err(e) = win.hide() {
+                    log::warn!("Failed to hide overlay: {e}");
+                }
+                if let Err(e) = app.emit("overlay_hidden", ()) {
+                    log::warn!("Failed to emit overlay_hidden event: {e}");
+                }
             }
         }
     }
