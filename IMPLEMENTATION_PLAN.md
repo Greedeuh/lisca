@@ -17,7 +17,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 1 — Project Scaffolding & Structure
+## Phase 1 — Project Scaffolding & Structure ✅ DONE
 
 **Goal:** Fresh Tauri v2 project with clean module layout, buildable and passing CI.
 
@@ -85,7 +85,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 2b — Voice Preferences (Voice Mapping) ⏳ PARTIAL
+## Phase 2b — Voice Preferences (Voice Mapping) ✅ DONE
 
 **Goal:** Per-language active voice selection with fallback, persisted to disk, exposed via Tauri commands.
 
