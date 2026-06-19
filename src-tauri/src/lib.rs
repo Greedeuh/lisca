@@ -1,4 +1,5 @@
 pub mod models;
+pub mod persist;
 pub mod queue;
 pub mod speech_player;
 pub mod transcriber;
