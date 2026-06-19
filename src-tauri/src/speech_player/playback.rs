@@ -30,6 +30,12 @@ pub struct PlaybackController {
     pub(crate) notify: Arc<tokio::sync::Notify>,
 }
 
+impl Default for PlaybackController {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PlaybackController {
     pub fn new() -> Self {
         Self {

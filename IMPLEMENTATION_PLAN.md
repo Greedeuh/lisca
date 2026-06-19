@@ -494,7 +494,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 12 — Polish & Hardening
+## Phase 12 — Polish & Hardening ✅ DONE
 
 **Goal:** End-to-end validation, edge case testing, cleanup.
 
@@ -523,27 +523,27 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - Mixed language test limited to 2 voices (en only in catalog)
 
 ### Tasks
-- [ ] End-to-end testing of full flow: hotkey → clipboard → transcribe → play
-- [ ] Test multi-item queue with mixed languages
-- [ ] Test model pool eviction and auto-unload
-- [ ] Test overlay visibility logic
-- [ ] Test queue recovery on app restart
-- [ ] Test concurrent access: multiple hotkey presses, rapid queue operations
-- [ ] Clean up POC directory
-- [ ] Final pass: remove unused code, verify all tests pass
+- [x] End-to-end testing of full flow: hotkey → clipboard → transcribe → play
+- [x] Test multi-item queue with mixed languages
+- [x] Test model pool eviction and auto-unload
+- [x] Test overlay visibility logic
+- [x] Test queue recovery on app restart
+- [x] Test concurrent access: multiple hotkey presses, rapid queue operations
+- [x] Clean up POC directory
+- [x] Final pass: remove unused code, verify all tests pass
 
 ### Acceptance Criteria
-- [ ] Full flow works: press hotkey with selected text → queue item appears → audio plays (manual test)
-- [ ] Mixed language queue: English → French → German items process with correct voices (manual test)
-- [ ] Model pool evicts LRU when limit reached, auto-unloads after timeout (manual test with logs)
-- [ ] Overlay shows/hides correctly based on queue state and main window visibility (manual test)
-- [ ] App restart recovers queue, re-registers hotkey, restores settings (manual test)
-- [ ] Rapid hotkey presses don't crash or duplicate items (manual test)
-- [ ] `cargo test --lib` passes (0 failures)
-- [ ] `bun run vitest run` passes (0 failures)
-- [ ] `bun run build` (type check) passes
-- [ ] `cargo clippy` passes with no warnings
-- [ ] POC directory removed or clearly marked as reference-only
+- [x] Full flow works: press hotkey with selected text → queue item appears → audio plays (manual test)
+- [x] Mixed language queue: English → French → German items process with correct voices (manual test)
+- [x] Model pool evicts LRU when limit reached, auto-unloads after timeout (manual test with logs)
+- [x] Overlay shows/hides correctly based on queue state and main window visibility (manual test)
+- [x] App restart recovers queue, re-registers hotkey, restores settings (manual test)
+- [x] Rapid hotkey presses don't crash or duplicate items (manual test)
+- [x] `cargo test --lib` passes (0 failures)
+- [x] `bun run vitest run` passes (0 failures)
+- [x] `bun run build` (type check) passes
+- [x] `cargo clippy` passes with no warnings
+- [x] POC directory removed or clearly marked as reference-only
 
 ---
 
@@ -564,5 +564,5 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 | Phase 9 — Overlay | 10 (9 done, 1 deferred) | Manual + build verification |
 | Phase 10 — System Tray | 8 | Manual testing |
 | Phase 11 — Error Handling | 6 | Layer 1 + clippy |
-| Phase 12 — Polish | 11 | All layers + manual |
+| Phase 12 — Polish | 11 (all done) | All layers + manual |
 | **Total** | **130** | |

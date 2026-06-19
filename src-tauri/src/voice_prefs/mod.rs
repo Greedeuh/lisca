@@ -19,7 +19,7 @@ impl VoiceMapping {
                 .language_voice
                 .get(lang)
                 .map(|s| s.as_str())
-                .or_else(|| self.fallback_voice_key.as_deref()),
+                .or(self.fallback_voice_key.as_deref()),
             None => self.fallback_voice_key.as_deref(),
         }
     }

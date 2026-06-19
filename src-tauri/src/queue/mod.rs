@@ -91,6 +91,12 @@ pub struct Queue {
     config_path: Option<PathBuf>,
 }
 
+impl Default for Queue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Queue {
     pub fn new() -> Self {
         Self {

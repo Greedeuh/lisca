@@ -2,7 +2,7 @@
 // Falls back to default values on missing or corrupt files.
 
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::Path;
 
 pub fn save_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
@@ -28,6 +28,7 @@ pub fn load_json<T: DeserializeOwned + Default>(path: &Path) -> T {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Deserialize;
     use std::fs;
 
     #[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
