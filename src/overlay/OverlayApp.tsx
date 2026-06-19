@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { QueueList } from "../components/queue";
 import type { QueueItem, QueueSnapshot } from "../types/queue";
-import { getQueueState, queueRemove, queueMove, queueClear, queueToggleAutoRead } from "../types/ipc";
+import { getQueueState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay } from "../types/ipc";
 import "./OverlayApp.css";
 
 export default function OverlayApp() {
@@ -61,6 +61,12 @@ export default function OverlayApp() {
   }, []);
 
   const handleClose = useCallback(async () => {
+    try {
+      const snapshot = await getQueueState();
+      if (snapshot.show_overlay) {
+        await queueToggleOverlay();
+      }
+    } catch {}
     const win = getCurrentWindow();
     await win.hide();
   }, []);

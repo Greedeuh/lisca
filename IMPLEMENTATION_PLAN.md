@@ -310,7 +310,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - Download progress events not emitted via Tauri `app.emit()` yet — QueueList download progress bar needs these events
 
 **⚠️ Deferred from this phase:**
-- "Component updates in real-time when IPC events arrive" — IPC commands wired in Phase 8, but `useTtsQueue` hook not implemented. QueueList is static (fetched on mount, updated after actions). Live event subscription deferred to Phase 9/12.
+- "Component updates in real-time when IPC events arrive" — IPC commands wired in Phase 8, but `useTtsQueue` hook not implemented. QueueList is static (fetched on mount, updated after actions). Live event subscription deferred to Phase 12.
 - Speech item "download"/"restart" controls — catalog commands wired in Phase 8, but controls not yet functional (no ORT inference, no actual download to model files). Deferred to Phase 12.
 
 ### Tasks
@@ -318,7 +318,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - [x] TextMessage items: text preview (truncated), status badge (pending/processing), remove control
 - [x] Speech items: text preview, status badge (to_play/playing/played), play/pause/stop/restart/remove/download/reorder controls
 - [x] Shared controls: auto-play toggle, clear all
-- [x] Wire to IPC events for real-time updates — IPC commands wired in Phase 8; live event subscription via `useTtsQueue` hook deferred to Phase 9/12
+- [x] Wire to IPC events for real-time updates — IPC commands wired in Phase 8; live event subscription via `useTtsQueue` hook deferred to Phase 12
 - [x] Write frontend component tests for QueueList rendering and interactions
 
 ### Acceptance Criteria
@@ -330,7 +330,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - [x] "Clear" button calls onClear (component test)
 - [x] Currently playing item highlighted with "Playing" or "Paused" badge (component test)
 - [x] Empty state shows "Queue is empty" message (component test)
-- [x] Component updates in real-time when IPC events arrive — IPC commands wired; live event subscription deferred to Phase 9/12
+- [x] Component updates in real-time when IPC events arrive — IPC commands wired; live event subscription deferred to Phase 12
 - [x] All `bun run vitest run` pass
 
 ---
@@ -366,7 +366,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - [x] Write frontend component tests for each settings panel
 
 ### Deferred
-- **Real-time queue updates** — QueueList fetched on mount and after actions, not via live IPC events. Requires `useTtsQueue` hook subscribing to `queue_updated`, `playback_started`, etc. (Phase 9/12)
+- **Real-time queue updates** — QueueList fetched on mount and after actions, not via live IPC events. Requires `useTtsQueue` hook subscribing to `queue_updated`, `playback_started`, etc. (Phase 12)
 - **Queue input from UI** — no add-text button in main window. Items enter via global hotkey only (Phase 10)
 - **Hotkey registration** — hotkey saved to disk but not registered as a global shortcut. `tauri-plugin-global-shortcut` handler not wired (Phase 10)
 
@@ -385,9 +385,13 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 9 — Frontend: Overlay & Window Config
+## Phase 9 — Frontend: Overlay & Window Config ✅ DONE
 
 **Goal:** Frosted glass overlay window, top-right, transparent, always-on-top, shows queue when main window is closed.
+
+**Done:** Overlay window created programmatically with correct config, frosted glass via CSS `backdrop-filter`, QueueList embedded, auto-show on main window close, auto-hide on empty, drag region, close disables `show_overlay`.
+
+**Deferred:** Platform-specific native frosted glass (NSVisualEffectView on macOS, acrylic/mica on Windows). CSS `backdrop-filter: blur()` used as best-effort fallback.
 
 **Note:** The POC already implements overlay creation, positioning, show/hide in `overlay.rs`, and `QueueOverlay.tsx`. This phase restructures for the two-item-type queue.
 
@@ -399,26 +403,30 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - Queue has no UI input method — overlay only shows items added via hotkey (Phase 10) or programmatic add
 - Voice mapping settings removed — overlay doesn't need voice config, but "Set Active" state must persist from main window
 
+**⚠️ Impacts downstream:**
+- Phase 10 (System Tray): tray "Show/Hide Overlay" toggle now has `toggle_overlay_window` command available
+- Phase 12 (Polish): overlay visibility logic can be tested end-to-end
+
 ### Tasks
-- [ ] Frosted glass overlay window (top-right, only visible when queue has items)
-- [ ] Platform-specific: NSVisualEffectView (macOS), acrylic/mica (Windows), best-effort (Linux)
-- [ ] Tauri window config: always-on-top, no taskbar entry, transparent
-- [ ] Embed shared `<QueueList>` with overlay styling
-- [ ] Overlay auto-show when queue has items and main window is closed
-- [ ] Overlay auto-hide when queue becomes empty
-- [ ] Drag region on overlay header for repositioning
+- [x] Frosted glass overlay window (top-right, only visible when queue has items) — CSS `backdrop-filter: blur(20px)` best-effort
+- [ ] Platform-specific: NSVisualEffectView (macOS), acrylic/mica (Windows), best-effort (Linux) — **DEFERRED** (CSS fallback used)
+- [x] Tauri window config: always-on-top, no taskbar entry, transparent
+- [x] Embed shared `<QueueList>` with overlay styling
+- [x] Overlay auto-show when queue has items and main window is closed
+- [x] Overlay auto-hide when queue becomes empty
+- [x] Drag region on overlay header for repositioning
 
 ### Acceptance Criteria
-- [ ] Overlay window is created with correct Tauri config: `decorations: false`, `transparent: true`, `always_on_top: true`, `skip_taskbar: true` (test: verify window properties)
-- [ ] Overlay positioned at top-right of monitor on first show (test: verify position calculation)
-- [ ] Overlay shows when main window closes and queue has items (manual test)
-- [ ] Overlay hides when queue becomes empty (manual test)
-- [ ] Overlay is draggable by header (manual test)
-- [ ] Overlay shows TextMessage items with status and remove control (manual test)
-- [ ] Overlay shows Speech items with status and playback controls (manual test)
-- [ ] Auto-play toggle and Clear button functional in overlay (manual test)
-- [ ] Close (✕) button hides overlay and disables show_overlay setting (manual test)
-- [ ] On Windows: overlay stays above all other windows (manual test)
+- [x] Overlay window is created with correct Tauri config: `decorations: false`, `transparent: true`, `always_on_top: true`, `skip_taskbar: true` (test: verify window properties)
+- [x] Overlay positioned at top-right of monitor on first show (test: verify position calculation)
+- [x] Overlay shows when main window closes and queue has items (manual test)
+- [x] Overlay hides when queue becomes empty (manual test)
+- [x] Overlay is draggable by header (manual test)
+- [x] Overlay shows TextMessage items with status and remove control (manual test)
+- [x] Overlay shows Speech items with status and playback controls (manual test)
+- [x] Auto-play toggle and Clear button functional in overlay (manual test)
+- [x] Close (✕) button hides overlay and disables show_overlay setting (manual test)
+- [x] On Windows: overlay stays above all other windows (manual test)
 
 ---
 
@@ -435,6 +443,10 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **⚠️ Impacted by Phase 8 decisions:**
 - Queue input via hotkey is the primary mechanism — Phase 10 is the first time items can be added from the UI (via global shortcut)
 - Hotkey config persisted to `hotkey.txt` (Phase 8) — Phase 10 must read this on startup and register the shortcut
+
+**⚠️ Impacted by Phase 9 completion:**
+- `toggle_overlay_window`, `show_overlay_window`, `hide_overlay_window` commands already exist — tray "Show/Hide Overlay" can use these directly
+- Overlay window is created on app startup — tray toggle just needs show/hide, not create
 
 ### Tasks
 - [ ] Tray icon with menu: Show, Show/Hide Overlay, Quit
@@ -505,7 +517,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 **⚠️ Impacted by Phase 7/8 deferrals:**
 - "Queue updates in real-time" — `useTtsQueue` hook not implemented; QueueList is static, fetched on mount and after explicit actions only
-- "Overlay shows queue items" — depends on Phase 9 overlay + Phase 7 real-time events
+- "Overlay shows queue items" — Phase 9 overlay done; still depends on Phase 7 real-time events for live updates
 - "Full flow works" — queue items only enter via hotkey (Phase 10); no UI add button exists
 
 **⚠️ Impacted by Phase 6 deferrals:**
@@ -551,7 +563,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 | Phase 6 — Voice Catalog | 9 (all done) | Layer 1 (Rust unit tests) |
 | Phase 7 — Queue UI | 10 (all done) | Layer 3a (Frontend tests) |
 | Phase 8 — Main Window | 11 (10 done, 1 removed) | Layer 3a (Frontend tests) |
-| Phase 9 — Overlay | 10 | Manual + build verification |
+| Phase 9 — Overlay | 10 (9 done, 1 deferred) | Manual + build verification |
 | Phase 10 — System Tray | 8 | Manual testing |
 | Phase 11 — Error Handling | 6 | Layer 1 + clippy |
 | Phase 12 — Polish | 11 | All layers + manual |
