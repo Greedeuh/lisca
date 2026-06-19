@@ -10,7 +10,7 @@ pub trait Transcribable {
     fn replace_with_speech(
         &mut self,
         id: u64,
-        audio_path: Option<String>,
+        audio_data: Option<Vec<f32>>,
         voice_key: Option<String>,
         language: Option<String>,
     ) -> Result<(), String>;
@@ -58,7 +58,7 @@ impl Transcribable for Queue {
     fn replace_with_speech(
         &mut self,
         id: u64,
-        audio_path: Option<String>,
+        audio_data: Option<Vec<f32>>,
         voice_key: Option<String>,
         language: Option<String>,
     ) -> Result<(), String> {
@@ -76,7 +76,7 @@ impl Transcribable for Queue {
         self.items[index] = QueueItem::Speech {
             id,
             text: old_text,
-            audio_path,
+            audio_data,
             voice_key,
             language,
             status: SpeechStatus::ToPlay,
@@ -100,7 +100,7 @@ mod tests {
 
         q.replace_with_speech(
             id,
-            Some("/tmp/audio.wav".to_string()),
+            None,
             Some("en-us".to_string()),
             Some("en".to_string()),
         )
@@ -112,13 +112,11 @@ mod tests {
         assert_eq!(q.items()[2].id(), 3);
         match &q.items()[1] {
             QueueItem::Speech {
-                audio_path,
                 voice_key,
                 language,
                 status,
                 ..
             } => {
-                assert_eq!(audio_path.as_deref(), Some("/tmp/audio.wav"));
                 assert_eq!(voice_key.as_deref(), Some("en-us"));
                 assert_eq!(language.as_deref(), Some("en"));
                 assert_eq!(status, &SpeechStatus::ToPlay);
@@ -132,7 +130,7 @@ mod tests {
         let mut q = Queue::new();
         q.add_text("hello".to_string()).unwrap();
         assert!(q
-            .replace_with_speech(999, Some("/tmp/a.wav".into()), None, None)
+            .replace_with_speech(999, None, None, None)
             .is_err());
     }
 
@@ -140,10 +138,10 @@ mod tests {
     fn replace_non_text_message_fails() {
         let mut q = Queue::new();
         q.add_text("hello".to_string()).unwrap();
-        q.replace_with_speech(1, Some("/tmp/a.wav".into()), None, None)
+        q.replace_with_speech(1, None, None, None)
             .unwrap();
         assert!(q
-            .replace_with_speech(1, Some("/tmp/b.wav".into()), None, None)
+            .replace_with_speech(1, None, None, None)
             .is_err());
     }
 

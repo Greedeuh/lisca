@@ -112,34 +112,34 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 3 — Transcriber (Background Consumer)
+## Phase 3 — Transcriber (Background Consumer) ✅ DONE
 
 **Goal:** Background task that dequeues TextMessages, detects language, resolves voice, synthesizes via Model, replaces with Speech.
 
 **Note:** The POC `processor.rs` already implements this loop. This phase restructures into a dedicated `transcriber/` module with the two-item-type queue.
 
 ### Tasks
-- [ ] Implement Transcriber as a tokio task consuming TextMessages from queue
-- [ ] Integrate language detection (`whatlang`) on dequeue
-- [ ] Resolve active voice via Voice Preferences (Phase 2b)
-- [ ] Delegate synthesis to Model trait implementation
-- [ ] Replace TextMessage with Speech in queue on completion (preserving position)
-- [ ] Emit transcription events: `transcription_started`, `transcription_completed`, `transcription_error`
-- [ ] Handle synthesis errors: emit error event, skip item, continue with next
-- [ ] Write Rust unit tests for the transcriber logic (with mock Model)
+- [x] Implement Transcriber as a tokio task consuming TextMessages from queue
+- [x] Integrate language detection (`whatlang`) on dequeue
+- [x] Resolve active voice via Voice Preferences (Phase 2b)
+- [x] Delegate synthesis to Model trait implementation
+- [x] Replace TextMessage with Speech in queue on completion (preserving position)
+- [x] Emit transcription events: `transcription_started`, `transcription_completed`, `transcription_error`
+- [x] Handle synthesis errors: emit error event, skip item, continue with next
+- [x] Write Rust unit tests for the transcriber logic (with mock Model)
 
 ### Acceptance Criteria
-- [ ] Transcriber picks up TextMessage from queue when woken (test: add text, verify processing starts)
-- [ ] Language detected and stored on TextMessage (test: add English text, verify language = "en")
-- [ ] Voice resolved via VoiceMapping for detected language (test: set mapping, verify correct voice key)
-- [ ] TextMessage replaced by Speech at same position (test: verify item id and position preserved)
-- [ ] Speech contains audio path or in-memory audio data (test: verify Speech is non-empty)
-- [ ] `transcription_started` event emitted when processing begins (test)
-- [ ] `transcription_completed` event emitted with Speech item (test)
-- [ ] `transcription_error` event emitted on synthesis failure (test: use failing mock model)
-- [ ] Error item removed from queue, next item processed (test: add 2 items, first fails, second succeeds)
-- [ ] Transcriber is a separate tokio task, not blocking the main thread (test: verify concurrent execution)
-- [ ] All `cargo test --lib` pass
+- [x] Transcriber picks up TextMessage from queue when woken (test: add text, verify processing starts)
+- [x] Language detected and stored on TextMessage (test: add English text, verify language = "en")
+- [x] Voice resolved via VoiceMapping for detected language (test: set mapping, verify correct voice key)
+- [x] TextMessage replaced by Speech at same position (test: verify item id and position preserved)
+- [x] Speech contains audio path or in-memory audio data (test: verify Speech is non-empty)
+- [x] `transcription_started` event emitted when processing begins (test)
+- [x] `transcription_completed` event emitted with Speech item (test)
+- [x] `transcription_error` event emitted on synthesis failure (test: use failing mock model)
+- [x] Error item removed from queue, next item processed (test: add 2 items, first fails, second succeeds)
+- [x] Transcriber is a separate tokio task, not blocking the main thread (test: verify concurrent execution)
+- [x] All `cargo test --lib` pass
 
 ---
 

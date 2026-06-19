@@ -52,9 +52,9 @@ mod tests {
         q.add_text("a".to_string()).unwrap();
         q.add_text("b".to_string()).unwrap();
 
-        q.replace_with_speech(1, Some("/a.wav".into()), None, None)
+        q.replace_with_speech(1, None, None, None)
             .unwrap();
-        q.replace_with_speech(2, Some("/b.wav".into()), None, None)
+        q.replace_with_speech(2, None, None, None)
             .unwrap();
 
         q.set_speech_status(1, SpeechStatus::Playing).unwrap();
@@ -74,9 +74,9 @@ mod tests {
         let mut q = Queue::new();
         q.add_text("a".to_string()).unwrap();
         q.add_text("b".to_string()).unwrap();
-        q.replace_with_speech(1, Some("/a.wav".into()), None, None)
+        q.replace_with_speech(1, None, None, None)
             .unwrap();
-        q.replace_with_speech(2, Some("/b.wav".into()), None, None)
+        q.replace_with_speech(2, None, None, None)
             .unwrap();
         q.set_speech_status(1, SpeechStatus::Played).unwrap();
         q.set_speech_status(2, SpeechStatus::Played).unwrap();

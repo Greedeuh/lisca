@@ -36,7 +36,7 @@ pub enum QueueItem {
     Speech {
         id: u64,
         text: String,
-        audio_path: Option<String>,
+        audio_data: Option<Vec<f32>>,
         voice_key: Option<String>,
         language: Option<String>,
         status: SpeechStatus,
