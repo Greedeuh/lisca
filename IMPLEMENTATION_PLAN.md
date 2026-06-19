@@ -23,7 +23,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ### Tasks
 - [x] Create fresh Tauri v2 project from POC (copy configs, clean up demo code)
-- [x] Organize Rust backend into domain modules: `queue/`, `transcriber/`, `speech_player/`, `models/`, `voice_prefs/`
+- [x] Organize Rust backend into domain modules: `queue/`, `transcriber/`, `speech_player/`, `models/`, `voice_prefs/`, `hotkey/`, `clipboard/`
 - [x] Organize frontend into feature folders: `components/queue/`, `components/voices/`, `components/settings/`, `overlay/`
 - [x] Define shared IPC event channel types (queue, transcription, playback, model, download)
 - [x] Set up CI: `.github/workflows/test.yml` running `cargo test`, `bun run build`, `bun run vitest run`
@@ -33,7 +33,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - [x] `cargo test --lib` from `src-tauri/` passes (0 failures)
 - [x] `bun run vitest run` passes (0 failures)
 - [x] `bun run build` (type check) passes
-- [x] Rust source tree has top-level modules: `queue`, `transcriber`, `speech_player`, `models`, `voice_prefs`
+- [x] Rust source tree has top-level modules: `queue`, `transcriber`, `speech_player`, `models`, `voice_prefs`, `hotkey`, `clipboard`
 - [x] Frontend `src/` has directories: `components/queue/`, `components/voices/`, `components/settings/`, `overlay/`
 - [x] IPC event channel type definitions exist (TypeScript types + Rust enums)
 - [x] No dead/demo code remains (e.g. placeholder TTS commands, unused components)
@@ -143,7 +143,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 4 — Audio Backend & SpeechPlayer
+## Phase 4 — Audio Backend & SpeechPlayer ✅ DONE
 
 **Goal:** Background task that plays Speech items with full playback controls.
 
@@ -173,7 +173,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 4b — Global Hotkey & Clipboard
+## Phase 4b — Global Hotkey & Clipboard ✅ DONE
 
 **Goal:** System-wide hotkey triggers clipboard read → queue add.
 
@@ -204,6 +204,10 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **Goal:** LRU model cache with Piper and Kokoro backends, shared engine pattern, auto-unload.
 
 **Note:** The POC already implements `ModelPool` with LRU cache, `PiperModel`, `KokoroModel`, `KokoroBackendFactory`, `PiperBackendFactory`, and the `TtsModel` trait. This phase restructures and adds auto-unload.
+
+**⚠️ Impacted by Phase 4 changes:**
+- `AudioOutput` trait is now defined in `speech_player/mod.rs` — model implementations should return `Vec<f32>` (as `Model::synthesize` already does), rodio playback is handled by the speech player, not models
+- `rodio` is no longer a direct dependency — models should not depend on audio output crates
 
 ### Tasks
 - [ ] Implement Model Pool with LRU eviction and configurable max cached limit (default 4)
@@ -268,6 +272,13 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - Events are now fine-grained (`ItemAdded`, `ItemRemoved`, `ItemMoved`, `ItemCleared`, `ItemReplaced`) — no payload, consumer queries queue directly via `queue_state` Tauri command
 - `queue_updated` event no longer exists — frontend must listen to specific variants and fetch queue state on each event
 
+**⚠️ Impacted by Phase 4 changes:**
+- `PlaybackEvent` enum defined (`Started`, `Paused`, `Resumed`, `Stopped`, `ItemCompleted`) — frontend must subscribe to these for playback status updates
+- Speech item status now transitions through `ToPlay → Playing → Paused → Played` — UI badges must reflect these states
+
+**⚠️ Impacted by Phase 4b changes:**
+- `hotkey/` and `clipboard/` modules exist — no new work needed in this phase, but Phase 8 will need to wire hotkey config UI
+
 ### Tasks
 - [ ] Build `<QueueList>` as a shared component (used by both main window and overlay)
 - [ ] TextMessage items: text preview (truncated), status badge (pending/processing), remove control
@@ -299,6 +310,10 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **⚠️ Impacted by Phase 2b deferral:**
 - Voice mapping settings (`get_voice_preference`, `set_voice_preference` Tauri commands) must be wired in this phase
 - VoiceMapping needs `#[derive(Serialize, Deserialize)]` added before persistence works
+
+**⚠️ Impacted by Phase 4b changes:**
+- `hotkey/` module with `parse_shortcut()`, `ShortcutConfig`, `save_hotkey()`/`load_hotkey()` already exists — HotkeyRecorder component should call these via Tauri commands
+- `tauri-plugin-global-shortcut` and `tauri-plugin-clipboard-manager` are already in Cargo.toml — plugins must be registered in `lib.rs` Tauri builder
 
 ### Tasks
 - [ ] Voice Catalog browser: browse available voices by language, quality/size/speed/type metadata
@@ -406,6 +421,13 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - "Test queue recovery on app restart" — N/A, items are not persisted (in-memory only)
 - "App restart recovers queue" — N/A, only config persists
 
+**⚠️ Impacted by Phase 4 changes:**
+- "Full flow works: press hotkey → queue item appears → audio plays" — speech player uses `AudioOutput` trait; rodio integration must be wired in `lib.rs` before this flow works end-to-end
+
+**⚠️ Impacted by Phase 4b changes:**
+- "Full flow works" depends on hotkey registration via `tauri-plugin-global-shortcut` — plugin must be registered in `lib.rs` builder
+- "Rapid hotkey presses" — `parse_shortcut` validation prevents malformed shortcuts; clipboard read is mocked in tests, real integration needs manual verification
+
 ### Tasks
 - [ ] End-to-end testing of full flow: hotkey → clipboard → transcribe → play
 - [ ] Test multi-item queue with mixed languages
@@ -439,8 +461,8 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 | Phase 2 — Queue System | 10 (8 done, 2 N/A) | Layer 1 (Rust unit tests) |
 | Phase 2b — Voice Preferences | 9 | Layer 1 (Rust unit tests) |
 | Phase 3 — Transcriber | 11 | Layer 1 (Rust unit tests) |
-| Phase 4 — SpeechPlayer | 10 | Layer 1 (Rust unit tests) |
-| Phase 4b — Hotkey & Clipboard | 8 | Layer 1 + manual |
+| Phase 4 — SpeechPlayer | 11 (all done) | Layer 1 (Rust unit tests) |
+| Phase 4b — Hotkey & Clipboard | 8 (5 done, 3 manual) | Layer 1 + manual |
 | Phase 5 — Model Pool | 9 | Layer 1 (Rust unit tests) |
 | Phase 6 — Voice Catalog | 9 | Layer 1 (Rust unit tests) |
 | Phase 7 — Queue UI | 10 | Layer 3a (Frontend tests) |
