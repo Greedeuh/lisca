@@ -310,15 +310,15 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - Download progress events not emitted via Tauri `app.emit()` yet — QueueList download progress bar needs these events
 
 **⚠️ Deferred from this phase:**
-- "Component updates in real-time when IPC events arrive" — requires `useTtsQueue` hook + wired IPC commands (`queue_state`, `queue_add`, `queue_remove`, `queue_move`, `queue_clear`) which are Phase 8 work
-- Speech item "download"/"restart" controls — catalog commands not wired yet (Phase 8)
+- "Component updates in real-time when IPC events arrive" — IPC commands wired in Phase 8, but `useTtsQueue` hook not implemented. QueueList is static (fetched on mount, updated after actions). Live event subscription deferred to Phase 9/12.
+- Speech item "download"/"restart" controls — catalog commands wired in Phase 8, but controls not yet functional (no ORT inference, no actual download to model files). Deferred to Phase 12.
 
 ### Tasks
 - [x] Build `<QueueList>` as a shared component (used by both main window and overlay)
 - [x] TextMessage items: text preview (truncated), status badge (pending/processing), remove control
 - [x] Speech items: text preview, status badge (to_play/playing/played), play/pause/stop/restart/remove/download/reorder controls
 - [x] Shared controls: auto-play toggle, clear all
-- [ ] Wire to IPC events for real-time updates (listen to `queue_updated`, `playback_started`, etc.) — deferred to Phase 8
+- [x] Wire to IPC events for real-time updates — IPC commands wired in Phase 8; live event subscription via `useTtsQueue` hook deferred to Phase 9/12
 - [x] Write frontend component tests for QueueList rendering and interactions
 
 ### Acceptance Criteria
@@ -330,7 +330,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - [x] "Clear" button calls onClear (component test)
 - [x] Currently playing item highlighted with "Playing" or "Paused" badge (component test)
 - [x] Empty state shows "Queue is empty" message (component test)
-- [ ] Component updates in real-time when IPC events arrive (component test with mocked events) — deferred to Phase 8
+- [x] Component updates in real-time when IPC events arrive — IPC commands wired; live event subscription deferred to Phase 9/12
 - [x] All `bun run vitest run` pass
 
 ---
@@ -365,6 +365,11 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - [x] ~~Voice mapping settings~~ — removed (redundant with Installed Voices "Set Active")
 - [x] Write frontend component tests for each settings panel
 
+### Deferred
+- **Real-time queue updates** — QueueList fetched on mount and after actions, not via live IPC events. Requires `useTtsQueue` hook subscribing to `queue_updated`, `playback_started`, etc. (Phase 9/12)
+- **Queue input from UI** — no add-text button in main window. Items enter via global hotkey only (Phase 10)
+- **Hotkey registration** — hotkey saved to disk but not registered as a global shortcut. `tauri-plugin-global-shortcut` handler not wired (Phase 10)
+
 ### Acceptance Criteria
 - [x] Voice catalog lists available voices grouped by language (component test)
 - [x] Download button triggers download, progress bar shows during download (component test)
@@ -385,6 +390,14 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **Goal:** Frosted glass overlay window, top-right, transparent, always-on-top, shows queue when main window is closed.
 
 **Note:** The POC already implements overlay creation, positioning, show/hide in `overlay.rs`, and `QueueOverlay.tsx`. This phase restructures for the two-item-type queue.
+
+**⚠️ Impacted by Phase 7 deferral:**
+- QueueList doesn't receive live IPC events yet — overlay QueueList will also be static until `useTtsQueue` hook is wired
+- Speech item "download"/"restart" controls not functional until catalog commands are fully wired
+
+**⚠️ Impacted by Phase 8 decisions:**
+- Queue has no UI input method — overlay only shows items added via hotkey (Phase 10) or programmatic add
+- Voice mapping settings removed — overlay doesn't need voice config, but "Set Active" state must persist from main window
 
 ### Tasks
 - [ ] Frosted glass overlay window (top-right, only visible when queue has items)
@@ -415,6 +428,14 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 **Note:** The POC already implements tray icon with Show/Quit menu and close-to-tray in `lib.rs`. This phase adds Show/Hide Overlay toggle.
 
+**⚠️ Impacted by Phase 4b changes:**
+- `tauri-plugin-global-shortcut` registered in `lib.rs` (Phase 8) but no actual shortcut handler wired — Phase 10 must register the callback that triggers clipboard read → queue add
+- `tauri-plugin-clipboard-manager` registered but clipboard read flow not tested end-to-end — Phase 10 must wire the full hotkey → clipboard → queue chain
+
+**⚠️ Impacted by Phase 8 decisions:**
+- Queue input via hotkey is the primary mechanism — Phase 10 is the first time items can be added from the UI (via global shortcut)
+- Hotkey config persisted to `hotkey.txt` (Phase 8) — Phase 10 must read this on startup and register the shortcut
+
 ### Tasks
 - [ ] Tray icon with menu: Show, Show/Hide Overlay, Quit
 - [ ] Close-to-tray behavior (hide window instead of quit)
@@ -437,6 +458,14 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 ## Phase 11 — Error Handling & Logging
 
 **Goal:** Structured error types, no silent failures, errors surfaced to UI, diagnostic logging.
+
+**⚠️ Impacted by Phase 5 deferrals:**
+- Model synthesis (`PiperModel::synthesize`, `KokoroModel::synthesize`) are stubs — error handling for inference failures can't be fully tested until real ORT inference is implemented
+- Auto-unload background task not wired — error handling for model eviction timeouts is incomplete
+
+**⚠️ Impacted by Phase 7/8 deferrals:**
+- Real-time IPC event updates not wired — error events from transcriber/speech player won't reach frontend until event subscription is implemented
+- `listen()` calls in App.tsx exist but queue doesn't react to them — error surfaced via events won't update UI
 
 ### Tasks
 - [ ] Define structured error types incrementally per module (not as a final sweep)
@@ -473,6 +502,15 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **⚠️ Impacted by Phase 5 deferrals:**
 - "Full flow works: hotkey → clipboard → transcribe → play" — `PiperModel::synthesize()` and `KokoroModel::synthesize()` are stubs; ORT inference must be implemented before end-to-end synthesis works
 - "Model pool evicts LRU when limit reached, auto-unloads after timeout" — `evict_expired()` works but no background task calls it; auto-unload requires spawning a periodic task in `lib.rs`
+
+**⚠️ Impacted by Phase 7/8 deferrals:**
+- "Queue updates in real-time" — `useTtsQueue` hook not implemented; QueueList is static, fetched on mount and after explicit actions only
+- "Overlay shows queue items" — depends on Phase 9 overlay + Phase 7 real-time events
+- "Full flow works" — queue items only enter via hotkey (Phase 10); no UI add button exists
+
+**⚠️ Impacted by Phase 6 deferrals:**
+- "Full catalog" — only 1 Piper + 1 Kokoro voice hardcoded; HuggingFace API fetch not implemented
+- Mixed language test limited to 2 voices (en only in catalog)
 
 ### Tasks
 - [ ] End-to-end testing of full flow: hotkey → clipboard → transcribe → play
@@ -511,8 +549,8 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 | Phase 4b — Hotkey & Clipboard | 8 (5 done, 3 manual) | Layer 1 + manual |
 | Phase 5 — Model Pool | 10 (all done) | Layer 1 (Rust unit tests) |
 | Phase 6 — Voice Catalog | 9 (all done) | Layer 1 (Rust unit tests) |
-| Phase 7 — Queue UI | 10 | Layer 3a (Frontend tests) |
-| Phase 8 — Main Window | 11 | Layer 3a (Frontend tests) |
+| Phase 7 — Queue UI | 10 (all done) | Layer 3a (Frontend tests) |
+| Phase 8 — Main Window | 11 (10 done, 1 removed) | Layer 3a (Frontend tests) |
 | Phase 9 — Overlay | 10 | Manual + build verification |
 | Phase 10 — System Tray | 8 | Manual testing |
 | Phase 11 — Error Handling | 6 | Layer 1 + clippy |
