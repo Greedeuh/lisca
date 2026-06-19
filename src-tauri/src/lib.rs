@@ -134,15 +134,18 @@ pub fn run() {
             // Spawn speech player
             let auto_read = Arc::new(AtomicBool::new(initial_auto_read));
             let queue_for_speech = queue.clone();
+            let app_handle_for_speech = app.handle().clone();
             let speech_player_handle = speech_player::spawn_speech_player(
                 queue_for_speech,
                 auto_read.clone(),
                 move |event| match event {
                     PlaybackEvent::Started { id } => {
                         log::debug!("Playback started for item {id}");
+                        let _ = app_handle_for_speech.emit("queue_updated", ());
                     }
                     PlaybackEvent::ItemCompleted { id } => {
                         log::debug!("Playback completed for item {id}");
+                        let _ = app_handle_for_speech.emit("queue_updated", ());
                     }
                     _ => {}
                 },
