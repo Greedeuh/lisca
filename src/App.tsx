@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { VoiceBrowser, InstalledVoices } from "./components/voices";
 import { QueueList } from "./components/queue";
 import { HotkeyRecorder } from "./components/settings";
@@ -24,8 +23,6 @@ import {
   setFallbackVoice,
   getHotkey,
   saveHotkey,
-  createOverlayWindow,
-  showOverlayWindow,
   queueToggleOverlay,
 } from "./types/ipc";
 import "./App.css";
@@ -76,8 +73,6 @@ function App() {
     refreshVoiceMapping();
     getHotkey().then(setHotkey).catch(() => {});
 
-    createOverlayWindow().catch(() => {});
-
     const unlistenProgress = listen<DownloadProgress>("download_progress", (event) => {
       setDownloading((prev) => new Map(prev).set(event.payload.voice_key, event.payload));
     });
@@ -89,20 +84,10 @@ function App() {
       refreshQueue();
     });
 
-    const win = getCurrentWindow();
-    const unlistenClose = listen("tauri://close-requested", async () => {
-      const snapshot = await getQueueState().catch(() => null);
-      if (snapshot && snapshot.items.length > 0 && snapshot.show_overlay) {
-        await showOverlayWindow().catch(() => {});
-      }
-      await win.hide();
-    });
-
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
       unlistenQueue.then((fn) => fn());
-      unlistenClose.then((fn) => fn());
     };
   }, [refreshInstalled, refreshQueue, refreshVoiceMapping]);
 

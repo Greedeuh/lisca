@@ -430,40 +430,32 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 10 — System Tray & Window Management
+## Phase 10 — System Tray & Window Management ✅ DONE
 
 **Goal:** System tray icon with menu, close-to-tray behavior.
 
-**Note:** The POC already implements tray icon with Show/Quit menu and close-to-tray in `lib.rs`. This phase adds Show/Hide Overlay toggle.
+**Done:** Tray icon with Show/Show-Hide Overlay/Quit menu, left-click shows main window, right-click shows context menu, close-to-tray always hides (never destroys), overlay shows only when queue has items AND show_overlay enabled.
 
-**⚠️ Impacted by Phase 4b changes:**
-- `tauri-plugin-global-shortcut` registered in `lib.rs` (Phase 8) but no actual shortcut handler wired — Phase 10 must register the callback that triggers clipboard read → queue add
-- `tauri-plugin-clipboard-manager` registered but clipboard read flow not tested end-to-end — Phase 10 must wire the full hotkey → clipboard → queue chain
-
-**⚠️ Impacted by Phase 8 decisions:**
-- Queue input via hotkey is the primary mechanism — Phase 10 is the first time items can be added from the UI (via global shortcut)
-- Hotkey config persisted to `hotkey.txt` (Phase 8) — Phase 10 must read this on startup and register the shortcut
-
-**⚠️ Impacted by Phase 9 completion:**
-- `toggle_overlay_window`, `show_overlay_window`, `hide_overlay_window` commands already exist — tray "Show/Hide Overlay" can use these directly
-- Overlay window is created on app startup — tray toggle just needs show/hide, not create
+**Fixes in this session:**
+- Removed stale `WebviewWindow` handle from `AppState` — tray now uses `app.get_webview_window("main")` for fresh lookup
+- Close interceptor now always calls `api.prevent_close()` + `hide()` regardless of queue state — previously only prevented close when queue had items, causing window destruction on empty queue
 
 ### Tasks
-- [ ] Tray icon with menu: Show, Show/Hide Overlay, Quit
-- [ ] Close-to-tray behavior (hide window instead of quit)
-- [ ] Wire overlay visibility to tray toggle
-- [ ] Left-click tray icon shows main window
-- [ ] Right-click tray icon shows context menu
+- [x] Tray icon with menu: Show, Show/Hide Overlay, Quit
+- [x] Close-to-tray behavior (hide window instead of quit)
+- [x] Wire overlay visibility to tray toggle
+- [x] Left-click tray icon shows main window
+- [x] Right-click tray icon shows context menu
 
 ### Acceptance Criteria
-- [ ] Tray icon appears in system tray with "Lisca" tooltip (manual test)
-- [ ] Left-click tray icon shows main window and hides overlay (manual test)
-- [ ] "Show" menu item shows main window (manual test)
-- [ ] "Show/Hide Overlay" menu item toggles overlay visibility (manual test)
-- [ ] "Quit" menu item exits the application (manual test)
-- [ ] Closing main window hides to tray (app keeps running) (manual test)
-- [ ] Closing main window shows overlay if queue has items and show_overlay is enabled (manual test)
-- [ ] Closing main window does NOT show overlay if queue is empty (manual test)
+- [x] Tray icon appears in system tray with "Lisca" tooltip (manual test)
+- [x] Left-click tray icon shows main window and hides overlay (manual test)
+- [x] "Show" menu item shows main window (manual test)
+- [x] "Show/Hide Overlay" menu item toggles overlay visibility (manual test)
+- [x] "Quit" menu item exits the application (manual test)
+- [x] Closing main window hides to tray (app keeps running) (manual test)
+- [x] Closing main window shows overlay if queue has items and show_overlay is enabled (manual test)
+- [x] Closing main window does NOT show overlay if queue is empty (manual test)
 
 ---
 

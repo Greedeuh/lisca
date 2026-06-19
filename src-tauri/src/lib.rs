@@ -10,14 +10,15 @@ pub mod overlay;
 pub mod persist;
 pub mod queue;
 pub mod speech_player;
+pub mod tray;
 pub mod transcriber;
 pub mod voice_prefs;
 
 use catalog::VoiceCatalog;
 use commands::AppState;
-use queue::Queue;
+use queue::{Queue, QueueControllable};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use voice_prefs::VoiceMapping;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -46,6 +47,8 @@ pub fn run() {
             let voice_mapping_path = app_data_dir.join("voice_mapping.json");
             let voice_mapping = VoiceMapping::load(&voice_mapping_path);
 
+            let hotkey_config = crate::hotkey::load_hotkey(&app_data_dir.join("hotkey.txt"));
+
             let state = AppState {
                 catalog,
                 queue: Mutex::new(queue),
@@ -53,6 +56,71 @@ pub fn run() {
                 app_data_dir,
             };
             app.manage(state);
+
+            // Create overlay window upfront (needed when main window is hidden)
+            crate::overlay::create_overlay(app.handle())?;
+
+            // Create main window programmatically (config-created windows
+            // are not reliably findable via get_webview_window)
+            let main_window = WebviewWindowBuilder::new(app.handle(), "main", WebviewUrl::App("index.html".into()))
+                .title("Lisca")
+                .inner_size(800.0, 600.0)
+                .build()
+                .map_err(|e| e.to_string())?;
+
+            // Intercept window close: always hide to tray (quit via tray menu only)
+            {
+                let win = main_window.clone();
+                let app_handle = app.handle().clone();
+                main_window.on_window_event(move |event| {
+                    let tauri::WindowEvent::CloseRequested { api, .. } = event else {
+                        return;
+                    };
+
+                    let state = app_handle.state::<AppState>();
+                    let queue = state.queue.lock().unwrap();
+                    let has_items = !queue.is_empty();
+                    let show_overlay = queue.config().show_overlay;
+                    drop(queue);
+
+                    api.prevent_close();
+                    let _ = win.hide();
+                    if has_items && show_overlay {
+                        let _ = overlay::show_overlay(&app_handle);
+                    }
+                });
+            }
+
+            // Create system tray
+            tray::create_tray(app.handle())?;
+
+            // Register global shortcut if configured
+            use tauri_plugin_clipboard_manager::ClipboardExt;
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            if let Some(config) = hotkey_config {
+                let shortcut_str = config.to_string_repr();
+                let app_handle = app.handle().clone();
+                if let Ok(shortcut) = shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+                    if let Err(e) = app_handle.global_shortcut().on_shortcut(
+                        shortcut,
+                        move |_app, _shortcut, event| {
+                            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                                if let Ok(text) = _app.clipboard().read_text() {
+                                    let text = text.to_string();
+                                    if !text.is_empty() {
+                                        let state = _app.state::<commands::AppState>();
+                                        let mut queue = state.queue.lock().unwrap();
+                                        let _ = queue.add_text(text);
+                                    }
+                                }
+                            }
+                        },
+                    ) {
+                        eprintln!("Failed to register global shortcut: {e}");
+                    }
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
