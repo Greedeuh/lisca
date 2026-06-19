@@ -19,3 +19,9 @@ export type QueueItem =
       language: string | null;
       status: SpeechStatus;
     };
+
+export type QueueSnapshot = {
+  items: QueueItem[];
+  auto_read: boolean;
+  show_overlay: boolean;
+};

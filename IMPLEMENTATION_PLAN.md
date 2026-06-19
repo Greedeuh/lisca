@@ -288,7 +288,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 7 — Shared Queue UI Component
+## Phase 7 — Shared Queue UI Component ✅ DONE
 
 **Goal:** `<QueueList>` component used by both main window and overlay, showing items with full controls.
 
@@ -309,25 +309,29 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - Catalog commands (`list_catalog_voices`, `install_voice`, `uninstall_voice`, `list_installed_voices`) not wired as `#[tauri::command]` yet — Speech item "download"/"restart" controls in QueueList depend on these commands being available via `invoke()`
 - Download progress events not emitted via Tauri `app.emit()` yet — QueueList download progress bar needs these events
 
+**⚠️ Deferred from this phase:**
+- "Component updates in real-time when IPC events arrive" — requires `useTtsQueue` hook + wired IPC commands (`queue_state`, `queue_add`, `queue_remove`, `queue_move`, `queue_clear`) which are Phase 8 work
+- Speech item "download"/"restart" controls — catalog commands not wired yet (Phase 8)
+
 ### Tasks
-- [ ] Build `<QueueList>` as a shared component (used by both main window and overlay)
-- [ ] TextMessage items: text preview (truncated), status badge (pending/processing), remove control
-- [ ] Speech items: text preview, status badge (to_play/playing/played), play/pause/stop/restart/remove/download/reorder controls
-- [ ] Shared controls: auto-play toggle, clear all
-- [ ] Wire to IPC events for real-time updates (listen to `queue_updated`, `playback_started`, etc.)
-- [ ] Write frontend component tests for QueueList rendering and interactions
+- [x] Build `<QueueList>` as a shared component (used by both main window and overlay)
+- [x] TextMessage items: text preview (truncated), status badge (pending/processing), remove control
+- [x] Speech items: text preview, status badge (to_play/playing/played), play/pause/stop/restart/remove/download/reorder controls
+- [x] Shared controls: auto-play toggle, clear all
+- [ ] Wire to IPC events for real-time updates (listen to `queue_updated`, `playback_started`, etc.) — deferred to Phase 8
+- [x] Write frontend component tests for QueueList rendering and interactions
 
 ### Acceptance Criteria
-- [ ] QueueList renders TextMessage items with text preview and status (component test)
-- [ ] QueueList renders Speech items with status and control buttons (component test)
-- [ ] "Remove" button calls onRemove with correct item id (component test)
-- [ ] "Up"/"Down" buttons call onMove with correct id and index (component test)
-- [ ] Auto-play toggle checkbox calls onToggleAutoRead (component test)
-- [ ] "Clear" button calls onClear (component test)
-- [ ] Currently playing item highlighted with "Playing" or "Paused" badge (component test)
-- [ ] Empty state shows "Queue is empty" message (component test)
-- [ ] Component updates in real-time when IPC events arrive (component test with mocked events)
-- [ ] All `bun run vitest run` pass
+- [x] QueueList renders TextMessage items with text preview and status (component test)
+- [x] QueueList renders Speech items with status and control buttons (component test)
+- [x] "Remove" button calls onRemove with correct item id (component test)
+- [x] "Up"/"Down" buttons call onMove with correct id and index (component test)
+- [x] Auto-play toggle checkbox calls onToggleAutoRead (component test)
+- [x] "Clear" button calls onClear (component test)
+- [x] Currently playing item highlighted with "Playing" or "Paused" badge (component test)
+- [x] Empty state shows "Queue is empty" message (component test)
+- [ ] Component updates in real-time when IPC events arrive (component test with mocked events) — deferred to Phase 8
+- [x] All `bun run vitest run` pass
 
 ---
 

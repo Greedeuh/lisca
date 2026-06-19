@@ -1,11 +1,11 @@
 import type { QueueItem } from "./queue";
 
-export type QueueEvent = {
-  type: "queue_updated";
-  items: QueueItem[];
-  auto_read: boolean;
-  show_overlay: boolean;
-};
+export type QueueEvent =
+  | { type: "item_added" }
+  | { type: "item_removed" }
+  | { type: "item_moved" }
+  | { type: "item_cleared" }
+  | { type: "item_replaced" };
 
 export type TranscriptionEvent =
   | { type: "transcription_started"; item_id: number }
