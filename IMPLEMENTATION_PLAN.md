@@ -40,62 +40,75 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 2 — Queue System & Core Interfaces
+## Phase 2 — Queue System & Core Interfaces ✅ DONE
 
-**Goal:** Persistent queue with two item types (TextMessage, Speech), lifecycle states, cursor-based consumption.
+**Goal:** Queue with two item types (TextMessage, Speech), lifecycle states, cursor-based consumption.
 
-**Note:** The POC already implements `QueueItem`, `QueueConfig`, `QueueEvent`, `QueueStore`, `QueueFacade`, and file-based persistence. This phase restructures to support the two-item-type design from `design.md` and adds the `Model` trait.
+**Design decisions (deviations from original plan):**
+- Items are **not persisted** — they live in memory only. Only config is persisted.
+- Queue split into traits by consumer: `QueueControllable`, `Transcribable`, `Playable`
+- Fine-grained events: `ItemAdded`, `ItemRemoved`, `ItemMoved`, `ItemCleared`, `ItemReplaced` (no payload, consumer queries queue directly)
+
+### Files
+- `src-tauri/src/queue/mod.rs` — types, Queue struct, builder, config persistence
+- `src-tauri/src/queue/controllable.rs` — QueueControllable trait (frontend API)
+- `src-tauri/src/queue/transcribable.rs` — Transcribable trait (transcriber API)
+- `src-tauri/src/queue/playable.rs` — Playable trait (speech player API)
+- `src-tauri/src/persist.rs` — generic save_json/load_json helpers
+- `src-tauri/src/models/mod.rs` — Model trait (already existed)
 
 ### Tasks
-- [ ] Define `TextMessage` type (id, text, language, status: pending/processing)
-- [ ] Define `Speech` type (id, text, audio_path, voice_key, language, status: to_play/playing/paused/played)
-- [ ] Unify into a single `QueueItem` enum: `TextMessage { .. }` | `Speech { .. }`
-- [ ] Implement queue operations: add, replace (text→speech in-place), reorder, remove, get-next-by-cursor
-- [ ] Add transcriber cursor (tracks which TextMessage is being processed)
-- [ ] Add speech player cursor (tracks which Speech is being played)
-- [ ] Persist queue state to JSON (`{app_data_dir}/lisca/queue.json`)
-- [ ] Implement startup recovery: restore queue, reset in-progress items to pending
-- [ ] Define `Model` trait interface: `fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, String>` + `fn sample_rate(&self) -> u32`
-- [ ] Emit `queue_updated` events on every mutation
-- [ ] Write Rust unit tests for queue CRUD, cursor tracking, persistence round-trip
+- [x] Define `TextMessage` type (id, text, language, status: pending/processing)
+- [x] Define `Speech` type (id, text, audio_path, voice_key, language, status: to_play/playing/paused/played)
+- [x] Unify into a single `QueueItem` enum: `TextMessage { .. }` | `Speech { .. }`
+- [x] Implement queue operations: add, replace (text→speech in-place), reorder, remove
+- [x] Add transcriber cursor (tracks which TextMessage is being processed)
+- [x] Add speech player cursor (tracks which Speech is being played)
+- [x] Persist queue config to JSON (`{app_data_dir}/lisca/queue_config.json`)
+- [x] ~~Implement startup recovery~~ — N/A (items not persisted)
+- [x] Define `Model` trait interface: `fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, String>` + `fn sample_rate(&self) -> u32`
+- [x] Emit fine-grained events on every mutation
+- [x] Write Rust unit tests (38 tests)
+- [x] Split into consumer traits (QueueControllable, Transcribable, Playable)
 
 ### Acceptance Criteria
-- [ ] `QueueItem::TextMessage` and `QueueItem::Speech` types exist with correct fields
-- [ ] `Model` trait compiles with `synthesize` and `sample_rate` methods
-- [ ] Queue add/remove/reorder/clear operations work (Rust unit tests pass)
-- [ ] TextMessage → Speech replacement preserves item position (test: add text, replace with speech, verify order)
-- [ ] Transcriber cursor correctly identifies next pending TextMessage (test)
-- [ ] Speech player cursor correctly identifies next to_play Speech (test)
-- [ ] Queue persists to `queue.json` and survives simulated restart (test: save → load → verify content)
-- [ ] Startup recovery resets `processing` TextMessages to `pending` and `playing` Speeches to `to_play` (test)
-- [ ] `queue_updated` event emitted on add/remove/move/clear (test: capture emitted events)
-- [ ] All `cargo test --lib` pass
+- [x] `QueueItem::TextMessage` and `QueueItem::Speech` types exist with correct fields
+- [x] `Model` trait compiles with `synthesize` and `sample_rate` methods
+- [x] Queue add/remove/reorder/clear operations work (Rust unit tests pass)
+- [x] TextMessage → Speech replacement preserves item position (test)
+- [x] Transcriber cursor correctly identifies next pending TextMessage (test)
+- [x] Speech player cursor correctly identifies next to_play Speech (test)
+- [x] ~~Queue persists to `queue.json` and survives simulated restart~~ — config only, items in-memory
+- [x] ~~Startup recovery~~ — N/A (items not persisted)
+- [x] Fine-grained events emitted on mutations (test)
+- [x] All `cargo test --lib` pass
 
 ---
 
-## Phase 2b — Voice Preferences (Voice Mapping)
+## Phase 2b — Voice Preferences (Voice Mapping) ⏳ PARTIAL
 
 **Goal:** Per-language active voice selection with fallback, persisted to disk, exposed via Tauri commands.
 
-**Note:** The POC already implements `VoiceMapping` with `language_voice: HashMap<String, String>` and `fallback_voice_key: Option<String>`, including save/load and resolution logic. This phase verifies correctness and adds Tauri commands.
+**Done:** VoiceMapping struct, resolve logic, 5 unit tests.
+**Deferred:** Persistence (needs Serialize/Deserialize derives), Tauri commands (needs Tauri builder wiring).
 
 ### Tasks
-- [ ] Verify `VoiceMapping` struct: `language_voice: HashMap<String, String>`, `fallback_voice_key: Option<String>`
-- [ ] Verify resolve logic: known language → mapped voice, unknown → fallback, no fallback → None
-- [ ] Persist to `{app_data_dir}/lisca/voice_mapping.json`
-- [ ] Wire Tauri commands: `get_voice_preference`, `set_voice_preference`
-- [ ] Write Rust unit tests for resolution logic, persistence, edge cases
+- [x] Verify `VoiceMapping` struct: `language_voice: HashMap<String, String>`, `fallback_voice_key: Option<String>`
+- [x] Verify resolve logic: known language → mapped voice, unknown → fallback, no fallback → None
+- [ ] Persist to `{app_data_dir}/lisca/voice_mapping.json` — needs `#[derive(Serialize, Deserialize)]`
+- [ ] Wire Tauri commands: `get_voice_preference`, `set_voice_preference` — deferred to Tauri builder setup
+- [x] Write Rust unit tests for resolution logic (5 tests)
 
 ### Acceptance Criteria
-- [ ] `VoiceMapping::resolve(Some("en"))` returns mapped voice for "en" (test)
-- [ ] `VoiceMapping::resolve(Some("de"))` returns fallback when "de" not in map (test)
-- [ ] `VoiceMapping::resolve(None)` returns fallback when set, None when not (test)
-- [ ] `VoiceMapping::resolve(Some("xx"))` returns None when no mapping and no fallback (test)
+- [x] `VoiceMapping::resolve(Some("en"))` returns mapped voice for "en" (test)
+- [x] `VoiceMapping::resolve(Some("de"))` returns fallback when "de" not in map (test)
+- [x] `VoiceMapping::resolve(None)` returns fallback when set, None when not (test)
+- [x] `VoiceMapping::resolve(Some("xx"))` returns None when no mapping and no fallback (test)
 - [ ] Voice mapping saves to and loads from JSON file (test: save → load → verify)
 - [ ] Loading missing file returns empty default (test)
 - [ ] Tauri command `get_voice_preference` returns current mapping (integration test)
 - [ ] Tauri command `set_voice_preference` persists and updates resolver (integration test)
-- [ ] All `cargo test --lib` pass
+- [x] All `cargo test --lib` pass
 
 ---
 
@@ -251,6 +264,10 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 **Note:** The POC already has `QueueList.tsx` with basic item display, reorder, and remove. This phase expands to match the design spec (TextMessage vs Speech controls, download, restart).
 
+**⚠️ Impacted by Phase 2 changes:**
+- Events are now fine-grained (`ItemAdded`, `ItemRemoved`, `ItemMoved`, `ItemCleared`, `ItemReplaced`) — no payload, consumer queries queue directly via `queue_state` Tauri command
+- `queue_updated` event no longer exists — frontend must listen to specific variants and fetch queue state on each event
+
 ### Tasks
 - [ ] Build `<QueueList>` as a shared component (used by both main window and overlay)
 - [ ] TextMessage items: text preview (truncated), status badge (pending/processing), remove control
@@ -278,6 +295,10 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **Goal:** Main configuration window with voice catalog browser, installed voices, queue list, and hotkey config.
 
 **Note:** The POC has basic versions of `HotkeyRecorder`, `ModelConfig`, `PiperModelPicker`, `VoiceBrowser`, `VoiceRow`, `InstalledModels`, `DownloadProgress`, `TtsQueue`. This phase restructures and completes them.
+
+**⚠️ Impacted by Phase 2b deferral:**
+- Voice mapping settings (`get_voice_preference`, `set_voice_preference` Tauri commands) must be wired in this phase
+- VoiceMapping needs `#[derive(Serialize, Deserialize)]` added before persistence works
 
 ### Tasks
 - [ ] Voice Catalog browser: browse available voices by language, quality/size/speed/type metadata
@@ -381,6 +402,10 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 **Goal:** End-to-end validation, edge case testing, cleanup.
 
+**⚠️ Impacted by Phase 2 changes:**
+- "Test queue recovery on app restart" — N/A, items are not persisted (in-memory only)
+- "App restart recovers queue" — N/A, only config persists
+
 ### Tasks
 - [ ] End-to-end testing of full flow: hotkey → clipboard → transcribe → play
 - [ ] Test multi-item queue with mixed languages
@@ -411,7 +436,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 | Phase | Criteria | Testing Layer |
 |-------|----------|---------------|
 | Phase 1 — Scaffolding | 8 | Build + CI verification |
-| Phase 2 — Queue System | 10 | Layer 1 (Rust unit tests) |
+| Phase 2 — Queue System | 10 (8 done, 2 N/A) | Layer 1 (Rust unit tests) |
 | Phase 2b — Voice Preferences | 9 | Layer 1 (Rust unit tests) |
 | Phase 3 — Transcriber | 11 | Layer 1 (Rust unit tests) |
 | Phase 4 — SpeechPlayer | 10 | Layer 1 (Rust unit tests) |
