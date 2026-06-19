@@ -28,6 +28,9 @@ tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
 whatlang = "0.18"
 ort = "2.0.0-rc.12"
 
+[dev-dependencies]
+tempfile = "3"
+
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

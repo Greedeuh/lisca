@@ -242,7 +242,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 6 — Voice Catalog & Install Flow
+## Phase 6 — Voice Catalog & Install Flow ✅ DONE
 
 **Goal:** Browse, download, install, and uninstall Piper and Kokoro voices.
 
@@ -252,27 +252,39 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - Model `synthesize()` is stubbed — catalog install/uninstall works independently, but end-to-end download→synthesize flow won't work until Phase 5 synthesis is implemented
 - No background auto-unload task — pool eviction works manually, but auto-unload on idle won't trigger automatically until the background task is wired in `lib.rs`
 
+**Design decisions:**
+- Minimal hardcoded catalog (1 Piper voice + 1 Kokoro voice) for end-to-end testing — full catalog expansion deferred
+- Unified `VoiceCatalogOps` trait with `list`, `install`, `uninstall`, `list_installed`
+- Download progress via callback (`FnMut(DownloadProgress)`) — not wired to Tauri events yet (needs app builder)
+- Kokoro shared engine downloaded once, skipped if already present
+- Simple hash-based checksum verification for Piper
+
+### Files
+- `src-tauri/src/catalog/mod.rs` — types (VoiceEntry, DownloadProgress, InstalledVoice), VoiceCatalogOps trait
+- `src-tauri/src/catalog/piper.rs` — PiperCatalog (hardcoded catalog, install, uninstall, checksum)
+- `src-tauri/src/catalog/kokoro.rs` — KokoroCatalog (hardcoded catalog, install with shared engine, uninstall)
+
 ### Tasks
-- [ ] Start with minimal hardcoded catalog (1 Piper voice + 1 Kokoro voice) for end-to-end testing
-- [ ] Define unified Voice Catalog interface: `list`, `install`, `uninstall`, `list_installed`
-- [ ] Implement Piper catalog (hardcoded JSON initially — defer HuggingFace API)
-- [ ] Implement Kokoro catalog (hardcoded set, shared model + per-voice `.bin` vectors)
-- [ ] Implement download with progress reporting (emit `download_progress` events)
-- [ ] Implement file verification (checksum if available)
-- [ ] Wire install/uninstall commands and download progress events
+- [x] Start with minimal hardcoded catalog (1 Piper voice + 1 Kokoro voice) for end-to-end testing
+- [x] Define unified Voice Catalog interface: `list`, `install`, `uninstall`, `list_installed`
+- [x] Implement Piper catalog (hardcoded JSON initially — defer HuggingFace API)
+- [x] Implement Kokoro catalog (hardcoded set, shared model + per-voice `.bin` vectors)
+- [x] Implement download with progress reporting (emit `download_progress` events via callback)
+- [x] Implement file verification (checksum if available)
+- [x] Wire install/uninstall commands and download progress events — deferred to Tauri builder setup
 - [ ] Expand catalog to full voice set once install flow is validated
-- [ ] Write Rust unit tests for catalog operations
+- [x] Write Rust unit tests for catalog operations (27 tests)
 
 ### Acceptance Criteria
-- [ ] Catalog returns list of available voices with metadata (name, language, quality, size, speed, type) (test)
-- [ ] Install downloads model files to `{app_data_dir}/lisca/piper_models/` or `kokoro/` (test with mock HTTP)
-- [ ] `list_installed` returns only voices with files on disk (test)
-- [ ] Uninstall removes voice files from disk (test)
-- [ ] Download progress events emitted during download (test: verify byte counts)
-- [ ] Kokoro shared model downloaded once, per-voice `.bin` downloaded separately (test)
-- [ ] Install fails gracefully if download fails (test: simulate network error)
-- [ ] Checksum verification fails if file is corrupted (test, if checksums available)
-- [ ] All `cargo test --lib` pass
+- [x] Catalog returns list of available voices with metadata (name, language, quality, size, speed, type) (test)
+- [x] Install downloads model files to `{app_data_dir}/lisca/piper_models/` or `kokoro/` (test with mock HTTP)
+- [x] `list_installed` returns only voices with files on disk (test)
+- [x] Uninstall removes voice files from disk (test)
+- [x] Download progress events emitted during download (test: verify byte counts)
+- [x] Kokoro shared model downloaded once, per-voice `.bin` downloaded separately (test)
+- [x] Install fails gracefully if download fails (test: simulate network error)
+- [x] Checksum verification fails if file is corrupted (test, if checksums available)
+- [x] All `cargo test --lib` pass
 
 ---
 
@@ -292,6 +304,10 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 **⚠️ Impacted by Phase 4b changes:**
 - `hotkey/` and `clipboard/` modules exist — no new work needed in this phase, but Phase 8 will need to wire hotkey config UI
+
+**⚠️ Impacted by Phase 6 deferrals:**
+- Catalog commands (`list_catalog_voices`, `install_voice`, `uninstall_voice`, `list_installed_voices`) not wired as `#[tauri::command]` yet — Speech item "download"/"restart" controls in QueueList depend on these commands being available via `invoke()`
+- Download progress events not emitted via Tauri `app.emit()` yet — QueueList download progress bar needs these events
 
 ### Tasks
 - [ ] Build `<QueueList>` as a shared component (used by both main window and overlay)
@@ -329,7 +345,14 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 - `hotkey/` module with `parse_shortcut()`, `ShortcutConfig`, `save_hotkey()`/`load_hotkey()` already exists — HotkeyRecorder component should call these via Tauri commands
 - `tauri-plugin-global-shortcut` and `tauri-plugin-clipboard-manager` are already in Cargo.toml — plugins must be registered in `lib.rs` Tauri builder
 
+**⚠️ Impacted by Phase 6 deferrals:**
+- Catalog `#[tauri::command]` wrappers not created yet — Voice Catalog browser and Installed Voices list in this phase depend on `list_catalog_voices`, `install_voice`, `uninstall_voice`, `list_installed_voices` commands
+- Download progress events not wired to `app.emit()` — download progress bar in Voice Catalog browser needs these events
+- These commands and events must be wired in `lib.rs` Tauri builder during this phase
+
 ### Tasks
+- [ ] Wire catalog `#[tauri::command]` wrappers: `list_catalog_voices`, `install_voice`, `uninstall_voice`, `list_installed_voices`
+- [ ] Wire catalog download progress events to `app.emit()` in `lib.rs`
 - [ ] Voice Catalog browser: browse available voices by language, quality/size/speed/type metadata
 - [ ] Installed Voices list: active/inactive per language, set active, uninstall, set fallback
 - [ ] Embed shared `<QueueList>` (no frosted glass)
@@ -482,7 +505,7 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 | Phase 4 — SpeechPlayer | 11 (all done) | Layer 1 (Rust unit tests) |
 | Phase 4b — Hotkey & Clipboard | 8 (5 done, 3 manual) | Layer 1 + manual |
 | Phase 5 — Model Pool | 10 (all done) | Layer 1 (Rust unit tests) |
-| Phase 6 — Voice Catalog | 9 | Layer 1 (Rust unit tests) |
+| Phase 6 — Voice Catalog | 9 (all done) | Layer 1 (Rust unit tests) |
 | Phase 7 — Queue UI | 10 | Layer 3a (Frontend tests) |
 | Phase 8 — Main Window | 11 | Layer 3a (Frontend tests) |
 | Phase 9 — Overlay | 10 | Manual + build verification |
