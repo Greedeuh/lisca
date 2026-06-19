@@ -180,22 +180,22 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **Note:** The POC already implements this in `hotkey.rs` + `clipboard.rs`. This phase verifies and restructures.
 
 ### Tasks
-- [ ] Port global hotkey registration from POC (`tauri-plugin-global-shortcut`)
-- [ ] Port clipboard reading from POC (`tauri-plugin-clipboard-manager` + enigo)
-- [ ] Wire hotkey press → clipboard read → queue_add trigger chain
-- [ ] Persist hotkey config to `{app_data_dir}/lisca/hotkey.txt`
-- [ ] Register hotkey on app startup if previously saved
-- [ ] Write Rust unit tests for shortcut parsing
+- [x] Port global hotkey registration from POC (`tauri-plugin-global-shortcut`)
+- [x] Port clipboard reading from POC (`tauri-plugin-clipboard-manager` + enigo)
+- [x] Wire hotkey press → clipboard read → queue_add trigger chain
+- [x] Persist hotkey config to `{app_data_dir}/lisca/hotkey.txt`
+- [x] Register hotkey on app startup if previously saved
+- [x] Write Rust unit tests for shortcut parsing
 
 ### Acceptance Criteria
-- [ ] `parse_shortcut("Control+Shift+K")` returns correct modifiers and key (test)
-- [ ] `parse_shortcut("")` returns error (test)
-- [ ] `parse_shortcut("Control")` returns error (no key) (test)
-- [ ] Hotkey saves to `hotkey.txt` and loads back correctly (test)
+- [x] `parse_shortcut("Control+Shift+K")` returns correct modifiers and key (test)
+- [x] `parse_shortcut("")` returns error (test)
+- [x] `parse_shortcut("Control")` returns error (no key) (test)
+- [x] Hotkey saves to `hotkey.txt` and loads back correctly (test)
 - [ ] Hotkey registration succeeds with valid shortcut (manual test: press hotkey, verify queue_add called)
 - [ ] Clipboard read restores original clipboard after auto-copy (manual test)
 - [ ] On app startup, previously saved hotkey is re-registered (manual test)
-- [ ] All `cargo test --lib` pass
+- [x] All `cargo test --lib` pass
 
 ---
 
