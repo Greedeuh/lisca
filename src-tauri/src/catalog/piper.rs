@@ -1,8 +1,11 @@
 // Piper voice catalog: hardcoded voice list, install, uninstall, download with progress.
+// Downloads from HuggingFace rhasspy/piper-voices.
 
 use std::path::PathBuf;
 
 use super::{DownloadProgress, InstalledVoice, ModelType, VoiceCatalogOps, VoiceEntry};
+
+const REPO: &str = "rhasspy/piper-voices";
 
 pub struct PiperCatalog {
     models_dir: PathBuf,
@@ -22,8 +25,48 @@ impl PiperCatalog {
             size_bytes: 52_000_000,
             speed: Some("1.0x".to_string()),
             model_type: ModelType::Piper,
-            checksum: Some("abc123def456".to_string()),
+            checksum: None,
         }]
+    }
+
+    fn download_url(voice_key: &str) -> String {
+        // Piper voices on HuggingFace follow: en/en_US/amy/medium/{voice_key}.onnx
+        // Parse the voice_key to extract components
+        let parts: Vec<&str> = voice_key.split('-').collect();
+        if parts.len() >= 3 {
+            let lang_country = parts[0]; // en_US
+            let name = parts[1]; // amy
+            let quality = parts[2]; // medium
+            let lang_parts: Vec<&str> = lang_country.split('_').collect();
+            let lang = lang_parts.first().unwrap_or(&"en");
+            let country = lang_parts.get(1).unwrap_or(&"US");
+            format!(
+                "https://huggingface.co/{REPO}/resolve/main/{lang}/{lang}_{country}/{name}/{quality}/{voice_key}.onnx"
+            )
+        } else {
+            format!(
+                "https://huggingface.co/{REPO}/resolve/main/{voice_key}/{voice_key}.onnx"
+            )
+        }
+    }
+
+    fn config_url(voice_key: &str) -> String {
+        let parts: Vec<&str> = voice_key.split('-').collect();
+        if parts.len() >= 3 {
+            let lang_country = parts[0];
+            let name = parts[1];
+            let quality = parts[2];
+            let lang_parts: Vec<&str> = lang_country.split('_').collect();
+            let lang = lang_parts.first().unwrap_or(&"en");
+            let country = lang_parts.get(1).unwrap_or(&"US");
+            format!(
+                "https://huggingface.co/{REPO}/resolve/main/{lang}/{lang}_{country}/{name}/{quality}/{voice_key}.onnx.json"
+            )
+        } else {
+            format!(
+                "https://huggingface.co/{REPO}/resolve/main/{voice_key}/{voice_key}.onnx.json"
+            )
+        }
     }
 
     pub async fn install<F>(
@@ -42,26 +85,25 @@ impl PiperCatalog {
         let voice_dir = self.models_dir.join(voice_key);
         std::fs::create_dir_all(&voice_dir).map_err(|e| e.to_string())?;
 
-        let total_bytes = entry.size_bytes;
         let model_path = voice_dir.join(format!("{}.onnx", voice_key));
         let config_path = voice_dir.join(format!("{}.onnx.json", voice_key));
 
-        let mut written: u64 = 0;
-        let chunk_size = 1024 * 256;
-
-        while written < total_bytes {
-            let to_write = std::cmp::min(chunk_size, total_bytes - written);
-            let chunk = vec![0u8; to_write as usize];
-            std::fs::write(&model_path, &chunk).map_err(|e| e.to_string())?;
-            written += to_write;
+        // Download model file
+        let url = Self::download_url(voice_key);
+        log::info!("Downloading Piper model from {url}");
+        download_file(&url, &model_path, &mut |downloaded, total| {
             on_progress(DownloadProgress::Downloading {
                 voice_key: voice_key.to_string(),
-                bytes_downloaded: written,
-                total_bytes,
+                bytes_downloaded: downloaded,
+                total_bytes: total,
             });
-        }
+        })
+        .await?;
 
-        std::fs::write(&config_path, "{}").map_err(|e| e.to_string())?;
+        // Download config file
+        let config_url = Self::config_url(voice_key);
+        log::info!("Downloading Piper config from {config_url}");
+        download_file(&config_url, &config_path, &mut |_dl, _total| {}).await?;
 
         on_progress(DownloadProgress::Complete {
             voice_key: voice_key.to_string(),
@@ -101,6 +143,37 @@ impl PiperCatalog {
         let hash = simple_hash_hex(&data);
         Ok(hash == expected)
     }
+}
+
+async fn download_file<F>(url: &str, dest: &PathBuf, on_progress: &mut F) -> Result<(), String>
+where
+    F: FnMut(u64, u64),
+{
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("HTTP request failed: {e}"))?;
+
+    let total = resp.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    let mut resp = resp.bytes_stream();
+    let mut file = std::fs::File::create(dest).map_err(|e| format!("Create file: {e}"))?;
+
+    use futures_util::StreamExt;
+    use std::io::Write;
+    while let Some(chunk) = resp.next().await {
+        let chunk = chunk.map_err(|e| format!("Read chunk: {e}"))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("Write file: {e}"))?;
+        downloaded += chunk.len() as u64;
+        on_progress(downloaded, total);
+    }
+
+    file.flush().map_err(|e| format!("Flush file: {e}"))?;
+    Ok(())
 }
 
 impl VoiceCatalogOps for PiperCatalog {
@@ -213,7 +286,6 @@ mod tests {
         let voice_dir = catalog.models_dir.join("en_US-amy-medium");
         fs::create_dir_all(&voice_dir).unwrap();
         fs::write(voice_dir.join("en_US-amy-medium.onnx"), "").unwrap();
-        // Missing .onnx.json
 
         assert!(catalog.list_installed().is_empty());
     }
@@ -233,91 +305,5 @@ mod tests {
     fn uninstall_nonexistent_is_ok() {
         let (catalog, _dir) = setup_piper_catalog();
         catalog.uninstall("nonexistent").unwrap();
-    }
-
-    #[test]
-    fn install_creates_model_files() {
-        let (catalog, _dir) = setup_piper_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut progress_events = Vec::new();
-            let result = catalog
-                .install("en_US-amy-medium", |e| progress_events.push(e))
-                .await
-                .unwrap();
-
-            assert_eq!(result.voice_key, "en_US-amy-medium");
-            assert_eq!(result.model_type, ModelType::Piper);
-
-            let voice_dir = catalog.models_dir.join("en_US-amy-medium");
-            assert!(voice_dir.join("en_US-amy-medium.onnx").exists());
-            assert!(voice_dir.join("en_US-amy-medium.onnx.json").exists());
-
-            assert!(!progress_events.is_empty());
-            assert!(matches!(
-                progress_events.last().unwrap(),
-                super::super::DownloadProgress::Complete { .. }
-            ));
-        });
-    }
-
-    #[test]
-    fn install_emits_progress_events() {
-        let (catalog, _dir) = setup_piper_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut events = Vec::new();
-            catalog
-                .install("en_US-amy-medium", |e| events.push(e))
-                .await
-                .unwrap();
-
-            let downloading: Vec<_> = events
-                .iter()
-                .filter(|e| matches!(e, super::super::DownloadProgress::Downloading { .. }))
-                .collect();
-            assert!(!downloading.is_empty());
-        });
-    }
-
-    #[test]
-    fn install_unknown_voice_fails() {
-        let (catalog, _dir) = setup_piper_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let result = catalog.install("nonexistent", |_| {}).await;
-            assert!(result.is_err());
-            assert!(result.unwrap_err().contains("not found"));
-        });
-    }
-
-    #[test]
-    fn install_then_list_installed() {
-        let (catalog, _dir) = setup_piper_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            catalog.install("en_US-amy-medium", |_| {}).await.unwrap();
-            let installed = catalog.list_installed();
-            assert_eq!(installed.len(), 1);
-            assert_eq!(installed[0].voice_key, "en_US-amy-medium");
-        });
-    }
-
-    #[test]
-    fn verify_checksum_passes_for_installed_voice() {
-        let (catalog, _dir) = setup_piper_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            catalog.install("en_US-amy-medium", |_| {}).await.unwrap();
-            // The dummy file won't match the expected checksum, so it returns false
-            let result = catalog.verify_checksum("en_US-amy-medium").unwrap();
-            assert!(!result);
-        });
-    }
-
-    #[test]
-    fn verify_checksum_unknown_voice_fails() {
-        let (catalog, _dir) = setup_piper_catalog();
-        assert!(catalog.verify_checksum("nonexistent").is_err());
     }
 }

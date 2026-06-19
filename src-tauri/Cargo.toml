@@ -24,11 +24,16 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-clipboard-manager = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["sync", "macros", "rt", "time"] }
+tokio = { version = "1", features = ["sync", "macros", "rt", "rt-multi-thread", "time"] }
 whatlang = "0.18"
 ort = "2.0.0-rc.12"
+rodio = "0.20"
+espeak-ng = { version = "0.1.2", features = ["bundled-data-en", "bundled-data-fr", "bundled-data-de", "bundled-data-es", "bundled-data-it", "bundled-data-pt", "bundled-data-nl", "bundled-data-ru", "bundled-data-pl", "bundled-data-sv", "bundled-data-da", "bundled-data-fi", "bundled-data-no", "bundled-data-cs", "bundled-data-hu", "bundled-data-tr", "bundled-data-el", "bundled-data-ro", "bundled-data-uk", "bundled-data-hi"] }
+unicode-normalization = "0.1.24"
 log = "0.4"
 env_logger = "0.11"
+futures-util = "0.3.32"
+reqwest = { version = "0.13.4", features = ["stream"] }
 
 [dev-dependencies]
 tempfile = "3"

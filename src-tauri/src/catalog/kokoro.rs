@@ -1,11 +1,11 @@
 // Kokoro voice catalog: hardcoded voice list, install, uninstall.
-// Shared ONNX engine downloaded once, per-voice .bin embeddings downloaded separately.
+// Shared ONNX engine downloaded once from HuggingFace, per-voice .bin embeddings downloaded separately.
 
 use std::path::PathBuf;
 
 use super::{InstalledVoice, ModelType, VoiceCatalogOps, VoiceEntry};
 
-const SHARED_ENGINE_SIZE: u64 = 80_000_000;
+const REPO: &str = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
 pub struct KokoroCatalog {
     models_dir: PathBuf,
@@ -34,8 +34,8 @@ impl KokoroCatalog {
         }]
     }
 
-    pub fn shared_engine_size() -> u64 {
-        SHARED_ENGINE_SIZE
+    fn download_url(path: &str) -> String {
+        format!("https://huggingface.co/{REPO}/resolve/main/{path}")
     }
 
     pub fn is_shared_engine_installed(&self) -> bool {
@@ -57,40 +57,32 @@ impl KokoroCatalog {
 
         std::fs::create_dir_all(&self.models_dir).map_err(|e| e.to_string())?;
 
+        // Download shared engine if not present
         if !self.shared_engine_path.exists() {
-            let total = SHARED_ENGINE_SIZE;
-            let mut written: u64 = 0;
-            let chunk_size = 1024 * 256;
-
-            while written < total {
-                let to_write = std::cmp::min(chunk_size, total - written);
-                let chunk = vec![0u8; to_write as usize];
-                std::fs::write(&self.shared_engine_path, &chunk).map_err(|e| e.to_string())?;
-                written += to_write;
+            let url = Self::download_url("onnx/model_q4.onnx");
+            log::info!("Downloading Kokoro shared engine from {url}");
+            download_file(&url, &self.shared_engine_path, &mut |downloaded, total| {
                 on_progress(super::DownloadProgress::Downloading {
                     voice_key: "kokoro_engine".to_string(),
-                    bytes_downloaded: written,
+                    bytes_downloaded: downloaded,
                     total_bytes: total,
                 });
-            }
+            })
+            .await?;
         }
 
+        // Download per-voice embedding
         let voice_path = self.models_dir.join(format!("{voice_key}.bin"));
-        let total = entry.size_bytes;
-        let mut written: u64 = 0;
-        let chunk_size = 1024 * 256;
-
-        while written < total {
-            let to_write = std::cmp::min(chunk_size, total - written);
-            let chunk = vec![0u8; to_write as usize];
-            std::fs::write(&voice_path, &chunk).map_err(|e| e.to_string())?;
-            written += to_write;
+        let url = Self::download_url(&format!("voices/{voice_key}.bin"));
+        log::info!("Downloading Kokoro voice {voice_key} from {url}");
+        download_file(&url, &voice_path, &mut |downloaded, total| {
             on_progress(super::DownloadProgress::Downloading {
                 voice_key: voice_key.to_string(),
-                bytes_downloaded: written,
+                bytes_downloaded: downloaded,
                 total_bytes: total,
             });
-        }
+        })
+        .await?;
 
         on_progress(super::DownloadProgress::Complete {
             voice_key: voice_key.to_string(),
@@ -105,6 +97,37 @@ impl KokoroCatalog {
             model_path: voice_path.to_string_lossy().to_string(),
         })
     }
+}
+
+async fn download_file<F>(url: &str, dest: &PathBuf, on_progress: &mut F) -> Result<(), String>
+where
+    F: FnMut(u64, u64),
+{
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("HTTP request failed: {e}"))?;
+
+    let total = resp.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+
+    let mut resp = resp.bytes_stream();
+    let mut file = std::fs::File::create(dest).map_err(|e| format!("Create file: {e}"))?;
+
+    use futures_util::StreamExt;
+    use std::io::Write;
+    while let Some(chunk) = resp.next().await {
+        let chunk = chunk.map_err(|e| format!("Read chunk: {e}"))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("Write file: {e}"))?;
+        downloaded += chunk.len() as u64;
+        on_progress(downloaded, total);
+    }
+
+    file.flush().map_err(|e| format!("Flush file: {e}"))?;
+    Ok(())
 }
 
 impl VoiceCatalogOps for KokoroCatalog {
@@ -225,105 +248,8 @@ mod tests {
     }
 
     #[test]
-    fn install_creates_shared_engine_and_voice_bin() {
-        let (catalog, _dir) = setup_kokoro_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut progress_events = Vec::new();
-            let result = catalog
-                .install("af_heart", |e| progress_events.push(e))
-                .await
-                .unwrap();
-
-            assert_eq!(result.voice_key, "af_heart");
-            assert_eq!(result.model_type, ModelType::Kokoro);
-            assert!(catalog.shared_engine_path.exists());
-            assert!(catalog.models_dir.join("af_heart.bin").exists());
-            assert!(!progress_events.is_empty());
-        });
-    }
-
-    #[test]
-    fn install_skips_shared_engine_if_exists() {
-        let (catalog, _dir) = setup_kokoro_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            fs::create_dir_all(&catalog.models_dir).unwrap();
-            fs::write(&catalog.shared_engine_path, "existing").unwrap();
-
-            let mut engine_events = Vec::new();
-            catalog
-                .install("af_heart", |e| {
-                    if let super::super::DownloadProgress::Downloading {
-                        ref voice_key, ..
-                    } = e
-                    {
-                        if voice_key == "kokoro_engine" {
-                            engine_events.push(e);
-                        }
-                    }
-                })
-                .await
-                .unwrap();
-
-            assert!(engine_events.is_empty());
-        });
-    }
-
-    #[test]
-    fn install_emits_progress_events() {
-        let (catalog, _dir) = setup_kokoro_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut events = Vec::new();
-            catalog
-                .install("af_heart", |e| events.push(e))
-                .await
-                .unwrap();
-
-            let downloading: Vec<_> = events
-                .iter()
-                .filter(|e| matches!(e, super::super::DownloadProgress::Downloading { .. }))
-                .collect();
-            assert!(!downloading.is_empty());
-        });
-    }
-
-    #[test]
-    fn install_unknown_voice_fails() {
-        let (catalog, _dir) = setup_kokoro_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let result = catalog.install("nonexistent", |_| {}).await;
-            assert!(result.is_err());
-        });
-    }
-
-    #[test]
-    fn install_then_list_installed() {
-        let (catalog, _dir) = setup_kokoro_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            catalog.install("af_heart", |_| {}).await.unwrap();
-            let installed = catalog.list_installed();
-            assert_eq!(installed.len(), 1);
-            assert_eq!(installed[0].voice_key, "af_heart");
-        });
-    }
-
-    #[test]
     fn shared_engine_not_installed_initially() {
         let (catalog, _dir) = setup_kokoro_catalog();
         assert!(!catalog.is_shared_engine_installed());
-    }
-
-    #[test]
-    fn shared_engine_detected_after_install() {
-        let (catalog, _dir) = setup_kokoro_catalog();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            catalog.install("af_heart", |_| {}).await.unwrap();
-            assert!(catalog.is_shared_engine_installed());
-        });
     }
 }

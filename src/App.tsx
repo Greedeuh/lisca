@@ -4,8 +4,8 @@ import { VoiceBrowser, InstalledVoices } from "./components/voices";
 import { QueueList } from "./components/queue";
 import { HotkeyRecorder } from "./components/settings";
 import { ErrorToast, type ErrorToastItem } from "./components/common";
+import { useTtsQueue } from "./hooks";
 import type { VoiceEntry, InstalledVoice, DownloadProgress } from "./types/voice-catalog";
-import type { QueueItem, QueueSnapshot } from "./types/queue";
 import type { VoiceMapping } from "./types/voice-prefs";
 
 import type { ShortcutConfig } from "./types/hotkey";
@@ -14,7 +14,6 @@ import {
   listInstalledVoices,
   installVoice,
   uninstallVoice,
-  getQueueState,
   queueRemove,
   queueMove,
   queueClear,
@@ -34,9 +33,6 @@ function App() {
   const [tab, setTab] = useState<Tab>("voices");
   const [catalogVoices, setCatalogVoices] = useState<VoiceEntry[]>([]);
   const [installedVoices, setInstalledVoices] = useState<InstalledVoice[]>([]);
-  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
-  const [autoRead, setAutoRead] = useState(true);
-  const [showOverlay, setShowOverlay] = useState(true);
   const [voiceMapping, setVoiceMapping] = useState<VoiceMapping>({
     language_voice: {},
     fallback_voice_key: null,
@@ -45,6 +41,9 @@ function App() {
   const [downloading, setDownloading] = useState<Map<string, DownloadProgress>>(new Map());
   const [toasts, setToasts] = useState<ErrorToastItem[]>([]);
   const toastIdRef = useRef(0);
+
+  // Use the useTtsQueue hook for live queue updates
+  const { items: queueItems, autoRead, showOverlay, refresh: refreshQueue } = useTtsQueue();
 
   const addToast = useCallback((message: string) => {
     const id = ++toastIdRef.current;
@@ -64,17 +63,6 @@ function App() {
     }
   }, [addToast]);
 
-  const refreshQueue = useCallback(async () => {
-    try {
-      const snapshot: QueueSnapshot = await getQueueState();
-      setQueueItems(snapshot.items);
-      setAutoRead(snapshot.auto_read);
-      setShowOverlay(snapshot.show_overlay);
-    } catch (e) {
-      addToast(`Failed to load queue: ${e}`);
-    }
-  }, [addToast]);
-
   const refreshVoiceMapping = useCallback(async () => {
     try {
       const mapping = await getVoicePreference();
@@ -89,7 +77,6 @@ function App() {
       .then(setCatalogVoices)
       .catch((e) => addToast(`Failed to load catalog: ${e}`));
     refreshInstalled();
-    refreshQueue();
     refreshVoiceMapping();
     getHotkey()
       .then(setHotkey)
@@ -101,9 +88,6 @@ function App() {
     const unlistenComplete = listen<string>("download_complete", () => {
       refreshInstalled();
       setDownloading(new Map());
-    });
-    const unlistenQueue = listen("queue_updated", () => {
-      refreshQueue();
     });
     const unlistenTranscriptionError = listen<{ id: number; error: string }>(
       "transcription_error",
@@ -122,7 +106,6 @@ function App() {
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
-      unlistenQueue.then((fn) => fn());
       unlistenTranscriptionError.then((fn) => fn());
       unlistenDownloadError.then((fn) => fn());
     };
@@ -211,12 +194,12 @@ function App() {
 
   const handleToggleAutoRead = useCallback(async () => {
     try {
-      const val = await queueToggleAutoRead();
-      setAutoRead(val);
+      await queueToggleAutoRead();
+      await refreshQueue();
     } catch (e) {
       addToast(`Failed to toggle auto-read: ${e}`);
     }
-  }, [addToast]);
+  }, [addToast, refreshQueue]);
 
   const handleSaveHotkey = useCallback(
     async (shortcut: string) => {
@@ -232,12 +215,12 @@ function App() {
 
   const handleToggleOverlay = useCallback(async () => {
     try {
-      const val = await queueToggleOverlay();
-      setShowOverlay(val);
+      await queueToggleOverlay();
+      await refreshQueue();
     } catch (e) {
       addToast(`Failed to toggle overlay: ${e}`);
     }
-  }, [addToast]);
+  }, [addToast, refreshQueue]);
 
   const installedKeys = new Set(installedVoices.map((v) => v.voice_key));
 

@@ -1,10 +1,11 @@
 // TTS model trait, LRU pool, and backend implementations (Piper, Kokoro).
 
 mod kokoro;
+mod kokoro_phonemizer;
 mod piper;
 mod pool;
 
-pub use kokoro::{KokoroEngine, KokoroModel};
+pub use kokoro::{KokoroEngine, KokoroFactory, KokoroModel};
 pub use piper::{PiperFactory, PiperModel};
 pub use pool::{ModelEvent, ModelPool};
 

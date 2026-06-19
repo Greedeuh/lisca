@@ -1,5 +1,4 @@
 // Background task that plays Speech items from the queue.
-// AudioOutput trait abstracts the audio backend for testability.
 // Exposes PlaybackController state machine (Idle/Playing/Paused) and controls.
 
 mod playback;
@@ -12,14 +11,6 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
 
 use crate::queue::{Playable, Queue, QueueItem, SpeechStatus};
-
-pub trait AudioOutput: Send {
-    fn play(&mut self, samples: Vec<i16>, sample_rate: u32);
-    fn pause(&self);
-    fn resume(&self);
-    fn is_empty(&self) -> bool;
-    fn sleep_until_end(&self);
-}
 
 pub fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
     samples
@@ -70,7 +61,6 @@ impl SpeechPlayerHandle {
 pub fn spawn_speech_player(
     queue: Arc<Mutex<Queue>>,
     auto_read: Arc<AtomicBool>,
-    audio_factory: Box<dyn Fn() -> Result<Box<dyn AudioOutput>, String> + Send + Sync>,
     on_event: impl Fn(PlaybackEvent) + Send + Sync + 'static,
 ) -> SpeechPlayerHandle {
     let controller = PlaybackController::new();
@@ -83,8 +73,8 @@ pub fn spawn_speech_player(
     };
     let notify_clone = notify.clone();
 
-    tokio::spawn(async move {
-        run_loop(queue, auto_read, ctrl_clone, audio_factory, &on_event, &notify_clone).await;
+    tauri::async_runtime::spawn(async move {
+        run_loop(queue, auto_read, ctrl_clone, &on_event, &notify_clone).await;
     });
 
     SpeechPlayerHandle {
@@ -97,7 +87,6 @@ async fn run_loop(
     queue: Arc<Mutex<Queue>>,
     auto_read: Arc<AtomicBool>,
     controller: PlaybackController,
-    audio_factory: Box<dyn Fn() -> Result<Box<dyn AudioOutput>, String> + Send + Sync>,
     on_event: &(impl Fn(PlaybackEvent) + Send + Sync),
     notify: &Notify,
 ) {
@@ -154,7 +143,6 @@ async fn run_loop(
                     controller.stop_flag(),
                     controller.pause_flag(),
                     controller.state_arc(),
-                    audio_factory.as_ref(),
                 )
                 .await;
 
@@ -173,8 +161,10 @@ async fn run_loop(
                     break;
                 }
             } else {
-                let mut q = queue.lock().await;
-                let _ = q.set_speech_status(id, SpeechStatus::Played);
+                {
+                    let mut q = queue.lock().await;
+                    let _ = q.set_speech_status(id, SpeechStatus::Played);
+                }
                 on_event(PlaybackEvent::ItemCompleted { id });
 
                 if !auto_read.load(Ordering::SeqCst) {
@@ -191,24 +181,33 @@ async fn play_with_controls(
     stop_flag: Arc<AtomicBool>,
     pause_flag: Arc<AtomicBool>,
     state: Arc<std::sync::atomic::AtomicU8>,
-    audio_factory: &(dyn Fn() -> Result<Box<dyn AudioOutput>, String> + Send + Sync),
 ) -> bool {
     state.store(PlaybackState::Playing as u8, Ordering::SeqCst);
 
-    // Create the audio output before entering spawn_blocking
-    let mut output = match audio_factory() {
-        Ok(o) => o,
-        Err(e) => {
-            log::error!("Failed to create audio output: {e}");
-            state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
-            return true;
-        }
-    };
-
     let state_clone = state.clone();
     match tokio::task::spawn_blocking(move || {
+        // Create audio output directly on this blocking thread
+        // (rodio OutputStream is not Send, so it must be created here)
+        let (stream, handle) = match rodio::OutputStream::try_default() {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("Failed to open audio output stream: {e}");
+                state_clone.store(PlaybackState::Idle as u8, Ordering::SeqCst);
+                return true;
+            }
+        };
+        let sink = match rodio::Sink::try_new(&handle) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Failed to create audio sink: {e}");
+                state_clone.store(PlaybackState::Idle as u8, Ordering::SeqCst);
+                return true;
+            }
+        };
+
         let i16_samples = f32_to_i16(&samples);
-        output.play(i16_samples, sample_rate);
+        let buffer = rodio::buffer::SamplesBuffer::new(1, sample_rate, i16_samples);
+        sink.append(buffer);
 
         loop {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -221,7 +220,7 @@ async fn play_with_controls(
             }
 
             if pause_flag.load(Ordering::SeqCst) {
-                output.pause();
+                sink.pause();
                 state_clone.store(PlaybackState::Paused as u8, Ordering::SeqCst);
                 loop {
                     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -237,15 +236,17 @@ async fn play_with_controls(
                 }
                 pause_flag.store(false, Ordering::SeqCst);
                 state_clone.store(PlaybackState::Playing as u8, Ordering::SeqCst);
-                output.resume();
+                sink.play();
             }
 
-            if output.is_empty() {
+            if sink.empty() {
                 break;
             }
         }
 
-        output.sleep_until_end();
+        sink.sleep_until_end();
+        drop(sink);
+        drop(stream);
         false
     })
     .await
@@ -265,40 +266,6 @@ mod tests {
     use crate::queue::{QueueControllable, Transcribable};
     use tokio::sync::mpsc;
 
-    struct MockAudioOutput {
-        played: Arc<Mutex<Vec<(Vec<i16>, u32)>>>,
-    }
-
-    impl MockAudioOutput {
-        fn new() -> (Self, Arc<Mutex<Vec<(Vec<i16>, u32)>>>) {
-            let played = Arc::new(Mutex::new(Vec::new()));
-            (
-                Self {
-                    played: played.clone(),
-                },
-                played,
-            )
-        }
-    }
-
-    impl AudioOutput for MockAudioOutput {
-        fn play(&mut self, samples: Vec<i16>, sample_rate: u32) {
-            self.played
-                .try_lock()
-                .unwrap()
-                .push((samples, sample_rate));
-        }
-
-        fn pause(&self) {}
-        fn resume(&self) {}
-
-        fn is_empty(&self) -> bool {
-            true
-        }
-
-        fn sleep_until_end(&self) {}
-    }
-
     fn setup() -> Arc<Mutex<Queue>> {
         Arc::new(Mutex::new(Queue::new()))
     }
@@ -314,16 +281,6 @@ mod tests {
         )
         .unwrap();
         id
-    }
-
-    fn make_factory(
-        played: Arc<Mutex<Vec<(Vec<i16>, u32)>>>,
-    ) -> Box<dyn Fn() -> Result<Box<dyn AudioOutput>, String> + Send + Sync> {
-        Box::new(move || {
-            Ok(Box::new(MockAudioOutput {
-                played: played.clone(),
-            }))
-        })
     }
 
     async fn wait_for_event(rx: &mut mpsc::Receiver<PlaybackEvent>) -> PlaybackEvent {
@@ -361,13 +318,11 @@ mod tests {
         let id = add_speech(&queue, "hello").await;
 
         let (tx, mut rx) = mpsc::channel(16);
-        let (_, played_ref) = MockAudioOutput::new();
         let q = queue.clone();
         let auto_read = Arc::new(AtomicBool::new(false));
         let handle = spawn_speech_player(
             q,
             auto_read,
-            make_factory(played_ref),
             move |e| {
                 tx.try_send(e).ok();
             },
@@ -388,11 +343,9 @@ mod tests {
         let q = queue.clone();
         let auto_read = Arc::new(AtomicBool::new(false));
         let (tx, mut rx) = mpsc::channel(16);
-        let (_, played_ref) = MockAudioOutput::new();
         let handle = spawn_speech_player(
             q,
             auto_read,
-            make_factory(played_ref),
             move |e| {
                 tx.try_send(e).ok();
             },
@@ -449,13 +402,11 @@ mod tests {
         let id2 = add_speech(&queue, "second").await;
 
         let (tx, mut rx) = mpsc::channel(16);
-        let (_, played_ref) = MockAudioOutput::new();
         let q = queue.clone();
         let auto_read = Arc::new(AtomicBool::new(true));
         let _handle = spawn_speech_player(
             q,
             auto_read,
-            make_factory(played_ref),
             move |e| {
                 tx.try_send(e).ok();
             },
@@ -501,13 +452,11 @@ mod tests {
         let _id2 = add_speech(&queue, "second").await;
 
         let (tx, mut rx) = mpsc::channel(16);
-        let (_, played_ref) = MockAudioOutput::new();
         let q = queue.clone();
         let auto_read = Arc::new(AtomicBool::new(false));
         let _handle = spawn_speech_player(
             q,
             auto_read,
-            make_factory(played_ref),
             move |e| {
                 tx.try_send(e).ok();
             },
@@ -547,13 +496,11 @@ mod tests {
         add_speech(&queue, "hello").await;
 
         let (tx, mut rx) = mpsc::channel(16);
-        let (_, played_ref) = MockAudioOutput::new();
         let q = queue.clone();
         let auto_read = Arc::new(AtomicBool::new(false));
         let _handle = spawn_speech_player(
             q,
             auto_read,
-            make_factory(played_ref),
             move |e| {
                 tx.try_send(e).ok();
             },
