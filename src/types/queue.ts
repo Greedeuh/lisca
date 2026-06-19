@@ -14,9 +14,8 @@ export type QueueItem =
       type: "Speech";
       id: number;
       text: string;
-      audio_path: string | null;
-      voice_key: string | null;
       language: string | null;
+      voice_key: string | null;
       status: SpeechStatus;
     };
 

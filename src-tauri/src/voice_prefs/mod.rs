@@ -1,9 +1,12 @@
 // Per-language active voice selection with fallback.
 // Resolves a detected language to a voice key for the transcriber.
 
+use crate::persist::{load_json, save_json};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VoiceMapping {
     pub language_voice: HashMap<String, String>,
     pub fallback_voice_key: Option<String>,
@@ -19,6 +22,14 @@ impl VoiceMapping {
                 .or_else(|| self.fallback_voice_key.as_deref()),
             None => self.fallback_voice_key.as_deref(),
         }
+    }
+
+    pub fn save(&self, path: &Path) -> Result<(), String> {
+        save_json(path, self)
+    }
+
+    pub fn load(path: &Path) -> Self {
+        load_json(path)
     }
 }
 

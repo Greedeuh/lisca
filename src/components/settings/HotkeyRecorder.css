@@ -1,0 +1,75 @@
+.hr-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hr-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.hr-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hr-shortcut {
+  font-size: 14px;
+  font-family: monospace;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
+  color: #1f2937;
+  min-width: 120px;
+}
+
+.hr-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  background: rgba(57, 108, 216, 0.1);
+  color: #396cd8;
+  box-shadow: none;
+}
+
+.hr-btn:hover {
+  background: rgba(57, 108, 216, 0.18);
+}
+
+.hr-btn-recording {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  animation: hr-pulse 1s ease-in-out infinite;
+}
+
+@keyframes hr-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.hr-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+@media (prefers-color-scheme: dark) {
+  .hr-shortcut {
+    background: rgba(255, 255, 255, 0.06);
+    color: #e5e7eb;
+  }
+
+  .hr-label {
+    color: #9ca3af;
+  }
+
+  .hr-btn {
+    color: #60a5fa;
+  }
+}

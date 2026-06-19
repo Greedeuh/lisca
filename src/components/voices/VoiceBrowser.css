@@ -1,0 +1,164 @@
+.vb-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vb-empty {
+  padding: 24px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.vb-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vb-lang-header {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin: 0;
+  padding: 0 4px;
+}
+
+.vb-voices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vb-voice-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.03);
+  gap: 12px;
+}
+
+.vb-voice-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.vb-voice-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.vb-voice-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.vb-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #6b7280;
+}
+
+.vb-size {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.vb-voice-action {
+  flex-shrink: 0;
+}
+
+.vb-installed-label {
+  font-size: 12px;
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.vb-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.vb-btn-install {
+  background: #396cd8;
+  color: white;
+  box-shadow: none;
+}
+
+.vb-btn-install:hover {
+  background: #2b5ab8;
+}
+
+.vb-progress {
+  position: relative;
+  width: 80px;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.vb-progress-bar {
+  height: 100%;
+  background: #396cd8;
+  border-radius: 4px;
+  transition: width 0.2s;
+}
+
+.vb-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vb-voice-card {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .vb-lang-header {
+    color: #9ca3af;
+  }
+
+  .vb-voice-name {
+    color: #e5e7eb;
+  }
+
+  .vb-badge {
+    background: rgba(255, 255, 255, 0.08);
+    color: #9ca3af;
+  }
+
+  .vb-installed-label {
+    color: #4ade80;
+  }
+
+  .vb-progress {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .vb-progress-text {
+    color: #e5e7eb;
+  }
+}

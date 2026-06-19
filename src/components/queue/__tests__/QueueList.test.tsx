@@ -19,7 +19,6 @@ const speech = (
   type: "Speech",
   id,
   text,
-  audio_path: null,
   voice_key: null,
   language: null,
   status,

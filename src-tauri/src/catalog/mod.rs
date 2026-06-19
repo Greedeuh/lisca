@@ -8,6 +8,7 @@ pub use piper::PiperCatalog;
 pub use kokoro::KokoroCatalog;
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ModelType {
@@ -60,9 +61,75 @@ pub trait VoiceCatalogOps {
     fn uninstall(&self, voice_key: &str) -> Result<(), String>;
 }
 
+pub struct VoiceCatalog {
+    piper: PiperCatalog,
+    kokoro: KokoroCatalog,
+}
+
+impl VoiceCatalog {
+    pub fn new(piper_models_dir: PathBuf, kokoro_models_dir: PathBuf) -> Self {
+        Self {
+            piper: PiperCatalog::new(piper_models_dir),
+            kokoro: KokoroCatalog::new(kokoro_models_dir),
+        }
+    }
+
+    pub async fn install<F>(
+        &self,
+        voice_key: &str,
+        on_progress: F,
+    ) -> Result<InstalledVoice, String>
+    where
+        F: FnMut(DownloadProgress),
+    {
+        let all = self.list_available();
+        let entry = all.iter().find(|v| v.voice_key == voice_key);
+        match entry {
+            Some(e) if e.model_type == ModelType::Piper => {
+                self.piper.install(voice_key, on_progress).await
+            }
+            Some(e) if e.model_type == ModelType::Kokoro => {
+                self.kokoro.install(voice_key, on_progress).await
+            }
+            _ => Err(format!("voice '{}' not found in catalog", voice_key)),
+        }
+    }
+}
+
+impl VoiceCatalogOps for VoiceCatalog {
+    fn list_available(&self) -> Vec<VoiceEntry> {
+        let mut voices = self.piper.list_available();
+        voices.extend(self.kokoro.list_available());
+        voices
+    }
+
+    fn list_installed(&self) -> Vec<InstalledVoice> {
+        let mut voices = self.piper.list_installed();
+        voices.extend(self.kokoro.list_installed());
+        voices
+    }
+
+    fn uninstall(&self, voice_key: &str) -> Result<(), String> {
+        let installed = self.list_installed();
+        let voice = installed.iter().find(|v| v.voice_key == voice_key);
+        match voice {
+            Some(v) if v.model_type == ModelType::Piper => self.piper.uninstall(voice_key),
+            Some(v) if v.model_type == ModelType::Kokoro => self.kokoro.uninstall(voice_key),
+            _ => Ok(()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn setup_voice_catalog() -> (VoiceCatalog, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let piper_dir = dir.path().join("piper_models");
+        let kokoro_dir = dir.path().join("kokoro");
+        (VoiceCatalog::new(piper_dir, kokoro_dir), dir)
+    }
 
     #[test]
     fn voice_entry_serialization_roundtrip() {
@@ -98,5 +165,67 @@ mod tests {
         };
         let json = serde_json::to_string(&complete).unwrap();
         assert!(json.contains("complete"));
+    }
+
+    #[test]
+    fn unified_catalog_lists_all_voices() {
+        let (catalog, _dir) = setup_voice_catalog();
+        let voices = catalog.list_available();
+        assert_eq!(voices.len(), 2);
+        let keys: Vec<&str> = voices.iter().map(|v| v.voice_key.as_str()).collect();
+        assert!(keys.contains(&"en_US-amy-medium"));
+        assert!(keys.contains(&"af_heart"));
+    }
+
+    #[test]
+    fn unified_catalog_lists_installed() {
+        let (catalog, _dir) = setup_voice_catalog();
+        let installed = catalog.list_installed();
+        assert!(installed.is_empty());
+    }
+
+    #[test]
+    fn unified_catalog_install_then_list() {
+        let (catalog, _dir) = setup_voice_catalog();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            catalog.install("en_US-amy-medium", |_| {}).await.unwrap();
+            let installed = catalog.list_installed();
+            assert_eq!(installed.len(), 1);
+            assert_eq!(installed[0].voice_key, "en_US-amy-medium");
+        });
+    }
+
+    #[test]
+    fn unified_catalog_install_kokoro() {
+        let (catalog, _dir) = setup_voice_catalog();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            catalog.install("af_heart", |_| {}).await.unwrap();
+            let installed = catalog.list_installed();
+            assert_eq!(installed.len(), 1);
+            assert_eq!(installed[0].voice_key, "af_heart");
+        });
+    }
+
+    #[test]
+    fn unified_catalog_uninstall() {
+        let (catalog, _dir) = setup_voice_catalog();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            catalog.install("en_US-amy-medium", |_| {}).await.unwrap();
+            catalog.uninstall("en_US-amy-medium").unwrap();
+            assert!(catalog.list_installed().is_empty());
+        });
+    }
+
+    #[test]
+    fn unified_catalog_install_unknown_fails() {
+        let (catalog, _dir) = setup_voice_catalog();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let result = catalog.install("nonexistent", |_| {}).await;
+            assert!(result.is_err());
+        });
     }
 }
