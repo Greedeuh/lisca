@@ -28,9 +28,9 @@ dist-ssr
 
 # Reference repos
 Handy/
-poc/
+/poc/
 
 # Models & binaries
-models/
-ort/
-transcribe-rs/
+/models/
+/ort/
+/transcribe-rs/
