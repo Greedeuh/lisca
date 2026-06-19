@@ -1,3 +1,6 @@
+// Transcriber's view of the queue: find next Pending TextMessage,
+// update status, and replace with Speech on completion.
+
 use super::{Queue, QueueEvent, QueueItem, SpeechStatus, TextMessageStatus};
 
 pub trait Transcribable {

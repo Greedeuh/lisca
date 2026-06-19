@@ -1,3 +1,6 @@
+// Generic JSON save/load helpers for persisting config to disk.
+// Falls back to default values on missing or corrupt files.
+
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::path::Path;

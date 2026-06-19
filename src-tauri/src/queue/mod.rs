@@ -1,3 +1,7 @@
+// In-memory queue of TextMessage and Speech items.
+// Items are not persisted — only config is saved to disk.
+// Exposes consumer-specific traits: QueueControllable, Transcribable, Playable.
+
 mod playable;
 mod controllable;
 mod transcribable;

@@ -1,3 +1,6 @@
+// Language detection using whatlang, mapped to ISO 639-1 family codes.
+// Returns None for empty or too-short input.
+
 use whatlang::Lang;
 
 fn lang_to_family(lang: Lang) -> Option<&'static str> {

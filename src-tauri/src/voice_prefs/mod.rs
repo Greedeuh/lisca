@@ -1,3 +1,6 @@
+// Per-language active voice selection with fallback.
+// Resolves a detected language to a voice key for the transcriber.
+
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]

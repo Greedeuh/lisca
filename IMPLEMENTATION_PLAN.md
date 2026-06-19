@@ -150,26 +150,26 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 **Note:** The POC already has `AudioOutput` (rodio-based), `PlaybackController`, and the play loop in `processor.rs`. This phase restructures into a dedicated `speech_player/` module.
 
 ### Tasks
-- [ ] Port audio output from POC (`AudioOutput` with rodio)
-- [ ] Implement SpeechPlayer as a tokio task consuming Speech items from queue
-- [ ] Implement playback state machine: to_play → playing → paused → played
-- [ ] Implement controls: play, pause, resume, stop, skip
-- [ ] Implement auto-play mode (process next item automatically when current finishes)
-- [ ] Emit playback events: `playback_started`, `playback_paused`, `playback_resumed`, `playback_stopped`, `item_completed`
-- [ ] Write Rust unit tests for PlaybackController state transitions
+- [x] Port audio output from POC (`AudioOutput` trait with f32_to_i16 conversion)
+- [x] Implement SpeechPlayer as a tokio task consuming Speech items from queue
+- [x] Implement playback state machine: to_play → playing → paused → played
+- [x] Implement controls: play, pause, resume, stop, skip
+- [x] Implement auto-play mode (process next item automatically when current finishes)
+- [x] Emit playback events: `playback_started`, `playback_paused`, `playback_resumed`, `playback_stopped`, `item_completed`
+- [x] Write Rust unit tests for PlaybackController state transitions
 
 ### Acceptance Criteria
-- [ ] AudioOutput correctly converts f32 samples to i16 and plays via rodio (test: f32_to_i16 conversion)
-- [ ] SpeechPlayer picks up Speech items when woken (test: add speech, verify playback starts)
-- [ ] State transitions: idle → playing → paused → playing → idle (test: verify atomic state changes)
-- [ ] Pause only works when playing (test: pause on idle is no-op)
-- [ ] Resume only works when paused (test: resume on idle is no-op)
-- [ ] Stop clears pause flag and sets idle (test)
-- [ ] Auto-play: when current item completes, next item starts automatically (test: add 2 speeches, verify sequential play)
-- [ ] Auto-read off: playback stops after current item (test)
-- [ ] `playback_started` event emitted with correct item (test)
-- [ ] `item_completed` event emitted when playback finishes (test)
-- [ ] All `cargo test --lib` pass
+- [x] AudioOutput correctly converts f32 samples to i16 and plays via rodio (test: f32_to_i16 conversion)
+- [x] SpeechPlayer picks up Speech items when woken (test: add speech, verify playback starts)
+- [x] State transitions: idle → playing → paused → playing → idle (test: verify atomic state changes)
+- [x] Pause only works when playing (test: pause on idle is no-op)
+- [x] Resume only works when paused (test: resume on idle is no-op)
+- [x] Stop clears pause flag and sets idle (test)
+- [x] Auto-play: when current item completes, next item starts automatically (test: add 2 speeches, verify sequential play)
+- [x] Auto-read off: playback stops after current item (test)
+- [x] `playback_started` event emitted with correct item (test)
+- [x] `item_completed` event emitted when playback finishes (test)
+- [x] All `cargo test --lib` pass
 
 ---
 

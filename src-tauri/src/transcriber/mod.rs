@@ -1,3 +1,6 @@
+// Background task that dequeues TextMessages, detects language,
+// resolves voice, synthesizes via Model, replaces with Speech.
+
 mod language;
 
 pub use language::detect_language_family;

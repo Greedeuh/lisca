@@ -1,3 +1,6 @@
+// Frontend-facing queue operations: add, remove, reorder, clear.
+// Enforces max_items limit and emits fine-grained events on mutations.
+
 use super::{Queue, QueueConfig, QueueEvent, QueueItem};
 
 pub trait QueueControllable {

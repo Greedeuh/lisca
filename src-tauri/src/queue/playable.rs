@@ -1,3 +1,6 @@
+// Speech player's view of the queue: find next ToPlay item, update status.
+// Used by the speech_player background task.
+
 use super::{Queue, QueueEvent, QueueItem, SpeechStatus};
 
 pub trait Playable {
