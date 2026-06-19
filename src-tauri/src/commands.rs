@@ -3,7 +3,7 @@
 
 use crate::catalog::{DownloadProgress, InstalledVoice, VoiceCatalog, VoiceCatalogOps};
 use crate::hotkey::{ShortcutConfig, load_hotkey, parse_shortcut, save_hotkey};
-use crate::queue::{Queue, QueueConfig, QueueControllable, QueueItem};
+use crate::queue::{Queue, QueueControllable, QueueItem};
 use crate::voice_prefs::VoiceMapping;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

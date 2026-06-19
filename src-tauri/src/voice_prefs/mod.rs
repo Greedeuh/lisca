@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct VoiceMapping {
     pub language_voice: HashMap<String, String>,
     pub fallback_voice_key: Option<String>,
@@ -73,5 +73,29 @@ mod tests {
     fn resolve_none_no_fallback() {
         let mapping = VoiceMapping::default();
         assert_eq!(mapping.resolve(None), None);
+    }
+
+    #[test]
+    fn save_and_load_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("voice_mapping.json");
+
+        let mut mapping = VoiceMapping::default();
+        mapping
+            .language_voice
+            .insert("en".to_string(), "en-us-voice".to_string());
+        mapping.fallback_voice_key = Some("default-voice".to_string());
+        mapping.save(&path).unwrap();
+
+        let loaded = VoiceMapping::load(&path);
+        assert_eq!(loaded.language_voice.get("en").unwrap(), "en-us-voice");
+        assert_eq!(loaded.fallback_voice_key.as_deref(), Some("default-voice"));
+    }
+
+    #[test]
+    fn load_missing_file_returns_default() {
+        let path = std::env::temp_dir().join("nonexistent_voice_mapping.json");
+        let loaded = VoiceMapping::load(&path);
+        assert_eq!(loaded, VoiceMapping::default());
     }
 }

@@ -121,45 +121,43 @@ export function QueueList({
   onToggleAutoRead,
   onClear,
 }: QueueListProps) {
-  if (items.length === 0) {
-    return (
-      <div className="ql-empty">
-        Queue is empty. Use the hotkey to add text.
-      </div>
-    );
-  }
-
   return (
     <div className="ql-container">
-      <div className="ql-items">
-        {items.map((item, index) => (
-          <div
-            key={item.id}
-            className={`ql-item ${item.type === "Speech" && (item.status === "playing" || item.status === "paused") ? "ql-item-active" : ""}`}
-          >
-            <div className="ql-item-body">
-              <span className={`ql-status ${statusClass(item)}`}>
-                {statusLabel(item)}
-              </span>
-              {item.language && (
-                <span className="ql-lang">{item.language}</span>
+      {items.length === 0 ? (
+        <div className="ql-empty">
+          Queue is empty. Use the hotkey to add text.
+        </div>
+      ) : (
+        <div className="ql-items">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              className={`ql-item ${item.type === "Speech" && (item.status === "playing" || item.status === "paused") ? "ql-item-active" : ""}`}
+            >
+              <div className="ql-item-body">
+                <span className={`ql-status ${statusClass(item)}`}>
+                  {statusLabel(item)}
+                </span>
+                {item.language && (
+                  <span className="ql-lang">{item.language}</span>
+                )}
+                <span className="ql-text">{truncate(item.text, MAX_TEXT_PREVIEW)}</span>
+              </div>
+              {item.type === "TextMessage" ? (
+                <TextMessageControls item={item} onRemove={onRemove} />
+              ) : (
+                <SpeechControls
+                  item={item}
+                  index={index}
+                  total={items.length}
+                  onRemove={onRemove}
+                  onMove={onMove}
+                />
               )}
-              <span className="ql-text">{truncate(item.text, MAX_TEXT_PREVIEW)}</span>
             </div>
-            {item.type === "TextMessage" ? (
-              <TextMessageControls item={item} onRemove={onRemove} />
-            ) : (
-              <SpeechControls
-                item={item}
-                index={index}
-                total={items.length}
-                onRemove={onRemove}
-                onMove={onMove}
-              />
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       <div className="ql-footer">
         <label className="ql-auto-read">
           <input

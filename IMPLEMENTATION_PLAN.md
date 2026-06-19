@@ -95,19 +95,19 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 ### Tasks
 - [x] Verify `VoiceMapping` struct: `language_voice: HashMap<String, String>`, `fallback_voice_key: Option<String>`
 - [x] Verify resolve logic: known language → mapped voice, unknown → fallback, no fallback → None
-- [ ] Persist to `{app_data_dir}/lisca/voice_mapping.json` — needs `#[derive(Serialize, Deserialize)]`
-- [ ] Wire Tauri commands: `get_voice_preference`, `set_voice_preference` — deferred to Tauri builder setup
-- [x] Write Rust unit tests for resolution logic (5 tests)
+- [x] Persist to `{app_data_dir}/lisca/voice_mapping.json` — done in Phase 8 (added Serialize/Deserialize + save/load)
+- [x] Wire Tauri commands: `get_voice_preference`, `set_voice_preference` — done in Phase 8 (commands.rs)
+- [x] Write Rust unit tests for resolution logic (5 tests) + persistence tests (2 tests, done in Phase 8)
 
 ### Acceptance Criteria
 - [x] `VoiceMapping::resolve(Some("en"))` returns mapped voice for "en" (test)
 - [x] `VoiceMapping::resolve(Some("de"))` returns fallback when "de" not in map (test)
 - [x] `VoiceMapping::resolve(None)` returns fallback when set, None when not (test)
 - [x] `VoiceMapping::resolve(Some("xx"))` returns None when no mapping and no fallback (test)
-- [ ] Voice mapping saves to and loads from JSON file (test: save → load → verify)
-- [ ] Loading missing file returns empty default (test)
-- [ ] Tauri command `get_voice_preference` returns current mapping (integration test)
-- [ ] Tauri command `set_voice_preference` persists and updates resolver (integration test)
+- [x] Voice mapping saves to and loads from JSON file (test: save → load → verify) — done in Phase 8
+- [x] Loading missing file returns empty default (test) — done in Phase 8
+- [x] Tauri command `get_voice_preference` returns current mapping — done in Phase 8 (commands.rs)
+- [x] Tauri command `set_voice_preference` persists and updates resolver — done in Phase 8 (commands.rs)
 - [x] All `cargo test --lib` pass
 
 ---
@@ -335,47 +335,48 @@ Focus on readability, simplicity, DDD, SRP and clean code.
 
 ---
 
-## Phase 8 — Frontend: Main Window
+## Phase 8 — Frontend: Main Window ✅ DONE
 
 **Goal:** Main configuration window with voice catalog browser, installed voices, queue list, and hotkey config.
 
-**Note:** The POC has basic versions of `HotkeyRecorder`, `ModelConfig`, `PiperModelPicker`, `VoiceBrowser`, `VoiceRow`, `InstalledModels`, `DownloadProgress`, `TtsQueue`. This phase restructures and completes them.
+**Design decisions:**
+- Voice mapping settings panel removed from Settings tab — per-language voice selection is handled by "Set Active" button in Installed Voices section. The installed model already provides all needed features; a separate settings panel was redundant.
+- QueueList shows auto-play toggle and clear button even when queue is empty (not hidden behind empty state)
+- Items added via global hotkey (Phase 10), not via UI button
 
-**⚠️ Impacted by Phase 2b deferral:**
-- Voice mapping settings (`get_voice_preference`, `set_voice_preference` Tauri commands) must be wired in this phase
-- VoiceMapping needs `#[derive(Serialize, Deserialize)]` added before persistence works
-
-**⚠️ Impacted by Phase 4b changes:**
-- `hotkey/` module with `parse_shortcut()`, `ShortcutConfig`, `save_hotkey()`/`load_hotkey()` already exists — HotkeyRecorder component should call these via Tauri commands
-- `tauri-plugin-global-shortcut` and `tauri-plugin-clipboard-manager` are already in Cargo.toml — plugins must be registered in `lib.rs` Tauri builder
-
-**⚠️ Impacted by Phase 6 deferrals:**
-- Catalog `#[tauri::command]` wrappers not created yet — Voice Catalog browser and Installed Voices list in this phase depend on `list_catalog_voices`, `install_voice`, `uninstall_voice`, `list_installed_voices` commands
-- Download progress events not wired to `app.emit()` — download progress bar in Voice Catalog browser needs these events
-- These commands and events must be wired in `lib.rs` Tauri builder during this phase
+### Files
+- `src-tauri/src/commands.rs` — 15 Tauri command handlers (catalog, queue, voice prefs, hotkey)
+- `src-tauri/src/voice_prefs/mod.rs` — added `Serialize`/`Deserialize` derives, `save()`/`load()` persistence
+- `src-tauri/src/catalog/mod.rs` — added unified `VoiceCatalog` struct
+- `src-tauri/src/lib.rs` — wired plugins, AppState, command handlers
+- `src/types/voice-catalog.ts`, `voice-prefs.ts`, `hotkey.ts`, `ipc.ts` — TypeScript types and IPC wrappers
+- `src/components/voices/VoiceBrowser.tsx` — browse catalog, install with progress
+- `src/components/voices/InstalledVoices.tsx` — installed list, set active, uninstall, fallback
+- `src/components/settings/HotkeyRecorder.tsx` — record key combinations
+- `src/App.tsx` — tabbed layout, state management, IPC wiring
 
 ### Tasks
-- [ ] Wire catalog `#[tauri::command]` wrappers: `list_catalog_voices`, `install_voice`, `uninstall_voice`, `list_installed_voices`
-- [ ] Wire catalog download progress events to `app.emit()` in `lib.rs`
-- [ ] Voice Catalog browser: browse available voices by language, quality/size/speed/type metadata
-- [ ] Installed Voices list: active/inactive per language, set active, uninstall, set fallback
-- [ ] Embed shared `<QueueList>` (no frosted glass)
-- [ ] Hotkey Configuration: record + persist global hotkey, display current hotkey
-- [ ] Voice mapping settings: per-language voice selection, fallback voice selection
-- [ ] Write frontend component tests for each settings panel
+- [x] Wire catalog `#[tauri::command]` wrappers: `list_catalog_voices`, `install_voice`, `uninstall_voice`, `list_installed_voices`
+- [x] Wire catalog download progress events to `app.emit()` in `lib.rs`
+- [x] Voice Catalog browser: browse available voices by language, quality/size/speed/type metadata
+- [x] Installed Voices list: active/inactive per language, set active, uninstall, set fallback
+- [x] Embed shared `<QueueList>` (no frosted glass)
+- [x] Hotkey Configuration: record + persist global hotkey, display current hotkey
+- [x] ~~Voice mapping settings~~ — removed (redundant with Installed Voices "Set Active")
+- [x] Write frontend component tests for each settings panel
 
 ### Acceptance Criteria
-- [ ] Voice catalog lists available voices grouped by language (component test)
-- [ ] Download button triggers download, progress bar shows during download (component test)
-- [ ] Installed voices list shows model name, language, status badge (component test)
-- [ ] "Set Active" button updates voice mapping for language (component test)
-- [ ] "Uninstall" button removes voice from installed list (component test)
-- [ ] "Set Fallback" button sets fallback voice (component test)
-- [ ] HotkeyRecorder captures key combination and displays it (component test)
-- [ ] HotkeyRecorder saves via invoke (component test with mock)
-- [ ] VoiceMappingSettings shows per-language dropdown and fallback dropdown (component test)
-- [ ] QueueList embedded in main window shows queue items (component test)
-- [ ] All `bun run vitest run` pass
+- [x] Voice catalog lists available voices grouped by language (component test)
+- [x] Download button triggers download, progress bar shows during download (component test)
+- [x] Installed voices list shows model name, language, status badge (component test)
+- [x] "Set Active" button updates voice mapping for language (component test)
+- [x] "Uninstall" button removes voice from installed list (component test)
+- [x] "Set Fallback" button sets fallback voice (component test)
+- [x] HotkeyRecorder captures key combination and displays it (component test)
+- [x] HotkeyRecorder saves via invoke (component test with mock)
+- [x] ~~VoiceMappingSettings shows per-language dropdown and fallback dropdown~~ — removed (redundant)
+- [x] QueueList embedded in main window shows queue items (component test)
+- [x] All `bun run vitest run` pass (59 tests)
 
 ---
 

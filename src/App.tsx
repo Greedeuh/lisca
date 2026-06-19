@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { VoiceBrowser, InstalledVoices } from "./components/voices";
 import { QueueList } from "./components/queue";
-import { HotkeyRecorder, VoiceMappingSettings } from "./components/settings";
+import { HotkeyRecorder } from "./components/settings";
 import type { VoiceEntry, InstalledVoice, DownloadProgress } from "./types/voice-catalog";
 import type { QueueItem, QueueSnapshot } from "./types/queue";
 import type { VoiceMapping } from "./types/voice-prefs";
+
 import type { ShortcutConfig } from "./types/hotkey";
 import {
   listCatalogVoices,
@@ -238,14 +239,6 @@ function App() {
           <div className="app-settings">
             <section className="app-section">
               <HotkeyRecorder currentHotkey={hotkey} onSave={handleSaveHotkey} />
-            </section>
-            <section className="app-section">
-              <VoiceMappingSettings
-                voiceMapping={voiceMapping}
-                installedVoices={installedVoices}
-                onSetLanguageVoice={handleSetActive}
-                onSetFallback={handleSetFallback}
-              />
             </section>
           </div>
         )}
