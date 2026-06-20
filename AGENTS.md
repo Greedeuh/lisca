@@ -33,3 +33,7 @@ Tauri process model: Rust core process + WebView. Frontend communicates with bac
 - `.claude/skills/lisca-testing/SKILL.md` — what to test, what to skip, patterns
 - `docs/testing-strategy.md` — current strategy (Layer 1 + Layer 3a)
 - `docs/testing-future.md` — deferred layers (Layer 2, 3b, 3c, 4)
+
+## Utils
+
+Always use Context7 skill when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
