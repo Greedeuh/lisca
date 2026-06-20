@@ -79,6 +79,12 @@ pub struct SetItemCompleted {
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
+pub struct SkipItem {
+    pub id: u64,
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), String>")]
 pub struct SetSpeechPaused {
     pub id: u64,
 }

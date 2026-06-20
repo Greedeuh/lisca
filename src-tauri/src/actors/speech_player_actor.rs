@@ -265,6 +265,7 @@ impl Handler<PlaybackStop> for SpeechPlayerActor {
     fn handle(&mut self, _: PlaybackStop, _: &mut Context<Self>) {
         if let Some(sink) = self.sink.lock().unwrap().as_ref() {
             sink.stop();
+            sink.clear();
         }
         if let Some(id) = self.current_id {
             let _ = self.queue_addr.do_send(SetSpeechStopped { id });
@@ -292,7 +293,7 @@ impl Handler<PlaybackSkip> for SpeechPlayerActor {
 
         let fut = async move {
             if let Some(id) = current_id {
-                let _ = queue_addr.send(SetItemCompleted { id }).await;
+                let _ = queue_addr.send(SkipItem { id }).await;
             }
             app_handle.emit("playback_stopped", ()).ok();
             my_addr.do_send(PlayNext);

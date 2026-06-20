@@ -207,6 +207,17 @@ impl Handler<SetItemCompleted> for QueueActor {
     }
 }
 
+impl Handler<SkipItem> for QueueActor {
+    type Result = Result<(), String>;
+
+    fn handle(&mut self, msg: SkipItem, _: &mut Context<Self>) -> Self::Result {
+        self.queue
+            .set_speech_status(msg.id, crate::queue::SpeechStatus::Played)?;
+        self.emit_event("item_skipped");
+        Ok(())
+    }
+}
+
 impl Handler<SetSpeechPaused> for QueueActor {
     type Result = Result<(), String>;
 
