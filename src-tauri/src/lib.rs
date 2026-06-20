@@ -141,7 +141,18 @@ pub fn run() {
 
             let piper_models_dir = app_data_dir.join("piper_models");
             let kokoro_models_dir = app_data_dir.join("kokoro");
-            let catalog = VoiceCatalog::new(piper_models_dir.clone(), kokoro_models_dir.clone());
+            let resource_dir = app
+                .path()
+                .resource_dir()
+                .unwrap_or_else(|e| {
+                    log::error!("Failed to resolve resource dir: {e}");
+                    app_data_dir.clone()
+                });
+            let catalog = VoiceCatalog::new(
+                piper_models_dir.clone(),
+                kokoro_models_dir.clone(),
+                &resource_dir,
+            );
 
             // Send AppHandle to actix thread so it can create actors
             handle_tx

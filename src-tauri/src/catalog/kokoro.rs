@@ -1,41 +1,34 @@
-// Kokoro voice catalog: hardcoded voice list, install, uninstall.
+// Kokoro voice catalog: install, uninstall.
 // Shared ONNX engine downloaded once from HuggingFace, per-voice .bin embeddings downloaded separately.
 
 use std::path::PathBuf;
 
 use super::{InstalledVoice, ModelType, VoiceCatalogOps, VoiceEntry};
 
-const REPO: &str = "onnx-community/Kokoro-82M-v1.0-ONNX";
-
 pub struct KokoroCatalog {
     models_dir: PathBuf,
     shared_engine_path: PathBuf,
+    entries: Vec<VoiceEntry>,
 }
 
 impl KokoroCatalog {
-    pub fn new(models_dir: PathBuf) -> Self {
+    pub fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
         let shared_engine_path = models_dir.join("kokoro_engine.onnx");
         Self {
             models_dir,
             shared_engine_path,
+            entries,
         }
     }
 
-    fn hardcoded_voices() -> Vec<VoiceEntry> {
-        vec![VoiceEntry {
-            voice_key: "af_heart".to_string(),
-            name: "Heart (American Female)".to_string(),
-            language: "en".to_string(),
-            quality: "high".to_string(),
-            size_bytes: 15_000_000,
-            speed: Some("1.0x".to_string()),
-            model_type: ModelType::Kokoro,
-            checksum: None,
-        }]
+    fn find_entry(&self, voice_key: &str) -> Option<&VoiceEntry> {
+        self.entries.iter().find(|v| v.voice_key == voice_key)
     }
 
     fn download_url(path: &str) -> String {
-        format!("https://huggingface.co/{REPO}/resolve/main/{path}")
+        format!(
+            "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/{path}"
+        )
     }
 
     pub fn is_shared_engine_installed(&self) -> bool {
@@ -50,9 +43,8 @@ impl KokoroCatalog {
     where
         F: FnMut(super::DownloadProgress),
     {
-        let entry = Self::hardcoded_voices()
-            .into_iter()
-            .find(|v| v.voice_key == voice_key)
+        let entry = self
+            .find_entry(voice_key)
             .ok_or_else(|| format!("voice '{}' not found in catalog", voice_key))?;
 
         std::fs::create_dir_all(&self.models_dir).map_err(|e| e.to_string())?;
@@ -73,9 +65,13 @@ impl KokoroCatalog {
 
         // Download per-voice embedding
         let voice_path = self.models_dir.join(format!("{voice_key}.bin"));
-        let url = Self::download_url(&format!("voices/{voice_key}.bin"));
+        let fallback_url = Self::download_url(&format!("voices/{voice_key}.bin"));
+        let url = entry
+            .download_url
+            .as_deref()
+            .unwrap_or(&fallback_url);
         log::info!("Downloading Kokoro voice {voice_key} from {url}");
-        super::download::download_file(&url, &voice_path, &mut |downloaded, total| {
+        super::download::download_file(url, &voice_path, &mut |downloaded, total| {
             on_progress(super::DownloadProgress::Downloading {
                 voice_key: voice_key.to_string(),
                 bytes_downloaded: downloaded,
@@ -90,9 +86,9 @@ impl KokoroCatalog {
 
         Ok(InstalledVoice {
             voice_key: voice_key.to_string(),
-            name: entry.name,
-            language: entry.language,
-            quality: entry.quality,
+            name: entry.name.clone(),
+            language: entry.language.clone(),
+            quality: entry.quality.clone(),
             model_type: ModelType::Kokoro,
             model_path: voice_path.to_string_lossy().to_string(),
         })
@@ -101,7 +97,7 @@ impl KokoroCatalog {
 
 impl VoiceCatalogOps for KokoroCatalog {
     fn list_available(&self) -> Vec<VoiceEntry> {
-        Self::hardcoded_voices()
+        self.entries.clone()
     }
 
     fn list_installed(&self) -> Vec<InstalledVoice> {
@@ -111,8 +107,6 @@ impl VoiceCatalogOps for KokoroCatalog {
             return voices;
         }
 
-        let catalog_entries = Self::hardcoded_voices();
-
         if let Ok(entries) = std::fs::read_dir(&self.models_dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name();
@@ -121,19 +115,12 @@ impl VoiceCatalogOps for KokoroCatalog {
                     continue;
                 }
                 let voice_key = name_str.trim_end_matches(".bin").to_string();
-                let meta = catalog_entries
-                    .iter()
-                    .find(|v| v.voice_key == voice_key)
-                    .map(|v| (v.name.clone(), v.language.clone(), v.quality.clone()))
-                    .unwrap_or_else(|| {
-                        (voice_key.clone(), "unknown".into(), "unknown".into())
-                    });
-
+                let meta = self.find_entry(&voice_key);
                 voices.push(InstalledVoice {
-                    voice_key,
-                    name: meta.0,
-                    language: meta.1,
-                    quality: meta.2,
+                    voice_key: voice_key.clone(),
+                    name: meta.map(|e| e.name.clone()).unwrap_or_else(|| voice_key.clone()),
+                    language: meta.map(|e| e.language.clone()).unwrap_or_else(|| "unknown".into()),
+                    quality: meta.map(|e| e.quality.clone()).unwrap_or_else(|| "unknown".into()),
                     model_type: ModelType::Kokoro,
                     model_path: entry.path().to_string_lossy().to_string(),
                 });
@@ -157,14 +144,29 @@ mod tests {
     use super::*;
     use std::fs;
 
+    fn test_entries() -> Vec<VoiceEntry> {
+        vec![VoiceEntry {
+            voice_key: "af_heart".to_string(),
+            name: "Heart (American Female)".to_string(),
+            language: "en".to_string(),
+            quality: "high".to_string(),
+            size_bytes: 15_000_000,
+            speed: Some("1.0x".to_string()),
+            model_type: ModelType::Kokoro,
+            checksum: None,
+            download_url: Some("https://example.com/af_heart.bin".to_string()),
+            config_url: None,
+        }]
+    }
+
     fn setup_kokoro_catalog() -> (KokoroCatalog, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let models_dir = dir.path().join("kokoro");
-        (KokoroCatalog::new(models_dir), dir)
+        (KokoroCatalog::new(models_dir, test_entries()), dir)
     }
 
     #[test]
-    fn list_available_returns_hardcoded_voices() {
+    fn list_available_returns_entries() {
         let (catalog, _dir) = setup_kokoro_catalog();
         let voices = catalog.list_available();
         assert_eq!(voices.len(), 1);

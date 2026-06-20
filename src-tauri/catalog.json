@@ -1,0 +1,28 @@
+{
+  "voices": [
+    {
+      "voice_key": "en_US-amy-medium",
+      "name": "Amy (English, US)",
+      "language": "en",
+      "quality": "medium",
+      "size_bytes": 52000000,
+      "speed": "1.0x",
+      "model_type": "piper",
+      "checksum": null,
+      "download_url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx",
+      "config_url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json"
+    },
+    {
+      "voice_key": "af_heart",
+      "name": "Heart (American Female)",
+      "language": "en",
+      "quality": "high",
+      "size_bytes": 15000000,
+      "speed": "1.0x",
+      "model_type": "kokoro",
+      "checksum": null,
+      "download_url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/af_heart.bin",
+      "config_url": null
+    }
+  ]
+}

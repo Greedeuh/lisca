@@ -9,7 +9,21 @@ pub use piper::PiperCatalog;
 pub use kokoro::KokoroCatalog;
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogFile {
+    pub voices: Vec<VoiceEntry>,
+}
+
+pub fn load_catalog(resource_dir: &Path) -> Result<Vec<VoiceEntry>, String> {
+    let catalog_path = resource_dir.join("catalog.json");
+    let data = std::fs::read_to_string(&catalog_path)
+        .map_err(|e| format!("failed to read catalog.json: {e}"))?;
+    let catalog: CatalogFile =
+        serde_json::from_str(&data).map_err(|e| format!("failed to parse catalog.json: {e}"))?;
+    Ok(catalog.voices)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ModelType {
@@ -29,6 +43,8 @@ pub struct VoiceEntry {
     pub speed: Option<String>,
     pub model_type: ModelType,
     pub checksum: Option<String>,
+    pub download_url: Option<String>,
+    pub config_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -65,13 +81,29 @@ pub trait VoiceCatalogOps {
 pub struct VoiceCatalog {
     piper: PiperCatalog,
     kokoro: KokoroCatalog,
+    entries: Vec<VoiceEntry>,
 }
 
 impl VoiceCatalog {
-    pub fn new(piper_models_dir: PathBuf, kokoro_models_dir: PathBuf) -> Self {
+    pub fn new(piper_models_dir: PathBuf, kokoro_models_dir: PathBuf, resource_dir: &Path) -> Self {
+        let all_entries = load_catalog(resource_dir).unwrap_or_else(|e| {
+            log::error!("Failed to load catalog: {e}");
+            Vec::new()
+        });
+        let piper_entries: Vec<VoiceEntry> = all_entries
+            .iter()
+            .filter(|e| e.model_type == ModelType::Piper)
+            .cloned()
+            .collect();
+        let kokoro_entries: Vec<VoiceEntry> = all_entries
+            .iter()
+            .filter(|e| e.model_type == ModelType::Kokoro)
+            .cloned()
+            .collect();
         Self {
-            piper: PiperCatalog::new(piper_models_dir),
-            kokoro: KokoroCatalog::new(kokoro_models_dir),
+            piper: PiperCatalog::new(piper_models_dir, piper_entries),
+            kokoro: KokoroCatalog::new(kokoro_models_dir, kokoro_entries),
+            entries: all_entries,
         }
     }
 
@@ -84,8 +116,7 @@ impl VoiceCatalog {
         F: FnMut(DownloadProgress),
     {
         log::info!("Installing voice: {voice_key}");
-        let all = self.list_available();
-        let entry = all.iter().find(|v| v.voice_key == voice_key);
+        let entry = self.entries.iter().find(|v| v.voice_key == voice_key);
         let result = match entry {
             Some(e) if e.model_type == ModelType::Piper => {
                 self.piper.install(voice_key, on_progress).await
@@ -105,9 +136,7 @@ impl VoiceCatalog {
 
 impl VoiceCatalogOps for VoiceCatalog {
     fn list_available(&self) -> Vec<VoiceEntry> {
-        let mut voices = self.piper.list_available();
-        voices.extend(self.kokoro.list_available());
-        voices
+        self.entries.clone()
     }
 
     fn list_installed(&self) -> Vec<InstalledVoice> {
@@ -140,7 +169,43 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let piper_dir = dir.path().join("piper_models");
         let kokoro_dir = dir.path().join("kokoro");
-        (VoiceCatalog::new(piper_dir, kokoro_dir), dir)
+
+        // Create a test catalog.json in the temp dir
+        let catalog = CatalogFile {
+            voices: vec![
+                VoiceEntry {
+                    voice_key: "en_US-amy-medium".to_string(),
+                    name: "Amy (English, US)".to_string(),
+                    language: "en".to_string(),
+                    quality: "medium".to_string(),
+                    size_bytes: 52_000_000,
+                    speed: Some("1.0x".to_string()),
+                    model_type: ModelType::Piper,
+                    checksum: None,
+                    download_url: Some("https://example.com/en_US-amy-medium.onnx".to_string()),
+                    config_url: Some("https://example.com/en_US-amy-medium.onnx.json".to_string()),
+                },
+                VoiceEntry {
+                    voice_key: "af_heart".to_string(),
+                    name: "Heart (American Female)".to_string(),
+                    language: "en".to_string(),
+                    quality: "high".to_string(),
+                    size_bytes: 15_000_000,
+                    speed: Some("1.0x".to_string()),
+                    model_type: ModelType::Kokoro,
+                    checksum: None,
+                    download_url: Some("https://example.com/af_heart.bin".to_string()),
+                    config_url: None,
+                },
+            ],
+        };
+        let json = serde_json::to_string(&catalog).unwrap();
+        std::fs::write(dir.path().join("catalog.json"), json).unwrap();
+
+        (
+            VoiceCatalog::new(piper_dir, kokoro_dir, dir.path()),
+            dir,
+        )
     }
 
     #[test]
@@ -154,11 +219,36 @@ mod tests {
             speed: Some("1.0x".to_string()),
             model_type: ModelType::Piper,
             checksum: None,
+            download_url: Some("https://example.com/test.onnx".to_string()),
+            config_url: None,
         };
 
         let json = serde_json::to_string(&entry).unwrap();
         let parsed: VoiceEntry = serde_json::from_str(&json).unwrap();
         assert_eq!(entry, parsed);
+    }
+
+    #[test]
+    fn catalog_file_deserialization() {
+        let data = r#"{
+            "voices": [
+                {
+                    "voice_key": "test",
+                    "name": "Test",
+                    "language": "en",
+                    "quality": "high",
+                    "size_bytes": 1000,
+                    "speed": "1.0x",
+                    "model_type": "piper",
+                    "checksum": null,
+                    "download_url": "https://example.com/test.onnx",
+                    "config_url": null
+                }
+            ]
+        }"#;
+        let catalog: CatalogFile = serde_json::from_str(data).unwrap();
+        assert_eq!(catalog.voices.len(), 1);
+        assert_eq!(catalog.voices[0].voice_key, "test");
     }
 
     #[test]
