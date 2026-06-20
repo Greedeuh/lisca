@@ -5,8 +5,8 @@ pub mod playback;
 
 pub use playback::{PlaybackController, PlaybackState};
 
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 pub fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
     samples
@@ -18,19 +18,24 @@ pub fn f32_to_i16(samples: &[f32]) -> Vec<i16> {
 pub async fn play_with_controls(
     samples: Vec<f32>,
     sample_rate: u32,
-    stop_flag: Arc<AtomicBool>,
-    pause_flag: Arc<AtomicBool>,
-    state: Arc<AtomicU8>,
+    controller: &PlaybackController,
 ) -> bool {
-    state.store(PlaybackState::Playing as u8, Ordering::SeqCst);
+    controller
+        .state
+        .store(PlaybackState::Playing as u8, Ordering::SeqCst);
 
-    let state_clone = state.clone();
+    let state = controller.state.clone();
+    let stop_flag = controller.stop_flag.clone();
+    let pause_flag = controller.pause_flag.clone();
+    let mutex = controller.mutex.clone();
+    let condvar = controller.condvar.clone();
+
     match tokio::task::spawn_blocking(move || {
         let (stream, handle) = match rodio::OutputStream::try_default() {
             Ok(v) => v,
             Err(e) => {
                 log::error!("Failed to open audio output stream: {e}");
-                state_clone.store(PlaybackState::Idle as u8, Ordering::SeqCst);
+                state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
                 return true;
             }
         };
@@ -38,7 +43,7 @@ pub async fn play_with_controls(
             Ok(s) => s,
             Err(e) => {
                 log::error!("Failed to create audio sink: {e}");
-                state_clone.store(PlaybackState::Idle as u8, Ordering::SeqCst);
+                state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
                 return true;
             }
         };
@@ -48,32 +53,31 @@ pub async fn play_with_controls(
         sink.append(buffer);
 
         loop {
-            std::thread::sleep(std::time::Duration::from_millis(50));
+            let guard = mutex.lock().unwrap();
+            let (guard, _) = condvar.wait_timeout(guard, Duration::from_millis(200)).unwrap();
+            drop(guard);
 
             if stop_flag.load(Ordering::SeqCst) {
                 stop_flag.store(false, Ordering::SeqCst);
                 pause_flag.store(false, Ordering::SeqCst);
-                state_clone.store(PlaybackState::Idle as u8, Ordering::SeqCst);
+                state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
                 return true;
             }
 
             if pause_flag.load(Ordering::SeqCst) {
                 sink.pause();
-                state_clone.store(PlaybackState::Paused as u8, Ordering::SeqCst);
-                loop {
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                    if stop_flag.load(Ordering::SeqCst) || !pause_flag.load(Ordering::SeqCst) {
-                        break;
-                    }
-                }
+                state.store(PlaybackState::Paused as u8, Ordering::SeqCst);
+                let guard = mutex.lock().unwrap();
+                drop(condvar.wait_while(guard, |()| {
+                    pause_flag.load(Ordering::SeqCst) && !stop_flag.load(Ordering::SeqCst)
+                }));
                 if stop_flag.load(Ordering::SeqCst) {
                     stop_flag.store(false, Ordering::SeqCst);
                     pause_flag.store(false, Ordering::SeqCst);
-                    state_clone.store(PlaybackState::Idle as u8, Ordering::SeqCst);
+                    state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
                     return true;
                 }
-                pause_flag.store(false, Ordering::SeqCst);
-                state_clone.store(PlaybackState::Playing as u8, Ordering::SeqCst);
+                state.store(PlaybackState::Playing as u8, Ordering::SeqCst);
                 sink.play();
             }
 
@@ -92,7 +96,9 @@ pub async fn play_with_controls(
         Ok(interrupted) => interrupted,
         Err(e) => {
             log::error!("Playback task panicked: {e}");
-            state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
+            controller
+                .state
+                .store(PlaybackState::Idle as u8, Ordering::SeqCst);
             true
         }
     }

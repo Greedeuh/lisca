@@ -13,6 +13,7 @@ pub struct SpeechPlayerActor {
     playback: PlaybackController,
     busy: bool,
     auto_read: bool,
+    pending_work: bool,
 }
 
 impl SpeechPlayerActor {
@@ -27,6 +28,7 @@ impl SpeechPlayerActor {
             playback: PlaybackController::new(),
             busy: false,
             auto_read,
+            pending_work: false,
         }
     }
 }
@@ -34,18 +36,12 @@ impl SpeechPlayerActor {
 impl Actor for SpeechPlayerActor {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(std::time::Duration::from_millis(200), |act, ctx| {
-            if !act.busy && act.auto_read {
-                ctx.address().do_send(PollNextSpeechTick);
-            }
-        });
-    }
+    fn started(&mut self, _ctx: &mut Self::Context) {}
 }
 
-struct PollNextSpeechTick;
+struct PlayNext;
 
-impl actix::Message for PollNextSpeechTick {
+impl actix::Message for PlayNext {
     type Result = ();
 }
 
@@ -55,10 +51,13 @@ impl actix::Message for PlaybackDone {
     type Result = ();
 }
 
-impl Handler<PollNextSpeechTick> for SpeechPlayerActor {
+impl Handler<PlayNext> for SpeechPlayerActor {
     type Result = ();
 
-    fn handle(&mut self, _: PollNextSpeechTick, ctx: &mut Context<Self>) {
+    fn handle(&mut self, _: PlayNext, ctx: &mut Context<Self>) {
+        // Guards against concurrent playback. Message handlers are sequential,
+        // but spawned futures run concurrently on the tokio runtime — two PlayNext
+        // handlers could otherwise both spawn playback futures for the same item.
         if self.busy || !self.auto_read {
             return;
         }
@@ -67,14 +66,12 @@ impl Handler<PollNextSpeechTick> for SpeechPlayerActor {
 
         let queue_addr = self.queue_addr.clone();
         let app_handle = self.app_handle.clone();
-        let stop_flag = self.playback.stop_flag();
-        let pause_flag = self.playback.pause_flag();
-        let state_arc = self.playback.state_arc();
+        let playback = self.playback.clone();
         let my_addr = ctx.address();
 
         let fut = async move {
             // 1. Get next speech to play from QueueActor
-            let pending = match queue_addr.send(PollNextSpeech).await {
+            let pending = match queue_addr.send(GetNextSpeech).await {
                 Ok(Some(item)) => item,
                 _ => {
                     let _ = my_addr.send(PlaybackDone).await;
@@ -97,14 +94,7 @@ impl Handler<PollNextSpeechTick> for SpeechPlayerActor {
             let _ = app_handle.emit("queue_updated", ());
 
             // 2. Play audio via spawn_blocking (rodio is blocking)
-            let interrupted = play_with_controls(
-                audio_data,
-                22050u32,
-                stop_flag,
-                pause_flag,
-                state_arc,
-            )
-            .await;
+            let interrupted = play_with_controls(audio_data, 22050u32, &playback).await;
 
             if interrupted {
                 let _ = app_handle.emit("playback_stopped", ());
@@ -125,8 +115,16 @@ impl Handler<PollNextSpeechTick> for SpeechPlayerActor {
 impl Handler<PlaybackDone> for SpeechPlayerActor {
     type Result = ();
 
-    fn handle(&mut self, _: PlaybackDone, _: &mut Context<Self>) {
+    fn handle(&mut self, _: PlaybackDone, ctx: &mut Context<Self>) {
         self.busy = false;
+        // Sends PlayNext synchronously (not via ctx.spawn) to avoid a race:
+        // a spawned future could query the queue concurrently with a future
+        // spawned by SpeechReady → PlayNext, causing double playback.
+        // pending_work prevents infinite loops when the queue is empty.
+        if self.auto_read && self.pending_work {
+            self.pending_work = false;
+            ctx.address().do_send(PlayNext);
+        }
     }
 }
 
@@ -134,8 +132,12 @@ impl Handler<SpeechReady> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: SpeechReady, ctx: &mut Context<Self>) {
+        self.pending_work = true;
+        // Only trigger if idle — PlaybackDone will chain the next item when
+        // this one finishes. If busy, the current playback future will check
+        // pending_work when it completes.
         if !self.busy && self.auto_read {
-            ctx.address().do_send(PollNextSpeechTick);
+            ctx.address().do_send(PlayNext);
         }
     }
 }
@@ -167,7 +169,15 @@ impl Handler<PlaybackStop> for SpeechPlayerActor {
 impl Handler<AutoReadChanged> for SpeechPlayerActor {
     type Result = ();
 
-    fn handle(&mut self, msg: AutoReadChanged, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: AutoReadChanged, ctx: &mut Context<Self>) {
         self.auto_read = msg.value;
+        if msg.value {
+            self.pending_work = true;
+            // If idle, start playing immediately. If busy, PlaybackDone will
+            // chain when current playback finishes.
+            if !self.busy {
+                ctx.address().do_send(PlayNext);
+            }
+        }
     }
 }

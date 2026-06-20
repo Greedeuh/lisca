@@ -43,7 +43,7 @@ pub struct ToggleOverlay;
 
 #[derive(Message)]
 #[rtype(result = "Option<PendingTextItem>")]
-pub struct PollNextText;
+pub struct GetNextText;
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
@@ -69,7 +69,7 @@ pub struct SetTranscriptionError {
 
 #[derive(Message)]
 #[rtype(result = "Option<PendingSpeechItem>")]
-pub struct PollNextSpeech;
+pub struct GetNextSpeech;
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]

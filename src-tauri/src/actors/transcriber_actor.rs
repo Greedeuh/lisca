@@ -18,6 +18,7 @@ pub struct TranscriberActor {
     voice_mapping: Arc<TokioMutex<VoiceMapping>>,
     app_handle: AppHandle,
     busy: bool,
+    pending_work: bool,
 }
 
 impl TranscriberActor {
@@ -35,6 +36,7 @@ impl TranscriberActor {
             voice_mapping,
             app_handle,
             busy: false,
+            pending_work: false,
         }
     }
 }
@@ -42,18 +44,12 @@ impl TranscriberActor {
 impl Actor for TranscriberActor {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(std::time::Duration::from_millis(500), |act, ctx| {
-            if !act.busy {
-                ctx.address().do_send(PollNextTextTick);
-            }
-        });
-    }
+    fn started(&mut self, _ctx: &mut Self::Context) {}
 }
 
-struct PollNextTextTick;
+struct Transcribe;
 
-impl actix::Message for PollNextTextTick {
+impl actix::Message for Transcribe {
     type Result = ();
 }
 
@@ -63,10 +59,13 @@ impl actix::Message for TranscriptionDone {
     type Result = ();
 }
 
-impl Handler<PollNextTextTick> for TranscriberActor {
+impl Handler<Transcribe> for TranscriberActor {
     type Result = ();
 
-    fn handle(&mut self, _: PollNextTextTick, ctx: &mut Context<Self>) {
+    fn handle(&mut self, _: Transcribe, ctx: &mut Context<Self>) {
+        // Guards against concurrent transcription. Message handlers run one at a
+        // time, but spawned futures run concurrently on the tokio runtime — two
+        // Transcribe handlers could otherwise both spawn transcription futures.
         if self.busy {
             return;
         }
@@ -82,7 +81,7 @@ impl Handler<PollNextTextTick> for TranscriberActor {
 
         let fut = async move {
             // 1. Get next pending text from QueueActor
-            let pending = match queue_addr.send(PollNextText).await {
+            let pending = match queue_addr.send(GetNextText).await {
                 Ok(Some(item)) => item,
                 _ => {
                     let _ = my_addr.send(TranscriptionDone).await;
@@ -181,8 +180,16 @@ impl Handler<PollNextTextTick> for TranscriberActor {
 impl Handler<TranscriptionDone> for TranscriberActor {
     type Result = ();
 
-    fn handle(&mut self, _: TranscriptionDone, _: &mut Context<Self>) {
+    fn handle(&mut self, _: TranscriptionDone, ctx: &mut Context<Self>) {
         self.busy = false;
+        // Sends Transcribe synchronously (not via ctx.spawn) to avoid a race:
+        // a spawned future could query the queue concurrently with a future
+        // spawned by TextAdded → Transcribe. pending_work prevents infinite
+        // loops when the queue is empty.
+        if self.pending_work {
+            self.pending_work = false;
+            ctx.address().do_send(Transcribe);
+        }
     }
 }
 
@@ -190,8 +197,11 @@ impl Handler<TextAdded> for TranscriberActor {
     type Result = ();
 
     fn handle(&mut self, _: TextAdded, ctx: &mut Context<Self>) {
+        self.pending_work = true;
+        // Only trigger if idle — TranscriptionDone will chain the next item
+        // when this one finishes. pending_work prevents the chain from stalling.
         if !self.busy {
-            ctx.address().do_send(PollNextTextTick);
+            ctx.address().do_send(Transcribe);
         }
     }
 }

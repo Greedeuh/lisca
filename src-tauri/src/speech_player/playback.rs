@@ -3,7 +3,7 @@
 // enabling thread-safe control from the async task and frontend.
 
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -23,11 +23,13 @@ impl From<u8> for PlaybackState {
     }
 }
 
+#[derive(Clone)]
 pub struct PlaybackController {
     pub(crate) stop_flag: Arc<AtomicBool>,
     pub(crate) pause_flag: Arc<AtomicBool>,
     pub(crate) state: Arc<AtomicU8>,
-    pub(crate) notify: Arc<tokio::sync::Notify>,
+    pub(crate) mutex: Arc<Mutex<()>>,
+    pub(crate) condvar: Arc<Condvar>,
 }
 
 impl Default for PlaybackController {
@@ -42,7 +44,8 @@ impl PlaybackController {
             stop_flag: Arc::new(AtomicBool::new(false)),
             pause_flag: Arc::new(AtomicBool::new(false)),
             state: Arc::new(AtomicU8::new(PlaybackState::Idle as u8)),
-            notify: Arc::new(tokio::sync::Notify::new()),
+            mutex: Arc::new(Mutex::new(())),
+            condvar: Arc::new(Condvar::new()),
         }
     }
 
@@ -50,7 +53,7 @@ impl PlaybackController {
         self.stop_flag.store(true, Ordering::SeqCst);
         self.pause_flag.store(false, Ordering::SeqCst);
         self.state.store(PlaybackState::Idle as u8, Ordering::SeqCst);
-        self.notify.notify_one();
+        self.condvar.notify_all();
     }
 
     pub fn pause(&self) {
@@ -64,7 +67,7 @@ impl PlaybackController {
         if self.state.load(Ordering::SeqCst) == PlaybackState::Paused as u8 {
             self.pause_flag.store(false, Ordering::SeqCst);
             self.state.store(PlaybackState::Playing as u8, Ordering::SeqCst);
-            self.notify.notify_one();
+            self.condvar.notify_all();
         }
     }
 
@@ -86,10 +89,6 @@ impl PlaybackController {
 
     pub fn state_arc(&self) -> Arc<AtomicU8> {
         self.state.clone()
-    }
-
-    pub fn notify(&self) -> Arc<tokio::sync::Notify> {
-        self.notify.clone()
     }
 }
 

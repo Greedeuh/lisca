@@ -124,10 +124,10 @@ impl Handler<ToggleOverlay> for QueueActor {
     }
 }
 
-impl Handler<PollNextText> for QueueActor {
+impl Handler<GetNextText> for QueueActor {
     type Result = Option<PendingTextItem>;
 
-    fn handle(&mut self, _: PollNextText, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _: GetNextText, _: &mut Context<Self>) -> Self::Result {
         let (_, id) = self.queue.next_pending_text_message()?;
         let item = self.queue.items().iter().find(|i| i.id() == id)?;
         match item {
@@ -180,10 +180,10 @@ impl Handler<SetTranscriptionError> for QueueActor {
     }
 }
 
-impl Handler<PollNextSpeech> for QueueActor {
+impl Handler<GetNextSpeech> for QueueActor {
     type Result = Option<PendingSpeechItem>;
 
-    fn handle(&mut self, _: PollNextSpeech, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _: GetNextSpeech, _: &mut Context<Self>) -> Self::Result {
         let (_, id) = self.queue.next_to_play_speech()?;
         let item = self.queue.items().iter().find(|i| i.id() == id)?;
         match item {
