@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { QueueList } from "../QueueList";
+import { QueueListView } from "../QueueListView";
 import type { QueueItem } from "../../../types/queue";
 
 const textMsg = (id: number, text: string, status: "pending" | "processing" = "pending"): QueueItem => ({
@@ -35,7 +35,7 @@ const defaults = {
 function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}) {
   const props = { ...defaults, ...overrides };
   return render(
-    <QueueList
+    <QueueListView
       items={items}
       autoRead={props.autoRead}
       onRemove={props.onRemove}
@@ -46,7 +46,7 @@ function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}
   );
 }
 
-describe("QueueList", () => {
+describe("QueueListView", () => {
   it("shows empty state", () => {
     renderList([]);
     expect(screen.getByText(/Queue is empty/)).toBeInTheDocument();
@@ -167,7 +167,7 @@ describe("QueueList", () => {
 
   it("reflects autoRead prop in checkbox", () => {
     const { rerender } = render(
-      <QueueList
+      <QueueListView
         items={[textMsg(1, "text")]}
         autoRead={true}
         onRemove={vi.fn()}
@@ -178,7 +178,7 @@ describe("QueueList", () => {
     );
     expect(screen.getByRole("checkbox")).toBeChecked();
     rerender(
-      <QueueList
+      <QueueListView
         items={[textMsg(1, "text")]}
         autoRead={false}
         onRemove={vi.fn()}

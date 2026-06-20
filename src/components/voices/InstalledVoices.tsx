@@ -1,14 +1,15 @@
+import { useState, useEffect, useCallback } from "react";
+import { useToast } from "../../contexts/toast";
+import {
+  listInstalledVoices,
+  uninstallVoice,
+  setVoicePreference,
+  setFallbackVoice,
+  getVoicePreference,
+} from "../../types/ipc";
 import type { InstalledVoice } from "../../types/voice-catalog";
 import type { VoiceMapping } from "../../types/voice-prefs";
 import "./InstalledVoices.css";
-
-interface InstalledVoicesProps {
-  voices: InstalledVoice[];
-  voiceMapping: VoiceMapping;
-  onUninstall: (voiceKey: string) => void;
-  onSetActive: (language: string, voiceKey: string) => void;
-  onSetFallback: (voiceKey: string | null) => void;
-}
 
 function groupByLanguage(voices: InstalledVoice[]): Map<string, InstalledVoice[]> {
   const groups = new Map<string, InstalledVoice[]>();
@@ -21,13 +22,73 @@ function groupByLanguage(voices: InstalledVoice[]): Map<string, InstalledVoice[]
   return groups;
 }
 
-export function InstalledVoices({
-  voices,
-  voiceMapping,
-  onUninstall,
-  onSetActive,
-  onSetFallback,
-}: InstalledVoicesProps) {
+export function InstalledVoices() {
+  const { addToast } = useToast();
+  const [voices, setVoices] = useState<InstalledVoice[]>([]);
+  const [voiceMapping, setVoiceMapping] = useState<VoiceMapping>({
+    language_voice: {},
+    fallback_voice_key: null,
+  });
+
+  const refreshInstalled = useCallback(async () => {
+    try {
+      const installed = await listInstalledVoices();
+      setVoices(installed);
+    } catch (e) {
+      addToast(`Failed to load installed voices: ${e}`);
+    }
+  }, [addToast]);
+
+  const refreshVoiceMapping = useCallback(async () => {
+    try {
+      const mapping = await getVoicePreference();
+      setVoiceMapping(mapping);
+    } catch (e) {
+      addToast(`Failed to load voice preferences: ${e}`);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    refreshInstalled();
+    refreshVoiceMapping();
+  }, [refreshInstalled, refreshVoiceMapping]);
+
+  const handleUninstall = useCallback(
+    async (voiceKey: string) => {
+      try {
+        await uninstallVoice(voiceKey);
+        await refreshInstalled();
+      } catch (e) {
+        addToast(`Failed to uninstall voice: ${e}`);
+      }
+    },
+    [addToast, refreshInstalled],
+  );
+
+  const handleSetActive = useCallback(
+    async (language: string, voiceKey: string) => {
+      try {
+        await setVoicePreference(language, voiceKey);
+        await refreshVoiceMapping();
+      } catch (e) {
+        addToast(`Failed to set voice preference: ${e}`);
+      }
+    },
+    [addToast, refreshVoiceMapping],
+  );
+
+  const handleSetFallback = useCallback(
+    async (voiceKey: string | null) => {
+      try {
+        await setFallbackVoice(voiceKey);
+        await refreshVoiceMapping();
+      } catch (e) {
+        addToast(`Failed to set fallback voice: ${e}`);
+      }
+    },
+    [addToast, refreshVoiceMapping],
+  );
+
   const groups = groupByLanguage(voices);
 
   if (voices.length === 0) {
@@ -71,14 +132,14 @@ export function InstalledVoices({
                       {!isActive && (
                         <button
                           className="iv-btn iv-btn-set"
-                          onClick={() => onSetActive(lang, voice.voice_key)}
+                          onClick={() => handleSetActive(lang, voice.voice_key)}
                         >
                           Set Active
                         </button>
                       )}
                       <button
                         className="iv-btn iv-btn-remove"
-                        onClick={() => onUninstall(voice.voice_key)}
+                        onClick={() => handleUninstall(voice.voice_key)}
                       >
                         Uninstall
                       </button>
@@ -96,7 +157,7 @@ export function InstalledVoices({
         <select
           className="iv-fallback-select"
           value={voiceMapping.fallback_voice_key || ""}
-          onChange={(e) => onSetFallback(e.target.value || null)}
+          onChange={(e) => handleSetFallback(e.target.value || null)}
         >
           <option value="">None</option>
           {allVoices}

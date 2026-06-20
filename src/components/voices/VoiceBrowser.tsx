@@ -1,13 +1,13 @@
-import type { VoiceEntry } from "../../types/voice-catalog";
-import type { DownloadProgress } from "../../types/voice-catalog";
+import { useState, useEffect, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { useToast } from "../../contexts/toast";
+import {
+  listCatalogVoices,
+  listInstalledVoices,
+  installVoice,
+} from "../../types/ipc";
+import type { VoiceEntry, DownloadProgress } from "../../types/voice-catalog";
 import "./VoiceBrowser.css";
-
-interface VoiceBrowserProps {
-  voices: VoiceEntry[];
-  installedKeys: Set<string>;
-  downloading: Map<string, DownloadProgress>;
-  onInstall: (voiceKey: string) => void;
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -25,12 +25,60 @@ function groupByLanguage(voices: VoiceEntry[]): Map<string, VoiceEntry[]> {
   return groups;
 }
 
-export function VoiceBrowser({
-  voices,
-  installedKeys,
-  downloading,
-  onInstall,
-}: VoiceBrowserProps) {
+export function VoiceBrowser() {
+  const { addToast } = useToast();
+  const [voices, setVoices] = useState<VoiceEntry[]>([]);
+  const [installedKeys, setInstalledKeys] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState<Map<string, DownloadProgress>>(new Map());
+
+  const refreshInstalled = useCallback(async () => {
+    try {
+      const installed = await listInstalledVoices();
+      setInstalledKeys(new Set(installed.map((v) => v.voice_key)));
+    } catch (e) {
+      addToast(`Failed to load installed voices: ${e}`);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    listCatalogVoices()
+      .then(setVoices)
+      .catch((e) => addToast(`Failed to load catalog: ${e}`));
+    refreshInstalled();
+
+    const unlistenProgress = listen<DownloadProgress>("download_progress", (event) => {
+      setDownloading((prev) => new Map(prev).set(event.payload.voice_key, event.payload));
+    });
+    const unlistenComplete = listen<string>("download_complete", () => {
+      refreshInstalled();
+      setDownloading(new Map());
+    });
+    const unlistenError = listen<{ voice_key: string; reason: string }>(
+      "download_error",
+      (event) => {
+        addToast(`Download failed for ${event.payload.voice_key}: ${event.payload.reason}`);
+      },
+    );
+
+    return () => {
+      unlistenProgress.then((fn) => fn());
+      unlistenComplete.then((fn) => fn());
+      unlistenError.then((fn) => fn());
+    };
+  }, [addToast, refreshInstalled]);
+
+  const handleInstall = useCallback(
+    async (voiceKey: string) => {
+      try {
+        await installVoice(voiceKey);
+        await refreshInstalled();
+      } catch (e) {
+        addToast(`Failed to install voice: ${e}`);
+      }
+    },
+    [addToast, refreshInstalled],
+  );
+
   const groups = groupByLanguage(voices);
 
   if (voices.length === 0) {
@@ -76,7 +124,7 @@ export function VoiceBrowser({
                     ) : (
                       <button
                         className="vb-btn vb-btn-install"
-                        onClick={() => onInstall(voice.voice_key)}
+                        onClick={() => handleInstall(voice.voice_key)}
                       >
                         Install
                       </button>

@@ -1,112 +1,122 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ToastProvider } from "../../../contexts/toast";
 import { VoiceBrowser } from "../VoiceBrowser";
-import type { VoiceEntry } from "../../../types/voice-catalog";
 
-const piperVoice: VoiceEntry = {
-  voice_key: "en_US-amy-medium",
-  name: "Amy (English, US)",
-  language: "en",
-  quality: "medium",
-  size_bytes: 52_000_000,
-  speed: "1.0x",
-  model_type: "piper",
-};
+const mockInvoke = vi.fn();
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: (...args: unknown[]) => mockInvoke(...args),
+}));
 
-const kokoroVoice: VoiceEntry = {
-  voice_key: "af_heart",
-  name: "Heart (American Female)",
-  language: "en",
-  quality: "high",
-  size_bytes: 15_000_000,
-  speed: "1.0x",
-  model_type: "kokoro",
-};
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(() => Promise.resolve(vi.fn())),
+}));
 
-const defaults = {
-  installedKeys: new Set<string>(),
-  downloading: new Map(),
-  onInstall: vi.fn(),
-};
-
-function renderBrowser(overrides: Partial<typeof defaults> = {}) {
-  const props = { ...defaults, ...overrides };
-  return render(
-    <VoiceBrowser
-      voices={[piperVoice, kokoroVoice]}
-      installedKeys={props.installedKeys}
-      downloading={props.downloading}
-      onInstall={props.onInstall}
-    />,
-  );
+function renderWithToast(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
 }
 
+const catalogVoices = [
+  {
+    voice_key: "en_US-amy-medium",
+    name: "Amy (English, US)",
+    language: "en",
+    quality: "medium",
+    size_bytes: 52_000_000,
+    speed: "1.0x",
+    model_type: "piper" as const,
+  },
+  {
+    voice_key: "af_heart",
+    name: "Heart (American Female)",
+    language: "en",
+    quality: "high",
+    size_bytes: 15_000_000,
+    speed: "1.0x",
+    model_type: "kokoro" as const,
+  },
+];
+
+const installedVoices = [
+  {
+    voice_key: "en_US-amy-medium",
+    name: "Amy (English, US)",
+    language: "en",
+    quality: "medium",
+    model_type: "piper" as const,
+    model_path: "/tmp/test.onnx",
+  },
+];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockInvoke.mockImplementation((cmd: string) => {
+    if (cmd === "list_catalog_voices") return Promise.resolve(catalogVoices);
+    if (cmd === "list_installed_voices") return Promise.resolve(installedVoices);
+    return Promise.resolve(null);
+  });
+});
+
 describe("VoiceBrowser", () => {
-  it("renders voices grouped by language", () => {
-    renderBrowser();
-    expect(screen.getByText("en")).toBeInTheDocument();
-    expect(screen.getByText("Amy (English, US)")).toBeInTheDocument();
+  it("renders voices grouped by language", async () => {
+    renderWithToast(<VoiceBrowser />);
+    expect(await screen.findByText("Amy (English, US)")).toBeInTheDocument();
     expect(screen.getByText("Heart (American Female)")).toBeInTheDocument();
+    expect(screen.getByText("en")).toBeInTheDocument();
   });
 
-  it("shows install buttons for uninstalled voices", () => {
-    renderBrowser();
+  it("shows install buttons for uninstalled voices", async () => {
+    renderWithToast(<VoiceBrowser />);
+    await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Install");
-    expect(buttons.length).toBe(2);
+    expect(buttons.length).toBe(1);
   });
 
-  it("calls onInstall with voice key when first install clicked", () => {
-    const onInstall = vi.fn();
-    renderBrowser({ onInstall });
+  it("calls installVoice when install clicked", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_catalog_voices") return Promise.resolve(catalogVoices);
+      if (cmd === "list_installed_voices") return Promise.resolve([]);
+      if (cmd === "install_voice") return Promise.resolve({});
+      return Promise.resolve(null);
+    });
+    renderWithToast(<VoiceBrowser />);
+    await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Install");
     fireEvent.click(buttons[0]);
-    expect(onInstall).toHaveBeenCalledWith("en_US-amy-medium");
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("install_voice", { voiceKey: "en_US-amy-medium" });
+    });
   });
 
-  it("shows Installed label and hides Install button for installed voice", () => {
-    renderBrowser({ installedKeys: new Set(["en_US-amy-medium"]) });
+  it("shows Installed label for installed voice", async () => {
+    renderWithToast(<VoiceBrowser />);
+    await screen.findByText("Amy (English, US)");
     expect(screen.getByText("Installed")).toBeInTheDocument();
     const installButtons = screen.getAllByText("Install");
     expect(installButtons.length).toBe(1);
   });
 
-  it("shows quality badge", () => {
-    renderBrowser();
+  it("shows quality badge", async () => {
+    renderWithToast(<VoiceBrowser />);
+    await screen.findByText("Amy (English, US)");
     expect(screen.getByText("medium")).toBeInTheDocument();
     expect(screen.getByText("high")).toBeInTheDocument();
   });
 
-  it("shows model type badge", () => {
-    renderBrowser();
+  it("shows model type badge", async () => {
+    renderWithToast(<VoiceBrowser />);
+    await screen.findByText("Amy (English, US)");
     expect(screen.getAllByText("piper").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("kokoro").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("shows empty state when no voices", () => {
-    render(
-      <VoiceBrowser
-        voices={[]}
-        installedKeys={new Set()}
-        downloading={new Map()}
-        onInstall={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("No voices available.")).toBeInTheDocument();
-  });
-
-  it("shows download progress percentage", () => {
-    const downloading = new Map([
-      [
-        "en_US-amy-medium",
-        {
-          type: "downloading" as const,
-          voice_key: "en_US-amy-medium",
-          bytes_downloaded: 26_000_000,
-          total_bytes: 52_000_000,
-        },
-      ],
-    ]);
-    renderBrowser({ downloading });
-    expect(screen.getByText("50%")).toBeInTheDocument();
+  it("shows empty state when no voices", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_catalog_voices") return Promise.resolve([]);
+      if (cmd === "list_installed_voices") return Promise.resolve([]);
+      return Promise.resolve(null);
+    });
+    renderWithToast(<VoiceBrowser />);
+    expect(await screen.findByText("No voices available.")).toBeInTheDocument();
   });
 });

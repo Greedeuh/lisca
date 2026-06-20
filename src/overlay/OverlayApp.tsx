@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { QueueList } from "../components/queue";
+import { QueueListView } from "../components/queue/QueueListView";
 import type { QueueItem } from "../types/queue";
 import { getQueueState, getPlayerState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay } from "../types/ipc";
 import "./OverlayApp.css";
@@ -89,7 +89,7 @@ export default function OverlayApp() {
         </button>
       </div>
       <div className="ol-body">
-        <QueueList
+        <QueueListView
           items={items}
           autoRead={autoRead}
           onRemove={handleRemove}

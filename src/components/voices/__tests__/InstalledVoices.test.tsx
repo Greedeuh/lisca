@@ -1,16 +1,28 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ToastProvider } from "../../../contexts/toast";
 import { InstalledVoices } from "../InstalledVoices";
-import type { InstalledVoice } from "../../../types/voice-catalog";
-import type { VoiceMapping } from "../../../types/voice-prefs";
 
-const installed: InstalledVoice[] = [
+const mockInvoke = vi.fn();
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: (...args: unknown[]) => mockInvoke(...args),
+}));
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(() => Promise.resolve(vi.fn())),
+}));
+
+function renderWithToast(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
+
+const installedVoices = [
   {
     voice_key: "en_US-amy-medium",
     name: "Amy (English, US)",
     language: "en",
     quality: "medium",
-    model_type: "piper",
+    model_type: "piper" as const,
     model_path: "/tmp/test.onnx",
   },
   {
@@ -18,114 +30,124 @@ const installed: InstalledVoice[] = [
     name: "Heart (American Female)",
     language: "en",
     quality: "high",
-    model_type: "kokoro",
+    model_type: "kokoro" as const,
     model_path: "/tmp/test.bin",
   },
 ];
 
-const emptyMapping: VoiceMapping = {
+const emptyMapping = {
   language_voice: {},
   fallback_voice_key: null,
 };
 
-const defaults = {
-  voiceMapping: emptyMapping,
-  onUninstall: vi.fn(),
-  onSetActive: vi.fn(),
-  onSetFallback: vi.fn(),
+const mappingWithActive = {
+  language_voice: { en: "en_US-amy-medium" },
+  fallback_voice_key: null,
 };
 
-function renderInstalled(overrides: Partial<typeof defaults> = {}) {
-  const props = { ...defaults, ...overrides };
-  return render(
-    <InstalledVoices
-      voices={installed}
-      voiceMapping={props.voiceMapping}
-      onUninstall={props.onUninstall}
-      onSetActive={props.onSetActive}
-      onSetFallback={props.onSetFallback}
-    />,
-  );
-}
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockInvoke.mockImplementation((cmd: string) => {
+    if (cmd === "list_installed_voices") return Promise.resolve(installedVoices);
+    if (cmd === "get_voice_preference") return Promise.resolve(emptyMapping);
+    return Promise.resolve(null);
+  });
+});
 
 describe("InstalledVoices", () => {
-  it("shows empty state when no voices", () => {
-    render(
-      <InstalledVoices
-        voices={[]}
-        voiceMapping={emptyMapping}
-        onUninstall={vi.fn()}
-        onSetActive={vi.fn()}
-        onSetFallback={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/No voices installed/)).toBeInTheDocument();
+  it("shows empty state when no voices", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_installed_voices") return Promise.resolve([]);
+      if (cmd === "get_voice_preference") return Promise.resolve(emptyMapping);
+      return Promise.resolve(null);
+    });
+    renderWithToast(<InstalledVoices />);
+    expect(await screen.findByText(/No voices installed/)).toBeInTheDocument();
   });
 
-  it("renders installed voices grouped by language", () => {
-    renderInstalled();
-    expect(screen.getByText("Amy (English, US)")).toBeInTheDocument();
+  it("renders installed voices grouped by language", async () => {
+    renderWithToast(<InstalledVoices />);
+    expect(await screen.findByText("Amy (English, US)")).toBeInTheDocument();
     expect(screen.getByText("Heart (American Female)")).toBeInTheDocument();
     expect(screen.getByText("en")).toBeInTheDocument();
   });
 
-  it("shows Set Active button for each voice", () => {
-    renderInstalled();
+  it("shows Set Active button for each voice", async () => {
+    renderWithToast(<InstalledVoices />);
+    await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Set Active");
     expect(buttons.length).toBe(2);
   });
 
-  it("calls onSetActive when Set Active clicked", () => {
-    const onSetActive = vi.fn();
-    renderInstalled({ onSetActive });
+  it("calls setVoicePreference when Set Active clicked", async () => {
+    renderWithToast(<InstalledVoices />);
+    await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Set Active");
     fireEvent.click(buttons[0]);
-    expect(onSetActive).toHaveBeenCalledWith("en", "en_US-amy-medium");
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("set_voice_preference", {
+        language: "en",
+        voiceKey: "en_US-amy-medium",
+      });
+    });
   });
 
-  it("shows Uninstall button for each voice", () => {
-    renderInstalled();
+  it("shows Uninstall button for each voice", async () => {
+    renderWithToast(<InstalledVoices />);
+    await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Uninstall");
     expect(buttons.length).toBe(2);
   });
 
-  it("calls onUninstall when Uninstall clicked", () => {
-    const onUninstall = vi.fn();
-    renderInstalled({ onUninstall });
+  it("calls uninstallVoice when Uninstall clicked", async () => {
+    renderWithToast(<InstalledVoices />);
+    await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Uninstall");
     fireEvent.click(buttons[0]);
-    expect(onUninstall).toHaveBeenCalledWith("en_US-amy-medium");
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("uninstall_voice", {
+        voiceKey: "en_US-amy-medium",
+      });
+    });
   });
 
-  it("shows active badge when voice is set active", () => {
-    const mapping: VoiceMapping = {
-      language_voice: { en: "en_US-amy-medium" },
-      fallback_voice_key: null,
-    };
-    renderInstalled({ voiceMapping: mapping });
-    expect(screen.getByText(/Active: en_US-amy-medium/)).toBeInTheDocument();
+  it("shows active badge when voice is set active", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_installed_voices") return Promise.resolve(installedVoices);
+      if (cmd === "get_voice_preference") return Promise.resolve(mappingWithActive);
+      return Promise.resolve(null);
+    });
+    renderWithToast(<InstalledVoices />);
+    expect(await screen.findByText(/Active: en_US-amy-medium/)).toBeInTheDocument();
   });
 
-  it("hides Set Active button for active voice", () => {
-    const mapping: VoiceMapping = {
-      language_voice: { en: "en_US-amy-medium" },
-      fallback_voice_key: null,
-    };
-    renderInstalled({ voiceMapping: mapping });
+  it("hides Set Active button for active voice", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_installed_voices") return Promise.resolve(installedVoices);
+      if (cmd === "get_voice_preference") return Promise.resolve(mappingWithActive);
+      return Promise.resolve(null);
+    });
+    renderWithToast(<InstalledVoices />);
+    await screen.findByText(/Active: en_US-amy-medium/);
     const buttons = screen.getAllByText("Set Active");
     expect(buttons.length).toBe(1);
   });
 
-  it("renders fallback voice dropdown", () => {
-    renderInstalled();
+  it("renders fallback voice dropdown", async () => {
+    renderWithToast(<InstalledVoices />);
+    await screen.findByText("Amy (English, US)");
     expect(screen.getByText("Fallback voice:")).toBeInTheDocument();
   });
 
-  it("calls onSetFallback when fallback changed", () => {
-    const onSetFallback = vi.fn();
-    renderInstalled({ onSetFallback });
+  it("calls setFallbackVoice when fallback changed", async () => {
+    renderWithToast(<InstalledVoices />);
+    await screen.findByText("Amy (English, US)");
     const select = screen.getByRole("combobox");
     fireEvent.change(select, { target: { value: "af_heart" } });
-    expect(onSetFallback).toHaveBeenCalledWith("af_heart");
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("set_fallback_voice", {
+        voiceKey: "af_heart",
+      });
+    });
   });
 });
