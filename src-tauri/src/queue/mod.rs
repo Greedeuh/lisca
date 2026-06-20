@@ -81,6 +81,7 @@ pub enum QueueEvent {
     ItemMoved,
     ItemCleared,
     ItemReplaced,
+    ConfigChanged,
 }
 
 pub struct Queue {

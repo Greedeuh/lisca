@@ -125,7 +125,6 @@ impl Handler<Transcribe> for TranscriberActor {
                             })
                             .await;
                         let _ = app_handle.emit("transcription_completed", id);
-                        let _ = app_handle.emit("queue_updated", ());
                     }
                     Err(e) => {
                         log::error!("Transcription error for item {id}: {e}");
@@ -136,7 +135,6 @@ impl Handler<Transcribe> for TranscriberActor {
                             })
                             .await;
                         let _ = app_handle.emit("transcription_error", (id, e));
-                        let _ = app_handle.emit("queue_updated", ());
                     }
                 }
             }

@@ -31,37 +31,27 @@ export function useTtsQueue(): UseTtsQueueReturn {
     refresh();
 
     // Subscribe to queue events
-    const unlistenQueue = listen("queue_updated", () => {
-      refresh();
-    });
+    const queueEvents = [
+      "item_added",
+      "item_removed",
+      "item_moved",
+      "item_cleared",
+      "item_replaced",
+      "config_changed",
+      "transcription_started",
+      "transcription_completed",
+      "playback_started",
+      "playback_stopped",
+    ] as const;
 
-    const unlistenTranscriptionStarted = listen("transcription_started", () => {
-      refresh();
-    });
-
-    const unlistenTranscriptionCompleted = listen("transcription_completed", () => {
-      refresh();
-    });
-
-    const unlistenPlaybackStarted = listen("playback_started", () => {
-      refresh();
-    });
-
-    const unlistenPlaybackStopped = listen("playback_stopped", () => {
-      refresh();
-    });
-
-    const unlistenItemCompleted = listen("item_completed", () => {
-      refresh();
-    });
+    const unlisteners = queueEvents.map((event) =>
+      listen(event, () => {
+        refresh();
+      })
+    );
 
     return () => {
-      unlistenQueue.then((fn) => fn());
-      unlistenTranscriptionStarted.then((fn) => fn());
-      unlistenTranscriptionCompleted.then((fn) => fn());
-      unlistenPlaybackStarted.then((fn) => fn());
-      unlistenPlaybackStopped.then((fn) => fn());
-      unlistenItemCompleted.then((fn) => fn());
+      unlisteners.forEach((p) => p.then((fn) => fn()));
     };
   }, [refresh]);
 

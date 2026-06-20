@@ -5,7 +5,8 @@ export type QueueEvent =
   | { type: "item_removed" }
   | { type: "item_moved" }
   | { type: "item_cleared" }
-  | { type: "item_replaced" };
+  | { type: "item_replaced" }
+  | { type: "config_changed" };
 
 export type TranscriptionEvent =
   | { type: "transcription_started"; item_id: number }

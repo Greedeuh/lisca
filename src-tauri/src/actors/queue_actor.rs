@@ -33,8 +33,8 @@ impl QueueActor {
         self.transcriber_addr = Some(addr);
     }
 
-    fn emit_updated(&self) {
-        let _ = self.app_handle.emit("queue_updated", ());
+    fn emit_event(&self, event: &str) {
+        let _ = self.app_handle.emit(event, ());
     }
 }
 
@@ -47,7 +47,7 @@ impl Handler<AddText> for QueueActor {
 
     fn handle(&mut self, msg: AddText, _: &mut Context<Self>) -> Self::Result {
         let id = self.queue.add_text(msg.text)?;
-        self.emit_updated();
+        self.emit_event("item_added");
         if let Some(ref addr) = self.transcriber_addr {
             addr.do_send(TextAdded);
         }
@@ -60,7 +60,7 @@ impl Handler<RemoveItem> for QueueActor {
 
     fn handle(&mut self, msg: RemoveItem, _: &mut Context<Self>) -> Self::Result {
         self.queue.remove(msg.id)?;
-        self.emit_updated();
+        self.emit_event("item_removed");
         Ok(())
     }
 }
@@ -70,7 +70,7 @@ impl Handler<MoveItem> for QueueActor {
 
     fn handle(&mut self, msg: MoveItem, _: &mut Context<Self>) -> Self::Result {
         self.queue.reorder(msg.id, msg.new_index)?;
-        self.emit_updated();
+        self.emit_event("item_moved");
         Ok(())
     }
 }
@@ -80,7 +80,7 @@ impl Handler<ClearQueue> for QueueActor {
 
     fn handle(&mut self, _: ClearQueue, _: &mut Context<Self>) -> Self::Result {
         self.queue.clear()?;
-        self.emit_updated();
+        self.emit_event("item_cleared");
         Ok(())
     }
 }
@@ -105,7 +105,7 @@ impl Handler<ToggleAutoRead> for QueueActor {
         if let Some(ref player) = self.player_addr {
             player.do_send(AutoReadChanged { value: val });
         }
-        self.emit_updated();
+        self.emit_event("config_changed");
         val
     }
 }
@@ -119,7 +119,7 @@ impl Handler<ToggleOverlay> for QueueActor {
         if let Err(e) = self.queue.save_config() {
             log::error!("Failed to save queue config: {e}");
         }
-        self.emit_updated();
+        self.emit_event("config_changed");
         val
     }
 }
@@ -162,7 +162,7 @@ impl Handler<ReplaceWithSpeech> for QueueActor {
             msg.voice_key,
             msg.language,
         )?;
-        self.emit_updated();
+        self.emit_event("item_replaced");
         if let Some(ref addr) = self.player_addr {
             addr.do_send(SpeechReady);
         }
@@ -175,7 +175,7 @@ impl Handler<SetTranscriptionError> for QueueActor {
 
     fn handle(&mut self, msg: SetTranscriptionError, _: &mut Context<Self>) -> Self::Result {
         let _ = self.queue.remove(msg.id);
-        self.emit_updated();
+        self.emit_event("item_removed");
         Ok(())
     }
 }
@@ -205,7 +205,7 @@ impl Handler<SetItemCompleted> for QueueActor {
     fn handle(&mut self, msg: SetItemCompleted, _: &mut Context<Self>) -> Self::Result {
         self.queue
             .set_speech_status(msg.id, crate::queue::SpeechStatus::Played)?;
-        self.emit_updated();
+        self.emit_event("item_replaced");
         Ok(())
     }
 }

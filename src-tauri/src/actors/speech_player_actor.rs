@@ -130,13 +130,11 @@ impl Handler<PlayNext> for SpeechPlayerActor {
                 Some(d) => d,
                 None => {
                     let _ = queue_addr.send(SetItemCompleted { id }).await;
-                    let _ = app_handle.emit("queue_updated", ());
                     return;
                 }
             };
 
             let _ = app_handle.emit("playback_started", id);
-            let _ = app_handle.emit("queue_updated", ());
 
             let sink_guard = audio_sink.lock().unwrap();
             let sink = match sink_guard.as_ref() {
@@ -144,7 +142,6 @@ impl Handler<PlayNext> for SpeechPlayerActor {
                 None => {
                     drop(sink_guard);
                     let _ = app_handle.emit("playback_stopped", ());
-                    let _ = app_handle.emit("queue_updated", ());
                     return;
                 }
             };
