@@ -30,6 +30,7 @@ export function VoiceBrowser() {
   const [voices, setVoices] = useState<VoiceEntry[]>([]);
   const [installedKeys, setInstalledKeys] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState<Map<string, DownloadProgress>>(new Map());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const refreshInstalled = useCallback(async () => {
     try {
@@ -85,6 +86,15 @@ export function VoiceBrowser() {
 
   const groups = groupByLanguage(voices);
 
+  const toggleLang = (lang: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(lang)) next.delete(lang);
+      else next.add(lang);
+      return next;
+    });
+  };
+
   if (voices.length === 0) {
     return <div className="vb-empty">No voices available.</div>;
   }
@@ -93,7 +103,11 @@ export function VoiceBrowser() {
     <div className="vb-container">
       {Array.from(groups.entries()).map(([lang, langVoices]) => (
         <div key={lang} className="vb-group">
-          <h3 className="vb-lang-header">{lang}</h3>
+          <button className="vb-lang-header" onClick={() => toggleLang(lang)}>
+            {expanded.has(lang) ? "−" : "+"} {lang}
+            <span className="vb-lang-count">{langVoices.length}</span>
+          </button>
+          {expanded.has(lang) && (
           <div className="vb-voices">
             {langVoices.map((voice) => {
               const isInstalled = installedKeys.has(voice.voice_key);
@@ -138,6 +152,7 @@ export function VoiceBrowser() {
               );
             })}
           </div>
+          )}
         </div>
       ))}
     </div>

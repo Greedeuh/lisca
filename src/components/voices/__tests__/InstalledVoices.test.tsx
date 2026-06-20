@@ -54,6 +54,11 @@ beforeEach(() => {
   });
 });
 
+async function expandEn() {
+  const btn = await screen.findByRole("button", { name: /en/ });
+  fireEvent.click(btn);
+}
+
 describe("InstalledVoices", () => {
   it("shows empty state when no voices", async () => {
     mockInvoke.mockImplementation((cmd: string) => {
@@ -67,13 +72,14 @@ describe("InstalledVoices", () => {
 
   it("renders installed voices grouped by language", async () => {
     renderWithToast(<InstalledVoices />);
+    await expandEn();
     expect(await screen.findByText("Amy (English, US)")).toBeInTheDocument();
     expect(screen.getByText("Heart (American Female)")).toBeInTheDocument();
-    expect(screen.getByText("en")).toBeInTheDocument();
   });
 
   it("shows Set Active button for each voice", async () => {
     renderWithToast(<InstalledVoices />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Set Active");
     expect(buttons.length).toBe(2);
@@ -81,6 +87,7 @@ describe("InstalledVoices", () => {
 
   it("calls setVoicePreference when Set Active clicked", async () => {
     renderWithToast(<InstalledVoices />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Set Active");
     fireEvent.click(buttons[0]);
@@ -94,6 +101,7 @@ describe("InstalledVoices", () => {
 
   it("shows Uninstall button for each voice", async () => {
     renderWithToast(<InstalledVoices />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Uninstall");
     expect(buttons.length).toBe(2);
@@ -101,6 +109,7 @@ describe("InstalledVoices", () => {
 
   it("calls uninstallVoice when Uninstall clicked", async () => {
     renderWithToast(<InstalledVoices />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Uninstall");
     fireEvent.click(buttons[0]);
@@ -128,6 +137,7 @@ describe("InstalledVoices", () => {
       return Promise.resolve(null);
     });
     renderWithToast(<InstalledVoices />);
+    expandEn();
     await screen.findByText(/Active: en_US-amy-medium/);
     const buttons = screen.getAllByText("Set Active");
     expect(buttons.length).toBe(1);
@@ -135,12 +145,14 @@ describe("InstalledVoices", () => {
 
   it("renders fallback voice dropdown", async () => {
     renderWithToast(<InstalledVoices />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     expect(screen.getByText("Fallback voice:")).toBeInTheDocument();
   });
 
   it("calls setFallbackVoice when fallback changed", async () => {
     renderWithToast(<InstalledVoices />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     const select = screen.getByRole("combobox");
     fireEvent.change(select, { target: { value: "af_heart" } });

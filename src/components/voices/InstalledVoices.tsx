@@ -30,6 +30,7 @@ export function InstalledVoices() {
     language_voice: {},
     fallback_voice_key: null,
   });
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const refreshInstalled = useCallback(async () => {
     try {
@@ -104,6 +105,15 @@ export function InstalledVoices() {
 
   const groups = groupByLanguage(voices);
 
+  const toggleLang = (lang: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(lang)) next.delete(lang);
+      else next.add(lang);
+      return next;
+    });
+  };
+
   if (voices.length === 0) {
     return <div className="iv-empty">No voices installed. Browse the catalog to install voices.</div>;
   }
@@ -120,12 +130,16 @@ export function InstalledVoices() {
         const activeVoice = voiceMapping.language_voice[lang];
         return (
           <div key={lang} className="iv-group">
-            <div className="iv-group-header">
-              <h3 className="iv-lang-header">{lang}</h3>
+            <button className="iv-group-header" onClick={() => toggleLang(lang)}>
+              <h3 className="iv-lang-header">
+                {expanded.has(lang) ? "−" : "+"} {lang}
+              </h3>
               {activeVoice && (
                 <span className="iv-active-badge">Active: {activeVoice}</span>
               )}
-            </div>
+              <span className="iv-lang-count">{langVoices.length}</span>
+            </button>
+            {expanded.has(lang) && (
             <div className="iv-voices">
               {langVoices.map((voice) => {
                 const isActive = activeVoice === voice.voice_key;
@@ -161,6 +175,7 @@ export function InstalledVoices() {
                 );
               })}
             </div>
+            )}
           </div>
         );
       })}

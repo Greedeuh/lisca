@@ -57,16 +57,22 @@ beforeEach(() => {
   });
 });
 
+async function expandEn() {
+  const btn = await screen.findByRole("button", { name: /en/ });
+  fireEvent.click(btn);
+}
+
 describe("VoiceBrowser", () => {
   it("renders voices grouped by language", async () => {
     renderWithToast(<VoiceBrowser />);
+    await expandEn();
     expect(await screen.findByText("Amy (English, US)")).toBeInTheDocument();
     expect(screen.getByText("Heart (American Female)")).toBeInTheDocument();
-    expect(screen.getByText("en")).toBeInTheDocument();
   });
 
   it("shows install buttons for uninstalled voices", async () => {
     renderWithToast(<VoiceBrowser />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Install");
     expect(buttons.length).toBe(1);
@@ -80,6 +86,7 @@ describe("VoiceBrowser", () => {
       return Promise.resolve(null);
     });
     renderWithToast(<VoiceBrowser />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     const buttons = screen.getAllByText("Install");
     fireEvent.click(buttons[0]);
@@ -90,6 +97,7 @@ describe("VoiceBrowser", () => {
 
   it("shows Installed label for installed voice", async () => {
     renderWithToast(<VoiceBrowser />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     expect(screen.getByText("Installed")).toBeInTheDocument();
     const installButtons = screen.getAllByText("Install");
@@ -98,6 +106,7 @@ describe("VoiceBrowser", () => {
 
   it("shows quality badge", async () => {
     renderWithToast(<VoiceBrowser />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     expect(screen.getByText("medium")).toBeInTheDocument();
     expect(screen.getByText("high")).toBeInTheDocument();
@@ -105,6 +114,7 @@ describe("VoiceBrowser", () => {
 
   it("shows model type badge", async () => {
     renderWithToast(<VoiceBrowser />);
+    expandEn();
     await screen.findByText("Amy (English, US)");
     expect(screen.getAllByText("piper").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("kokoro").length).toBeGreaterThanOrEqual(1);
