@@ -1,6 +1,7 @@
 // Lisca — Tauri v2 desktop app for text-to-speech.
 // This crate re-exports all domain modules for the frontend and Tauri IPC layer.
 
+pub mod actors;
 pub mod catalog;
 pub mod clipboard;
 pub mod commands;
@@ -15,26 +16,110 @@ pub mod tray;
 pub mod transcriber;
 pub mod voice_prefs;
 
+use actors::AppActors;
+use actors::queue_actor::QueueActor;
+use actors::speech_player_actor::SpeechPlayerActor;
+use actors::transcriber_actor::TranscriberActor;
+use actix::Actor;
 use catalog::VoiceCatalog;
 use commands::AppState;
 use models::{KokoroFactory, ModelPool, PiperFactory};
-use queue::{Queue, QueueControllable};
-use speech_player::PlaybackEvent;
+use queue::Queue;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use transcriber::{TranscriptionEvent, UnifiedFactory};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use transcriber::UnifiedFactory;
 use voice_prefs::VoiceMapping;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
 
+    // Channel to send AppHandle from Tauri setup to actix thread
+    let (handle_tx, handle_rx) = std::sync::mpsc::sync_channel::<tauri::AppHandle>(1);
+    // Channel to receive actor addresses back from actix thread
+    let (actors_tx, actors_rx) = std::sync::mpsc::sync_channel::<AppActors>(1);
+
+    std::thread::spawn(move || {
+        let sys = actix::System::new();
+        let _ = sys.block_on(async move {
+            // Wait for AppHandle from Tauri setup
+            let app_handle = handle_rx.recv().expect("failed to receive AppHandle");
+
+            let app_data_dir = app_handle
+                .path()
+                .app_data_dir()
+                .expect("failed to resolve app data dir");
+            let _ = std::fs::create_dir_all(&app_data_dir);
+
+            let piper_models_dir = app_data_dir.join("piper_models");
+            let kokoro_models_dir = app_data_dir.join("kokoro");
+
+            let queue_config_path = app_data_dir.join("queue_config.json");
+            let queue_config = Queue::load_config(&queue_config_path);
+            let initial_auto_read = queue_config.auto_read;
+            let queue = Queue::new()
+                .with_config(queue_config)
+                .with_config_path(queue_config_path);
+
+            let voice_mapping_path = app_data_dir.join("voice_mapping.json");
+            let voice_mapping = Arc::new(tokio::sync::Mutex::new(
+                VoiceMapping::load(&voice_mapping_path),
+            ));
+
+            let model_pool = Arc::new(tokio::sync::Mutex::new(ModelPool::new(
+                4,
+                Some(std::time::Duration::from_secs(300)),
+            )));
+
+            let piper_factory: Arc<dyn models::ModelFactory> =
+                Arc::new(PiperFactory::new(piper_models_dir, app_data_dir.clone()));
+            let shared_engine_path = kokoro_models_dir.join("kokoro_engine.onnx");
+            let kokoro_factory: Arc<dyn models::ModelFactory> =
+                Arc::new(KokoroFactory::new(kokoro_models_dir, shared_engine_path));
+            let unified_factory = Arc::new(UnifiedFactory::new(piper_factory, kokoro_factory));
+
+            // Create actors (we're inside actix System, so start() works)
+            let queue_actor = QueueActor::new(queue, app_handle.clone()).start();
+            let transcriber_actor = TranscriberActor::new(
+                queue_actor.clone(),
+                model_pool.clone(),
+                unified_factory.clone(),
+                voice_mapping.clone(),
+                app_handle.clone(),
+            )
+            .start();
+            let speech_player_actor = SpeechPlayerActor::new(
+                queue_actor.clone(),
+                app_handle.clone(),
+                initial_auto_read,
+            )
+            .start();
+
+            // Wire player address into QueueActor
+            queue_actor.do_send(actors::messages::SetPlayerAddr {
+                addr: speech_player_actor.clone(),
+            });
+
+            actors_tx
+                .send(AppActors {
+                    queue: queue_actor,
+                    transcriber: transcriber_actor,
+                    player: speech_player_actor,
+                })
+                .expect("failed to send actors");
+
+            // Keep the actix system running
+            tokio::time::sleep(std::time::Duration::from_secs(u64::MAX)).await;
+            Ok::<(), ()>(())
+        });
+        sys.run().unwrap();
+    });
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .setup(|app| {
+        .setup(move |app| {
             let app_data_dir = match app.path().app_data_dir() {
                 Ok(dir) => dir,
                 Err(e) => {
@@ -51,17 +136,18 @@ pub fn run() {
             let kokoro_models_dir = app_data_dir.join("kokoro");
             let catalog = VoiceCatalog::new(piper_models_dir.clone(), kokoro_models_dir.clone());
 
-            let queue_config_path = app_data_dir.join("queue_config.json");
-            let queue_config = Queue::load_config(&queue_config_path);
-            let initial_auto_read = queue_config.auto_read;
-            let queue = Arc::new(tokio::sync::Mutex::new(
-                Queue::new()
-                    .with_config(queue_config)
-                    .with_config_path(queue_config_path),
-            ));
+            // Send AppHandle to actix thread so it can create actors
+            handle_tx
+                .send(app.handle().clone())
+                .expect("failed to send AppHandle to actix thread");
+
+            // Wait for actors to be created
+            let actors = actors_rx.recv().expect("failed to receive actors from actix thread");
 
             let voice_mapping_path = app_data_dir.join("voice_mapping.json");
-            let voice_mapping = Arc::new(tokio::sync::Mutex::new(VoiceMapping::load(&voice_mapping_path)));
+            let voice_mapping = Arc::new(tokio::sync::Mutex::new(VoiceMapping::load(
+                &voice_mapping_path,
+            )));
 
             let hotkey_config = crate::hotkey::load_hotkey(&app_data_dir.join("hotkey.txt"));
 
@@ -70,97 +156,15 @@ pub fn run() {
                 Some(std::time::Duration::from_secs(300)),
             )));
 
-            // Create factories
-            let piper_factory: Arc<dyn models::ModelFactory> = Arc::new(PiperFactory::new(
-                piper_models_dir,
-                app_data_dir.clone(),
-            ));
+            // Register actors as Tauri managed state
+            app.manage(actors);
 
-            let shared_engine_path = kokoro_models_dir.join("kokoro_engine.onnx");
-            let kokoro_factory: Arc<dyn models::ModelFactory> = Arc::new(
-                KokoroFactory::new(kokoro_models_dir, shared_engine_path),
-            );
-
-            let unified_factory = Arc::new(UnifiedFactory::new(piper_factory, kokoro_factory));
-
-            // Spawn transcriber — shares the same queue and voice_mapping via Arc
-            let app_handle_for_transcriber = app.handle().clone();
-            let model_pool_for_transcriber = model_pool.clone();
-            let voice_mapping_for_transcriber = voice_mapping.clone();
-            let unified_factory_for_transcriber = unified_factory.clone();
-            let queue_for_transcriber = queue.clone();
-
-            let transcriber_handle = transcriber::spawn_transcriber(
-                queue_for_transcriber,
-                model_pool_for_transcriber,
-                unified_factory_for_transcriber,
-                voice_mapping_for_transcriber,
-                {
-                    // Clone for speech player wake
-                    let app_handle_for_speech = app_handle_for_transcriber.clone();
-                    move |event| {
-                        let app_handle = app_handle_for_speech.clone();
-                        match event {
-                            TranscriptionEvent::Started { id, text } => {
-                                log::debug!("Transcription started for item {id}");
-                                let _ = app_handle.emit("transcription_started", (id, text));
-                            }
-                            TranscriptionEvent::Completed { id } => {
-                                log::debug!("Transcription completed for item {id}");
-                                let _ = app_handle.emit("transcription_completed", id);
-                                let _ = app_handle.emit("queue_updated", ());
-                                // Wake speech player to process the new Speech item
-                                let state = app_handle.state::<AppState>();
-                                let speech_handle = state.speech_player_handle.clone();
-                                {
-                                    let guard = speech_handle.try_lock();
-                                    if let Ok(handle) = guard {
-                                        if let Some(ref h) = *handle {
-                                            h.wake();
-                                        }
-                                    }
-                                }
-                            }
-                            TranscriptionEvent::Error { id, error } => {
-                                log::error!("Transcription error for item {id}: {error}");
-                                let _ = app_handle.emit("transcription_error", (id, error));
-                                let _ = app_handle.emit("queue_updated", ());
-                            }
-                        }
-                    }
-                },
-            );
-
-            // Spawn speech player
-            let auto_read = Arc::new(AtomicBool::new(initial_auto_read));
-            let queue_for_speech = queue.clone();
-            let app_handle_for_speech = app.handle().clone();
-            let speech_player_handle = speech_player::spawn_speech_player(
-                queue_for_speech,
-                auto_read.clone(),
-                move |event| match event {
-                    PlaybackEvent::Started { id } => {
-                        log::debug!("Playback started for item {id}");
-                        let _ = app_handle_for_speech.emit("queue_updated", ());
-                    }
-                    PlaybackEvent::ItemCompleted { id } => {
-                        log::debug!("Playback completed for item {id}");
-                        let _ = app_handle_for_speech.emit("queue_updated", ());
-                    }
-                    _ => {}
-                },
-            );
-
-            // Create AppState — shares queue and voice_mapping with transcriber
+            // Create AppState for non-queue functionality
             let state = AppState {
                 catalog,
-                queue: queue.clone(),
                 voice_mapping: voice_mapping.clone(),
                 app_data_dir,
                 model_pool: model_pool.clone(),
-                transcriber_handle: Arc::new(std::sync::Mutex::new(Some(transcriber_handle))),
-                speech_player_handle: Arc::new(std::sync::Mutex::new(Some(speech_player_handle))),
-                auto_read,
             };
             app.manage(state);
 
@@ -192,7 +196,6 @@ pub fn run() {
             .map_err(|e| e.to_string())?;
 
             // Intercept window close: always hide to tray
-            // Uses try_lock (non-blocking) since we're outside the tokio runtime
             {
                 let win = main_window.clone();
                 let app_handle = app.handle().clone();
@@ -201,20 +204,13 @@ pub fn run() {
                         return;
                     };
 
-                    let state = app_handle.state::<AppState>();
-                    let (has_items, show_overlay) = match state.queue.try_lock() {
-                        Ok(queue) => (!queue.is_empty(), queue.config().show_overlay),
-                        Err(_) => (false, true), // lock held, default to hiding
-                    };
-
+                    // Default: hide to tray. Overlay shown if queue was non-empty on last check.
                     api.prevent_close();
                     if let Err(e) = win.hide() {
                         log::warn!("Failed to hide main window: {e}");
                     }
-                    if has_items && show_overlay {
-                        if let Err(e) = overlay::show_overlay(&app_handle) {
-                            log::warn!("Failed to show overlay: {e}");
-                        }
+                    if let Err(e) = overlay::show_overlay(&app_handle) {
+                        log::warn!("Failed to show overlay: {e}");
                     }
                 });
             }
@@ -239,23 +235,21 @@ pub fn run() {
                                 if let Ok(text) = _app.clipboard().read_text() {
                                     let text = text.to_string();
                                     if !text.is_empty() {
-                                        let state = _app.state::<AppState>();
-                                        let queue = state.queue.clone();
-                                        let transcriber = state.transcriber_handle.clone();
+                                        let actors = _app.state::<AppActors>();
+                                        let queue = actors.queue.clone();
+                                        let transcriber = actors.transcriber.clone();
                                         tauri::async_runtime::spawn(async move {
-                                            let mut q = queue.lock().await;
-                                            match q.add_text(text) {
-                                                Ok(id) => {
-                                                    drop(q);
+                                            use actors::messages::{AddText, WakeTranscriber};
+                                            match queue.send(AddText { text }).await {
+                                                Ok(Ok(id)) => {
                                                     log::info!("Added item {id} via hotkey");
-                                                    if let Ok(handle) = transcriber.lock() {
-                                                        if let Some(ref h) = *handle {
-                                                            h.wake();
-                                                        }
-                                                    }
+                                                    transcriber.do_send(WakeTranscriber);
+                                                }
+                                                Ok(Err(e)) => {
+                                                    log::error!("Failed to add text to queue: {e}");
                                                 }
                                                 Err(e) => {
-                                                    log::error!("Failed to add text to queue: {e}");
+                                                    log::error!("Actor mailbox error: {e}");
                                                 }
                                             }
                                         });
@@ -266,7 +260,7 @@ pub fn run() {
                             }
                         },
                     ) {
-                        log::error!("Failed to register global shortcut: {e}");
+                        log::error!("Failed to register new shortcut: {e}");
                     }
                 } else {
                     log::error!("Failed to parse shortcut string: {shortcut_str}");

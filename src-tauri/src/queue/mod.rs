@@ -143,4 +143,12 @@ impl Queue {
             handler(event);
         }
     }
+
+    pub fn snapshot_dto(&self) -> crate::commands::QueueSnapshotDto {
+        crate::commands::QueueSnapshotDto {
+            items: self.items.iter().map(crate::commands::QueueItemDto::from).collect(),
+            auto_read: self.config.auto_read,
+            show_overlay: self.config.show_overlay,
+        }
+    }
 }

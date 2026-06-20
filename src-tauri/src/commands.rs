@@ -1,28 +1,23 @@
 // Tauri command handlers for IPC between frontend and backend.
-// Each command is a thin wrapper calling into domain modules.
+// Each command is a thin wrapper calling into domain modules or actor messages.
 
+use crate::actors::AppActors;
+use crate::actors::messages::*;
 use crate::catalog::{DownloadProgress, InstalledVoice, VoiceCatalog, VoiceCatalogOps};
 use crate::hotkey::{ShortcutConfig, load_hotkey, parse_shortcut, save_hotkey};
 use crate::models::ModelPool;
-use crate::queue::{Queue, QueueControllable, QueueItem};
-use crate::speech_player::SpeechPlayerHandle;
-use crate::transcriber::TranscriberHandle;
+use crate::queue::QueueItem;
 use crate::voice_prefs::VoiceMapping;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use tauri::{AppHandle, Emitter, Manager};
 
 pub struct AppState {
     pub catalog: VoiceCatalog,
-    pub queue: Arc<tokio::sync::Mutex<Queue>>,
     pub voice_mapping: Arc<tokio::sync::Mutex<VoiceMapping>>,
     pub app_data_dir: PathBuf,
     pub model_pool: Arc<tokio::sync::Mutex<ModelPool>>,
-    pub transcriber_handle: Arc<std::sync::Mutex<Option<TranscriberHandle>>>,
-    pub speech_player_handle: Arc<std::sync::Mutex<Option<SpeechPlayerHandle>>>,
-    pub auto_read: Arc<AtomicBool>,
 }
 
 // ── Catalog commands ──────────────────────────────────────────────
@@ -82,95 +77,91 @@ pub fn uninstall_voice(
     Ok(())
 }
 
-// ── Queue commands ────────────────────────────────────────────────
+// ── Queue commands (via actors) ───────────────────────────────────
 
 #[tauri::command]
-pub async fn queue_state(state: tauri::State<'_, AppState>) -> Result<QueueSnapshotDto, String> {
-    let queue = state
+pub async fn queue_state(actors: tauri::State<'_, AppActors>) -> Result<QueueSnapshotDto, String> {
+    actors
         .queue
-        .lock()
-        .await;
-    Ok(QueueSnapshotDto {
-        items: queue.items().iter().map(QueueItemDto::from).collect(),
-        auto_read: queue.config().auto_read,
-        show_overlay: queue.config().show_overlay,
-    })
+        .send(GetQueueState)
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|_| "failed to get queue state".to_string())
 }
 
 #[tauri::command]
-pub async fn queue_add(state: tauri::State<'_, AppState>, text: String) -> Result<u64, String> {
-    let mut queue = state
+pub async fn queue_add(
+    actors: tauri::State<'_, AppActors>,
+    text: String,
+) -> Result<u64, String> {
+    let id = actors
         .queue
-        .lock()
-        .await;
-    let id = queue.add_text(text)?;
-    drop(queue);
-    log::info!("Added item {id} to queue");
-    // Wake transcriber to process the new item
-    if let Ok(handle) = state.transcriber_handle.lock() {
-        if let Some(ref h) = *handle {
-            h.wake();
-        }
-    }
+        .send(AddText { text })
+        .await
+        .map_err(|e| e.to_string())??;
+    actors.transcriber.do_send(WakeTranscriber);
     Ok(id)
 }
 
 #[tauri::command]
-pub async fn queue_remove(state: tauri::State<'_, AppState>, id: u64) -> Result<(), String> {
-    let mut queue = state
+pub async fn queue_remove(actors: tauri::State<'_, AppActors>, id: u64) -> Result<(), String> {
+    actors
         .queue
-        .lock()
-        .await;
-    queue.remove(id)?;
-    log::info!("Removed item {id} from queue");
-    Ok(())
+        .send(RemoveItem { id })
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub async fn queue_move(state: tauri::State<'_, AppState>, id: u64, index: usize) -> Result<(), String> {
-    let mut queue = state
+pub async fn queue_move(
+    actors: tauri::State<'_, AppActors>,
+    id: u64,
+    index: usize,
+) -> Result<(), String> {
+    actors
         .queue
-        .lock()
-        .await;
-    queue.reorder(id, index)
+        .send(MoveItem {
+            id,
+            new_index: index,
+        })
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub async fn queue_clear(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    let mut queue = state
+pub async fn queue_clear(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+    actors
         .queue
-        .lock()
-        .await;
-    queue.clear()?;
-    log::info!("Queue cleared");
-    Ok(())
+        .send(ClearQueue)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub async fn queue_toggle_auto_read(state: tauri::State<'_, AppState>) -> Result<bool, String> {
-    let mut queue = state
+pub async fn queue_toggle_auto_read(actors: tauri::State<'_, AppActors>) -> Result<bool, String> {
+    actors
         .queue
-        .lock()
-        .await;
-    queue.config.auto_read = !queue.config.auto_read;
-    let val = queue.config.auto_read;
-    if let Err(e) = queue.save_config() {
-        log::error!("Failed to save queue config: {e}");
-    }
-    drop(queue);
-    // Sync the AtomicBool used by the speech player
-    state.auto_read.store(val, std::sync::atomic::Ordering::SeqCst);
-    Ok(val)
+        .send(ToggleAutoRead)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn queue_toggle_overlay(actors: tauri::State<'_, AppActors>) -> Result<bool, String> {
+    actors
+        .queue
+        .send(ToggleOverlay)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 // ── Voice mapping commands ────────────────────────────────────────
 
 #[tauri::command]
-pub async fn get_voice_preference(state: tauri::State<'_, AppState>) -> Result<VoiceMappingDto, String> {
-    let mapping = state
-        .voice_mapping
-        .lock()
-        .await;
+pub async fn get_voice_preference(
+    state: tauri::State<'_, AppState>,
+) -> Result<VoiceMappingDto, String> {
+    let mapping = state.voice_mapping.lock().await;
     Ok(VoiceMappingDto::from(&*mapping))
 }
 
@@ -180,21 +171,18 @@ pub async fn set_voice_preference(
     language: String,
     voice_key: String,
 ) -> Result<(), String> {
-    let mut mapping = state
-        .voice_mapping
-        .lock()
-        .await;
+    let mut mapping = state.voice_mapping.lock().await;
     mapping.language_voice.insert(language, voice_key);
     let path = state.app_data_dir.join("voice_mapping.json");
     mapping.save(&path)
 }
 
 #[tauri::command]
-pub async fn set_fallback_voice(state: tauri::State<'_, AppState>, voice_key: Option<String>) -> Result<(), String> {
-    let mut mapping = state
-        .voice_mapping
-        .lock()
-        .await;
+pub async fn set_fallback_voice(
+    state: tauri::State<'_, AppState>,
+    voice_key: Option<String>,
+) -> Result<(), String> {
+    let mut mapping = state.voice_mapping.lock().await;
     mapping.fallback_voice_key = voice_key;
     let path = state.app_data_dir.join("voice_mapping.json");
     mapping.save(&path)
@@ -214,16 +202,14 @@ pub fn save_hotkey_cmd(
     app: AppHandle,
     shortcut: String,
 ) -> Result<ShortcutConfig, String> {
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
     use tauri_plugin_clipboard_manager::ClipboardExt;
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
     let config = parse_shortcut(&shortcut).map_err(|e| e.to_string())?;
 
     // Unregister old shortcut if any
-    if let Ok(_handle) = state.transcriber_handle.lock() {
-        if let Err(e) = app.global_shortcut().unregister_all() {
-            log::warn!("Failed to unregister old shortcuts: {e}");
-        }
+    if let Err(e) = app.global_shortcut().unregister_all() {
+        log::warn!("Failed to unregister old shortcuts: {e}");
     }
 
     // Register new shortcut
@@ -236,23 +222,20 @@ pub fn save_hotkey_cmd(
                     if let Ok(text) = _app.clipboard().read_text() {
                         let text = text.to_string();
                         if !text.is_empty() {
-                            let state = _app.state::<AppState>();
-                            let queue = state.queue.clone();
-                            let transcriber = state.transcriber_handle.clone();
+                            let actors = _app.state::<AppActors>();
+                            let queue = actors.queue.clone();
+                            let transcriber = actors.transcriber.clone();
                             tauri::async_runtime::spawn(async move {
-                                let mut q = queue.lock().await;
-                                match q.add_text(text) {
-                                    Ok(id) => {
-                                        drop(q);
+                                match queue.send(AddText { text }).await {
+                                    Ok(Ok(id)) => {
                                         log::info!("Added item {id} via hotkey");
-                                        if let Ok(handle) = transcriber.lock() {
-                                            if let Some(ref h) = *handle {
-                                                h.wake();
-                                            }
-                                        }
+                                        transcriber.do_send(WakeTranscriber);
+                                    }
+                                    Ok(Err(e)) => {
+                                        log::error!("Failed to add text to queue: {e}");
                                     }
                                     Err(e) => {
-                                        log::error!("Failed to add text to queue: {e}");
+                                        log::error!("Actor mailbox error: {e}");
                                     }
                                 }
                             });
@@ -295,20 +278,6 @@ pub fn hide_overlay_window(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn toggle_overlay_window(app: AppHandle) -> Result<bool, String> {
     crate::overlay::toggle_overlay(&app)
-}
-
-#[tauri::command]
-pub async fn queue_toggle_overlay(state: tauri::State<'_, AppState>) -> Result<bool, String> {
-    let mut queue = state
-        .queue
-        .lock()
-        .await;
-    queue.config.show_overlay = !queue.config.show_overlay;
-    let val = queue.config.show_overlay;
-    if let Err(e) = queue.save_config() {
-        log::error!("Failed to save queue config: {e}");
-    }
-    Ok(val)
 }
 
 // ── DTO types ─────────────────────────────────────────────────────
