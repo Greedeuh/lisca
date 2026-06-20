@@ -160,6 +160,42 @@
   font-size: 14px;
 }
 
+.ql-playback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.03);
+  margin-bottom: 4px;
+}
+
+.ql-playback-active {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.ql-playback-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ql-playback .ql-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.ql-playback .ql-btn:disabled:hover {
+  background: transparent;
+  color: #6b7280;
+}
+
+.ql-btn-stop:hover {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
 @media (prefers-color-scheme: dark) {
   .ql-item {
     background: rgba(255, 255, 255, 0.04);
@@ -207,5 +243,23 @@
   .ql-btn-clear:hover {
     color: #f87171;
     background: rgba(248, 113, 113, 0.1);
+  }
+
+  .ql-playback {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .ql-playback-active {
+    background: rgba(37, 99, 235, 0.12);
+  }
+
+  .ql-btn-stop:hover {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.1);
+  }
+
+  .ql-playback .ql-btn:disabled:hover {
+    background: transparent;
+    color: #9ca3af;
   }
 }

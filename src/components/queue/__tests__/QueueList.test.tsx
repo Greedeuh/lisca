@@ -30,6 +30,9 @@ const defaults = {
   onMove: vi.fn(),
   onToggleAutoRead: vi.fn(),
   onClear: vi.fn(),
+  onPause: vi.fn(),
+  onResume: vi.fn(),
+  onStop: vi.fn(),
 };
 
 function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}) {
@@ -42,6 +45,9 @@ function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}
       onMove={props.onMove}
       onToggleAutoRead={props.onToggleAutoRead}
       onClear={props.onClear}
+      onPause={props.onPause}
+      onResume={props.onResume}
+      onStop={props.onStop}
     />,
   );
 }
@@ -174,6 +180,9 @@ describe("QueueListView", () => {
         onMove={vi.fn()}
         onToggleAutoRead={vi.fn()}
         onClear={vi.fn()}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onStop={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox")).toBeChecked();
@@ -185,6 +194,9 @@ describe("QueueListView", () => {
         onMove={vi.fn()}
         onToggleAutoRead={vi.fn()}
         onClear={vi.fn()}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onStop={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox")).not.toBeChecked();

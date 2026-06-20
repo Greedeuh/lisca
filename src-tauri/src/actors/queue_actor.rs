@@ -192,6 +192,39 @@ impl Handler<SetItemCompleted> for QueueActor {
     }
 }
 
+impl Handler<SetSpeechPaused> for QueueActor {
+    type Result = Result<(), String>;
+
+    fn handle(&mut self, msg: SetSpeechPaused, _: &mut Context<Self>) -> Self::Result {
+        self.queue
+            .set_speech_status(msg.id, crate::queue::SpeechStatus::Paused)?;
+        self.emit_event("item_paused");
+        Ok(())
+    }
+}
+
+impl Handler<SetSpeechResumed> for QueueActor {
+    type Result = Result<(), String>;
+
+    fn handle(&mut self, msg: SetSpeechResumed, _: &mut Context<Self>) -> Self::Result {
+        self.queue
+            .set_speech_status(msg.id, crate::queue::SpeechStatus::Playing)?;
+        self.emit_event("item_resumed");
+        Ok(())
+    }
+}
+
+impl Handler<SetSpeechStopped> for QueueActor {
+    type Result = Result<(), String>;
+
+    fn handle(&mut self, msg: SetSpeechStopped, _: &mut Context<Self>) -> Self::Result {
+        self.queue
+            .set_speech_status(msg.id, crate::queue::SpeechStatus::Played)?;
+        self.emit_event("item_stopped");
+        Ok(())
+    }
+}
+
 impl Handler<SetPlayerAddr> for QueueActor {
     type Result = ();
 

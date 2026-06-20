@@ -1,6 +1,7 @@
 import type { QueueItem } from "../../types/queue";
 import { MAX_TEXT_PREVIEW, truncate, statusLabel, statusClass } from "./queueUtils";
 import { TextMessageControls, SpeechControls } from "./QueueItemControls";
+import { PlaybackControls } from "./PlaybackControls";
 import "./QueueList.css";
 
 export interface QueueListViewProps {
@@ -10,6 +11,9 @@ export interface QueueListViewProps {
   onMove: (id: number, index: number) => void;
   onToggleAutoRead: () => void;
   onClear: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onStop: () => void;
 }
 
 export function QueueListView({
@@ -19,9 +23,25 @@ export function QueueListView({
   onMove,
   onToggleAutoRead,
   onClear,
+  onPause,
+  onResume,
+  onStop,
 }: QueueListViewProps) {
+  const activeItem = items.find(
+    (item): item is QueueItem & { type: "Speech" } =>
+      item.type === "Speech" &&
+      (item.status === "playing" || item.status === "paused"),
+  );
+
   return (
     <div className="ql-container">
+      <PlaybackControls
+        item={activeItem ?? null}
+        hasItems={items.length > 0}
+        onPause={onPause}
+        onResume={onResume}
+        onStop={onStop}
+      />
       {items.length === 0 ? (
         <div className="ql-empty">
           Queue is empty. Use the hotkey to add text.

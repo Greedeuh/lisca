@@ -28,6 +28,7 @@ pub struct SpeechPlayerActor {
     _keepalive: Option<mpsc::Sender<()>>,
     auto_read: bool,
     stopped: bool,
+    current_id: Option<u64>,
     config_path: Option<std::path::PathBuf>,
 }
 
@@ -44,6 +45,7 @@ impl SpeechPlayerActor {
             _keepalive: None,
             auto_read,
             stopped: false,
+            current_id: None,
             config_path: None,
         }
     }
@@ -160,10 +162,13 @@ impl Handler<PlayNext> for SpeechPlayerActor {
             };
 
             let id = pending.id;
+            let _ = my_addr.send(SetCurrentId { id: Some(id) }).await;
+
             let audio_data = match pending.audio_data {
                 Some(d) => d,
                 None => {
                     let _ = queue_addr.send(SetItemCompleted { id }).await;
+                    let _ = my_addr.send(SetCurrentId { id: None }).await;
                     return;
                 }
             };
@@ -196,6 +201,7 @@ impl Handler<PlaybackComplete> for SpeechPlayerActor {
         if self.stopped {
             return;
         }
+        self.current_id = None;
         self
             .queue_addr
             .do_send(SetItemCompleted { id: msg.id });
@@ -221,6 +227,10 @@ impl Handler<PlaybackPause> for SpeechPlayerActor {
         if let Some(sink) = self.sink.lock().unwrap().as_ref() {
             sink.pause();
         }
+        if let Some(id) = self.current_id {
+            let _ = self.queue_addr.do_send(SetSpeechPaused { id });
+        }
+        self.app_handle.emit("playback_paused", ()).ok();
     }
 }
 
@@ -231,6 +241,10 @@ impl Handler<PlaybackResume> for SpeechPlayerActor {
         if let Some(sink) = self.sink.lock().unwrap().as_ref() {
             sink.play();
         }
+        if let Some(id) = self.current_id {
+            let _ = self.queue_addr.do_send(SetSpeechResumed { id });
+        }
+        self.app_handle.emit("playback_resumed", ()).ok();
     }
 }
 
@@ -241,7 +255,12 @@ impl Handler<PlaybackStop> for SpeechPlayerActor {
         if let Some(sink) = self.sink.lock().unwrap().as_ref() {
             sink.stop();
         }
+        if let Some(id) = self.current_id {
+            let _ = self.queue_addr.do_send(SetSpeechStopped { id });
+            self.current_id = None;
+        }
         self.stopped = true;
+        self.app_handle.emit("playback_stopped", ()).ok();
     }
 }
 
@@ -267,5 +286,13 @@ impl Handler<GetAutoRead> for SpeechPlayerActor {
 
     fn handle(&mut self, _: GetAutoRead, _: &mut Context<Self>) -> Self::Result {
         self.auto_read
+    }
+}
+
+impl Handler<SetCurrentId> for SpeechPlayerActor {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetCurrentId, _: &mut Context<Self>) {
+        self.current_id = msg.id;
     }
 }

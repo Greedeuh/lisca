@@ -164,6 +164,33 @@ pub async fn queue_toggle_overlay(actors: tauri::State<'_, AppActors>) -> Result
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn playback_pause(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+    actors
+        .player
+        .send(PlaybackPause)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn playback_resume(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+    actors
+        .player
+        .send(PlaybackResume)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn playback_stop(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+    actors
+        .player
+        .send(PlaybackStop)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ── Voice mapping commands ────────────────────────────────────────
 
 #[tauri::command]

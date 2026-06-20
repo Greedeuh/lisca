@@ -7,6 +7,9 @@ import {
   queueMove,
   queueClear,
   queueToggleAutoRead,
+  playbackPause,
+  playbackResume,
+  playbackStop,
 } from "../../types/ipc";
 import { QueueListView } from "./QueueListView";
 
@@ -69,6 +72,33 @@ export function QueueList() {
     }
   }, [addToast, refresh]);
 
+  const handlePause = useCallback(async () => {
+    try {
+      await playbackPause();
+      await refresh();
+    } catch (e) {
+      addToast(`Failed to pause: ${e}`);
+    }
+  }, [addToast, refresh]);
+
+  const handleResume = useCallback(async () => {
+    try {
+      await playbackResume();
+      await refresh();
+    } catch (e) {
+      addToast(`Failed to resume: ${e}`);
+    }
+  }, [addToast, refresh]);
+
+  const handleStop = useCallback(async () => {
+    try {
+      await playbackStop();
+      await refresh();
+    } catch (e) {
+      addToast(`Failed to stop: ${e}`);
+    }
+  }, [addToast, refresh]);
+
   return (
     <QueueListView
       items={items}
@@ -77,6 +107,9 @@ export function QueueList() {
       onMove={handleMove}
       onToggleAutoRead={handleToggleAutoRead}
       onClear={handleClear}
+      onPause={handlePause}
+      onResume={handleResume}
+      onStop={handleStop}
     />
   );
 }

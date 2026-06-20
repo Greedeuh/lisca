@@ -45,6 +45,11 @@ export function useTtsQueue(): UseTtsQueueReturn {
       "transcription_completed",
       "playback_started",
       "playback_stopped",
+      "playback_paused",
+      "playback_resumed",
+      "item_paused",
+      "item_resumed",
+      "item_stopped",
     ] as const;
 
     const unlisteners = queueEvents.map((event) =>

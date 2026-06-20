@@ -77,6 +77,24 @@ pub struct SetItemCompleted {
     pub id: u64,
 }
 
+#[derive(Message)]
+#[rtype(result = "Result<(), String>")]
+pub struct SetSpeechPaused {
+    pub id: u64,
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), String>")]
+pub struct SetSpeechResumed {
+    pub id: u64,
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), String>")]
+pub struct SetSpeechStopped {
+    pub id: u64,
+}
+
 #[derive(Clone, Debug)]
 pub struct PendingTextItem {
     pub id: u64,
@@ -118,6 +136,12 @@ pub struct PlaybackResume;
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct PlaybackStop;
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct SetCurrentId {
+    pub id: Option<u64>,
+}
 
 #[derive(Message)]
 #[rtype(result = "()")]

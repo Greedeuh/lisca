@@ -100,3 +100,15 @@ export function toggleOverlayWindow(): Promise<boolean> {
 export function queueToggleOverlay(): Promise<boolean> {
   return invoke("queue_toggle_overlay");
 }
+
+export function playbackPause(): Promise<void> {
+  return invoke("playback_pause");
+}
+
+export function playbackResume(): Promise<void> {
+  return invoke("playback_resume");
+}
+
+export function playbackStop(): Promise<void> {
+  return invoke("playback_stop");
+}

@@ -315,6 +315,9 @@ pub fn run() {
             commands::hide_overlay_window,
             commands::toggle_overlay_window,
             commands::queue_toggle_overlay,
+            commands::playback_pause,
+            commands::playback_resume,
+            commands::playback_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

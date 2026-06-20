@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { QueueListView } from "../components/queue/QueueListView";
 import type { QueueItem } from "../types/queue";
-import { getQueueState, getPlayerState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay } from "../types/ipc";
+import { getQueueState, getPlayerState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay, playbackPause, playbackResume, playbackStop } from "../types/ipc";
 import "./OverlayApp.css";
 
 export default function OverlayApp() {
@@ -38,6 +38,11 @@ export default function OverlayApp() {
       "config_changed",
       "playback_started",
       "playback_stopped",
+      "playback_paused",
+      "playback_resumed",
+      "item_paused",
+      "item_resumed",
+      "item_stopped",
     ] as const;
 
     const unlisteners = events.map((event) =>
@@ -85,6 +90,27 @@ export default function OverlayApp() {
     } catch {}
   }, []);
 
+  const handlePause = useCallback(async () => {
+    try {
+      await playbackPause();
+      await refreshQueue();
+    } catch {}
+  }, [refreshQueue]);
+
+  const handleResume = useCallback(async () => {
+    try {
+      await playbackResume();
+      await refreshQueue();
+    } catch {}
+  }, [refreshQueue]);
+
+  const handleStop = useCallback(async () => {
+    try {
+      await playbackStop();
+      await refreshQueue();
+    } catch {}
+  }, [refreshQueue]);
+
   const handleClose = useCallback(async () => {
     try {
       const snapshot = await getQueueState();
@@ -118,6 +144,9 @@ export default function OverlayApp() {
           onMove={handleMove}
           onToggleAutoRead={handleToggleAutoRead}
           onClear={handleClear}
+          onPause={handlePause}
+          onResume={handleResume}
+          onStop={handleStop}
         />
       </div>
     </div>
