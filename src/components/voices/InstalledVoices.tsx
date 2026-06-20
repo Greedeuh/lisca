@@ -10,6 +10,7 @@ import {
 } from "../../types/ipc";
 import type { InstalledVoice } from "../../types/voice-catalog";
 import type { VoiceMapping } from "../../types/voice-prefs";
+import { LANG_NAMES } from "../../types/lang-names";
 import "./InstalledVoices.css";
 
 function groupByLanguage(voices: InstalledVoice[]): Map<string, InstalledVoice[]> {
@@ -23,6 +24,17 @@ function groupByLanguage(voices: InstalledVoice[]): Map<string, InstalledVoice[]
   return groups;
 }
 
+function matchesFilter(voice: InstalledVoice, filter: string): boolean {
+  if (!filter) return true;
+  const q = filter.toLowerCase();
+  return (
+    voice.name.toLowerCase().includes(q) ||
+    voice.language.toLowerCase().includes(q) ||
+    (LANG_NAMES[voice.language] || "").toLowerCase().includes(q) ||
+    voice.model_type.toLowerCase().includes(q)
+  );
+}
+
 export function InstalledVoices() {
   const { addToast } = useToast();
   const [voices, setVoices] = useState<InstalledVoice[]>([]);
@@ -31,6 +43,7 @@ export function InstalledVoices() {
     fallback_voice_key: null,
   });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState("");
 
   const refreshInstalled = useCallback(async () => {
     try {
@@ -103,7 +116,8 @@ export function InstalledVoices() {
     [addToast, refreshVoiceMapping],
   );
 
-  const groups = groupByLanguage(voices);
+  const filtered = voices.filter((v) => matchesFilter(v, filter));
+  const groups = groupByLanguage(filtered);
 
   const toggleLang = (lang: string) => {
     setExpanded((prev) => {
@@ -126,6 +140,16 @@ export function InstalledVoices() {
 
   return (
     <div className="iv-container">
+      <input
+        type="text"
+        className="iv-search"
+        placeholder="Filter voices..."
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
+      {filtered.length === 0 && (
+        <div className="iv-empty">No voices match your filter.</div>
+      )}
       {Array.from(groups.entries()).map(([lang, langVoices]) => {
         const activeVoice = voiceMapping.language_voice[lang];
         return (

@@ -7,11 +7,23 @@ import {
   installVoice,
 } from "../../types/ipc";
 import type { VoiceEntry, DownloadProgress } from "../../types/voice-catalog";
+import { LANG_NAMES } from "../../types/lang-names";
 import "./VoiceBrowser.css";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
+function matchesFilter(voice: VoiceEntry, filter: string): boolean {
+  if (!filter) return true;
+  const q = filter.toLowerCase();
+  return (
+    voice.name.toLowerCase().includes(q) ||
+    voice.language.toLowerCase().includes(q) ||
+    (LANG_NAMES[voice.language] || "").toLowerCase().includes(q) ||
+    voice.model_type.toLowerCase().includes(q)
+  );
 }
 
 function groupByLanguage(voices: VoiceEntry[]): Map<string, VoiceEntry[]> {
@@ -31,6 +43,7 @@ export function VoiceBrowser() {
   const [installedKeys, setInstalledKeys] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState<Map<string, DownloadProgress>>(new Map());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState("");
 
   const refreshInstalled = useCallback(async () => {
     try {
@@ -84,7 +97,8 @@ export function VoiceBrowser() {
     [addToast, refreshInstalled],
   );
 
-  const groups = groupByLanguage(voices);
+  const filtered = voices.filter((v) => matchesFilter(v, filter));
+  const groups = groupByLanguage(filtered);
 
   const toggleLang = (lang: string) => {
     setExpanded((prev) => {
@@ -99,8 +113,30 @@ export function VoiceBrowser() {
     return <div className="vb-empty">No voices available.</div>;
   }
 
+  if (filtered.length === 0) {
+    return (
+      <div className="vb-container">
+        <input
+          type="text"
+          className="vb-search"
+          placeholder="Filter voices..."
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <div className="vb-empty">No voices match your filter.</div>
+      </div>
+    );
+  }
+
   return (
     <div className="vb-container">
+      <input
+        type="text"
+        className="vb-search"
+        placeholder="Filter voices..."
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
       {Array.from(groups.entries()).map(([lang, langVoices]) => (
         <div key={lang} className="vb-group">
           <button className="vb-lang-header" onClick={() => toggleLang(lang)}>
