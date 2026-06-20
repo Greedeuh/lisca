@@ -11,6 +11,7 @@ import {
   playbackResume,
   playbackStop,
   playbackSkip,
+  playbackRestart,
 } from "../../types/ipc";
 import { QueueListView } from "./QueueListView";
 
@@ -109,6 +110,15 @@ export function QueueList() {
     }
   }, [addToast, refresh]);
 
+  const handleRestart = useCallback(async () => {
+    try {
+      await playbackRestart();
+      await refresh();
+    } catch (e) {
+      addToast(`Failed to restart: ${e}`);
+    }
+  }, [addToast, refresh]);
+
   return (
     <QueueListView
       items={items}
@@ -121,6 +131,7 @@ export function QueueList() {
       onResume={handleResume}
       onStop={handleStop}
       onSkip={handleSkip}
+      onRestart={handleRestart}
     />
   );
 }

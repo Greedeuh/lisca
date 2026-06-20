@@ -116,3 +116,7 @@ export function playbackStop(): Promise<void> {
 export function playbackSkip(): Promise<void> {
   return invoke("playback_skip");
 }
+
+export function playbackRestart(): Promise<void> {
+  return invoke("playback_restart");
+}

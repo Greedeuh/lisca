@@ -26,6 +26,7 @@ export function SpeechControls({
   onMove,
   onStop,
   onSkip,
+  onRestart,
 }: {
   item: QueueItem & { type: "Speech" };
   index: number;
@@ -34,6 +35,7 @@ export function SpeechControls({
   onMove: (id: number, index: number) => void;
   onStop: () => void;
   onSkip: () => void;
+  onRestart: () => void;
 }) {
   const isPlaying = item.status === "playing";
   const isPaused = item.status === "paused";
@@ -59,13 +61,22 @@ export function SpeechControls({
         </button>
       )}
       {(isPlaying || isPaused) && (
-        <button
-          className="ql-btn"
-          onClick={() => onSkip()}
-          aria-label="Skip"
-        >
-          ⏭
-        </button>
+        <>
+          <button
+            className="ql-btn"
+            onClick={() => onRestart()}
+            aria-label="Restart"
+          >
+            ↺
+          </button>
+          <button
+            className="ql-btn"
+            onClick={() => onSkip()}
+            aria-label="Skip"
+          >
+            ⏭
+          </button>
+        </>
       )}
       <button
         className="ql-btn ql-btn-remove"

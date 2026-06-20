@@ -1,5 +1,6 @@
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 use actix::{Actor, Addr, AsyncContext, Context, Handler, WrapFuture};
 use tauri::{AppHandle, Emitter};
@@ -298,6 +299,18 @@ impl Handler<PlaybackSkip> for SpeechPlayerActor {
         };
 
         ctx.spawn(fut.into_actor(self));
+    }
+}
+
+impl Handler<PlaybackRestart> for SpeechPlayerActor {
+    type Result = ();
+
+    fn handle(&mut self, _: PlaybackRestart, _: &mut Context<Self>) {
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            if let Err(e) = sink.try_seek(Duration::from_secs(0)) {
+                log::warn!("Failed to seek to start: {e}");
+            }
+        }
     }
 }
 

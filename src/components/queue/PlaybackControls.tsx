@@ -6,6 +6,7 @@ interface PlaybackControlsProps {
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  onRestart: () => void;
 }
 
 export function PlaybackControls({
@@ -14,6 +15,7 @@ export function PlaybackControls({
   onPause,
   onResume,
   onStop,
+  onRestart,
 }: PlaybackControlsProps) {
   const isPlaying = item?.status === "playing";
   const isPaused = item?.status === "paused";
@@ -23,6 +25,14 @@ export function PlaybackControls({
   return (
     <div className={`ql-playback ${active ? "ql-playback-active" : ""}`}>
       <div className="ql-playback-controls">
+        <button
+          className="ql-btn"
+          onClick={onRestart}
+          aria-label="Restart"
+          disabled={!active}
+        >
+          ↺
+        </button>
         <button
           className="ql-btn"
           onClick={isPlaying ? onPause : onResume}
