@@ -186,10 +186,10 @@ impl Handler<TranscriptionDone> for TranscriberActor {
     }
 }
 
-impl Handler<WakeTranscriber> for TranscriberActor {
+impl Handler<TextAdded> for TranscriberActor {
     type Result = ();
 
-    fn handle(&mut self, _: WakeTranscriber, ctx: &mut Context<Self>) {
+    fn handle(&mut self, _: TextAdded, ctx: &mut Context<Self>) {
         if !self.busy {
             ctx.address().do_send(PollNextTextTick);
         }

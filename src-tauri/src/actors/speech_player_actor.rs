@@ -130,10 +130,10 @@ impl Handler<PlaybackDone> for SpeechPlayerActor {
     }
 }
 
-impl Handler<WakePlayer> for SpeechPlayerActor {
+impl Handler<SpeechReady> for SpeechPlayerActor {
     type Result = ();
 
-    fn handle(&mut self, _: WakePlayer, ctx: &mut Context<Self>) {
+    fn handle(&mut self, _: SpeechReady, ctx: &mut Context<Self>) {
         if !self.busy && self.auto_read {
             ctx.address().do_send(PollNextSpeechTick);
         }

@@ -100,10 +100,14 @@ pub fn run() {
                 addr: speech_player_actor.clone(),
             });
 
+            // Wire transcriber address into QueueActor
+            queue_actor.do_send(actors::messages::SetTranscriberAddr {
+                addr: transcriber_actor.clone(),
+            });
+
             actors_tx
                 .send(AppActors {
                     queue: queue_actor,
-                    transcriber: transcriber_actor,
                     player: speech_player_actor,
                 })
                 .expect("failed to send actors");
@@ -237,13 +241,11 @@ pub fn run() {
                                     if !text.is_empty() {
                                         let actors = _app.state::<AppActors>();
                                         let queue = actors.queue.clone();
-                                        let transcriber = actors.transcriber.clone();
                                         tauri::async_runtime::spawn(async move {
-                                            use actors::messages::{AddText, WakeTranscriber};
+                                            use actors::messages::AddText;
                                             match queue.send(AddText { text }).await {
                                                 Ok(Ok(id)) => {
                                                     log::info!("Added item {id} via hotkey");
-                                                    transcriber.do_send(WakeTranscriber);
                                                 }
                                                 Ok(Err(e)) => {
                                                     log::error!("Failed to add text to queue: {e}");

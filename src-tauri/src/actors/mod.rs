@@ -7,6 +7,5 @@ use actix::Addr;
 
 pub struct AppActors {
     pub queue: Addr<queue_actor::QueueActor>,
-    pub transcriber: Addr<transcriber_actor::TranscriberActor>,
     pub player: Addr<speech_player_actor::SpeechPlayerActor>,
 }

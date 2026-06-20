@@ -2,6 +2,7 @@ use actix::{Addr, Message};
 use crate::commands::QueueSnapshotDto;
 
 use super::speech_player_actor::SpeechPlayerActor;
+use super::transcriber_actor::TranscriberActor;
 
 // ── QueueActor messages ────────────────────────────────────────────
 
@@ -89,17 +90,17 @@ pub struct PendingSpeechItem {
     pub audio_data: Option<Vec<f32>>,
 }
 
-// ── TranscriberActor messages ──────────────────────────────────────
+// ── Queue event notifications (sent to peer actors) ────────────────
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct WakeTranscriber;
+pub struct TextAdded;
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct SpeechReady;
 
 // ── SpeechPlayerActor messages ─────────────────────────────────────
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct WakePlayer;
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -123,4 +124,10 @@ pub struct AutoReadChanged {
 #[rtype(result = "()")]
 pub struct SetPlayerAddr {
     pub addr: Addr<SpeechPlayerActor>,
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct SetTranscriberAddr {
+    pub addr: Addr<TranscriberActor>,
 }

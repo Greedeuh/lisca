@@ -6,11 +6,13 @@ use crate::queue::{Playable, Queue, QueueControllable, Transcribable};
 
 use super::messages::*;
 use super::speech_player_actor::SpeechPlayerActor;
+use super::transcriber_actor::TranscriberActor;
 
 pub struct QueueActor {
     queue: Queue,
     app_handle: AppHandle,
     player_addr: Option<Addr<SpeechPlayerActor>>,
+    transcriber_addr: Option<Addr<TranscriberActor>>,
 }
 
 impl QueueActor {
@@ -19,11 +21,16 @@ impl QueueActor {
             queue,
             app_handle,
             player_addr: None,
+            transcriber_addr: None,
         }
     }
 
     pub fn set_player_addr(&mut self, addr: Addr<SpeechPlayerActor>) {
         self.player_addr = Some(addr);
+    }
+
+    pub fn set_transcriber_addr(&mut self, addr: Addr<TranscriberActor>) {
+        self.transcriber_addr = Some(addr);
     }
 
     fn emit_updated(&self) {
@@ -41,6 +48,9 @@ impl Handler<AddText> for QueueActor {
     fn handle(&mut self, msg: AddText, _: &mut Context<Self>) -> Self::Result {
         let id = self.queue.add_text(msg.text)?;
         self.emit_updated();
+        if let Some(ref addr) = self.transcriber_addr {
+            addr.do_send(TextAdded);
+        }
         Ok(id)
     }
 }
@@ -153,6 +163,9 @@ impl Handler<ReplaceWithSpeech> for QueueActor {
             msg.language,
         )?;
         self.emit_updated();
+        if let Some(ref addr) = self.player_addr {
+            addr.do_send(SpeechReady);
+        }
         Ok(())
     }
 }
@@ -199,5 +212,13 @@ impl Handler<SetPlayerAddr> for QueueActor {
 
     fn handle(&mut self, msg: SetPlayerAddr, _: &mut Context<Self>) {
         self.player_addr = Some(msg.addr);
+    }
+}
+
+impl Handler<SetTranscriberAddr> for QueueActor {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetTranscriberAddr, _: &mut Context<Self>) {
+        self.transcriber_addr = Some(msg.addr);
     }
 }
