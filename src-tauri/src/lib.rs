@@ -124,6 +124,7 @@ pub fn run() {
                 .send(AppActors {
                     queue: queue_actor,
                     player: speech_player_actor,
+                    voice_mapping,
                 })
                 .expect("failed to send actors");
 
@@ -174,11 +175,6 @@ pub fn run() {
             // Wait for actors to be created
             let actors = actors_rx.recv().expect("failed to receive actors from actix thread");
 
-            let voice_mapping_path = app_data_dir.join("voice_mapping.json");
-            let voice_mapping = Arc::new(tokio::sync::Mutex::new(VoiceMapping::load(
-                &voice_mapping_path,
-            )));
-
             let hotkey_config = crate::hotkey::load_hotkey(&app_data_dir.join("hotkey.txt"));
 
             let model_pool = Arc::new(tokio::sync::Mutex::new(ModelPool::new(
@@ -186,16 +182,16 @@ pub fn run() {
                 Some(std::time::Duration::from_secs(300)),
             )));
 
-            // Register actors as Tauri managed state
-            app.manage(actors);
-
             // Create AppState for non-queue functionality
             let state = AppState {
                 catalog,
-                voice_mapping: voice_mapping.clone(),
+                voice_mapping: actors.voice_mapping.clone(),
                 app_data_dir,
                 model_pool: model_pool.clone(),
             };
+
+            // Register actors as Tauri managed state
+            app.manage(actors);
             app.manage(state);
 
             // Spawn periodic model pool eviction task
