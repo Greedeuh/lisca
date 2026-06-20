@@ -16,6 +16,7 @@ export interface QueueListViewProps {
   onStop: () => void;
   onSkip: () => void;
   onRestart: () => void;
+  onReplay: (id: number) => void;
 }
 
 export function QueueListView({
@@ -30,6 +31,7 @@ export function QueueListView({
   onStop,
   onSkip,
   onRestart,
+  onReplay,
 }: QueueListViewProps) {
   const activeItem = items.find(
     (item): item is QueueItem & { type: "Speech" } =>
@@ -79,6 +81,7 @@ export function QueueListView({
                   onStop={onStop}
                   onSkip={onSkip}
                   onRestart={onRestart}
+                  onReplay={onReplay}
                 />
               )}
             </div>

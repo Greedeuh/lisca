@@ -209,6 +209,15 @@ pub async fn playback_restart(actors: tauri::State<'_, AppActors>) -> Result<(),
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn playback_replay(actors: tauri::State<'_, AppActors>, id: u64) -> Result<(), String> {
+    actors
+        .player
+        .send(PlaybackReplay { id })
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ── Voice mapping commands ────────────────────────────────────────
 
 #[tauri::command]

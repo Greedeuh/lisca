@@ -120,3 +120,7 @@ export function playbackSkip(): Promise<void> {
 export function playbackRestart(): Promise<void> {
   return invoke("playback_restart");
 }
+
+export function playbackReplay(id: number): Promise<void> {
+  return invoke("playback_replay", { id });
+}

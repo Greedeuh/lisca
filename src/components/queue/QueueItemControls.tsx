@@ -27,6 +27,7 @@ export function SpeechControls({
   onStop,
   onSkip,
   onRestart,
+  onReplay,
 }: {
   item: QueueItem & { type: "Speech" };
   index: number;
@@ -36,9 +37,11 @@ export function SpeechControls({
   onStop: () => void;
   onSkip: () => void;
   onRestart: () => void;
+  onReplay: (id: number) => void;
 }) {
   const isPlaying = item.status === "playing";
   const isPaused = item.status === "paused";
+  const isPlayed = item.status === "played";
 
   return (
     <div className="ql-controls">
@@ -77,6 +80,15 @@ export function SpeechControls({
             ⏭
           </button>
         </>
+      )}
+      {isPlayed && (
+        <button
+          className="ql-btn"
+          onClick={() => onReplay(item.id)}
+          aria-label="Replay"
+        >
+          ↺
+        </button>
       )}
       <button
         className="ql-btn ql-btn-remove"

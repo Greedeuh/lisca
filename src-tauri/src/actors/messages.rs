@@ -146,6 +146,18 @@ pub struct PlaybackSkip;
 pub struct PlaybackRestart;
 
 #[derive(Message)]
+#[rtype(result = "Result<(), String>")]
+pub struct ReplayItem {
+    pub id: u64,
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct PlaybackReplay {
+    pub id: u64,
+}
+
+#[derive(Message)]
 #[rtype(result = "()")]
 pub struct SetCurrentId {
     pub id: Option<u64>,

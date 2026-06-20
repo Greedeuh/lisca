@@ -35,6 +35,7 @@ const defaults = {
   onStop: vi.fn(),
   onSkip: vi.fn(),
   onRestart: vi.fn(),
+  onReplay: vi.fn(),
 };
 
 function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}) {
@@ -52,6 +53,7 @@ function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}
       onStop={props.onStop}
       onSkip={props.onSkip}
       onRestart={props.onRestart}
+      onReplay={props.onReplay}
     />,
   );
 }
@@ -212,6 +214,7 @@ describe("QueueListView", () => {
         onStop={vi.fn()}
         onSkip={vi.fn()}
         onRestart={vi.fn()}
+        onReplay={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox")).toBeChecked();
@@ -228,6 +231,7 @@ describe("QueueListView", () => {
         onStop={vi.fn()}
         onSkip={vi.fn()}
         onRestart={vi.fn()}
+        onReplay={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox")).not.toBeChecked();

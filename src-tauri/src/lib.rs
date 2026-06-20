@@ -320,6 +320,7 @@ pub fn run() {
             commands::playback_stop,
             commands::playback_skip,
             commands::playback_restart,
+            commands::playback_replay,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

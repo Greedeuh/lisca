@@ -314,6 +314,27 @@ impl Handler<PlaybackRestart> for SpeechPlayerActor {
     }
 }
 
+impl Handler<PlaybackReplay> for SpeechPlayerActor {
+    type Result = ();
+
+    fn handle(&mut self, msg: PlaybackReplay, ctx: &mut Context<Self>) {
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.stop();
+            sink.clear();
+        }
+
+        let queue_addr = self.queue_addr.clone();
+        let my_addr = ctx.address();
+
+        let fut = async move {
+            let _ = queue_addr.send(ReplayItem { id: msg.id }).await;
+            my_addr.do_send(PlayNext);
+        };
+
+        ctx.spawn(fut.into_actor(self));
+    }
+}
+
 impl Handler<ToggleAutoRead> for SpeechPlayerActor {
     type Result = bool;
 
