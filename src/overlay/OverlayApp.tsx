@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { QueueListView } from "../components/queue/QueueListView";
 import type { QueueItem } from "../types/queue";
 import { getQueueState, getPlayerState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay } from "../types/ipc";
@@ -27,6 +28,27 @@ export default function OverlayApp() {
 
   useEffect(() => {
     refreshQueue();
+
+    const events = [
+      "item_added",
+      "item_removed",
+      "item_moved",
+      "item_cleared",
+      "item_replaced",
+      "config_changed",
+      "playback_started",
+      "playback_stopped",
+    ] as const;
+
+    const unlisteners = events.map((event) =>
+      listen(event, () => {
+        refreshQueue();
+      })
+    );
+
+    return () => {
+      unlisteners.forEach((p) => p.then((fn) => fn()));
+    };
   }, [refreshQueue]);
 
   const handleRemove = useCallback(
