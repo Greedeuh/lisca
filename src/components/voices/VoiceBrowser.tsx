@@ -59,11 +59,15 @@ export function VoiceBrowser() {
         addToast(`Download failed for ${event.payload.voice_key}: ${event.payload.reason}`);
       },
     );
+    const unlistenUninstalled = listen("voice_uninstalled", () => {
+      refreshInstalled();
+    });
 
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
       unlistenError.then((fn) => fn());
+      unlistenUninstalled.then((fn) => fn());
     };
   }, [addToast, refreshInstalled]);
 

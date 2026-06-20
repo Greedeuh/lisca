@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useToast } from "../../contexts/toast";
 import {
   listInstalledVoices,
@@ -51,6 +52,18 @@ export function InstalledVoices() {
   useEffect(() => {
     refreshInstalled();
     refreshVoiceMapping();
+
+    const unlistenComplete = listen("download_complete", () => {
+      refreshInstalled();
+    });
+    const unlistenUninstalled = listen("voice_uninstalled", () => {
+      refreshInstalled();
+    });
+
+    return () => {
+      unlistenComplete.then((fn) => fn());
+      unlistenUninstalled.then((fn) => fn());
+    };
   }, [refreshInstalled, refreshVoiceMapping]);
 
   const handleUninstall = useCallback(
