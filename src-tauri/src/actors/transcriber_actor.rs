@@ -98,6 +98,12 @@ impl Handler<Transcribe> for TranscriberActor {
                     mapping.resolve(language.as_deref()).map(|s| s.to_string())
                 };
 
+                log::info!(
+                    "Transcribing item {id} with voice {:?} (language: {:?})",
+                    voice_key,
+                    language
+                );
+
                 let result = match voice_key {
                     Some(ref vk) => {
                         let model = {
