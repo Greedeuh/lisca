@@ -1,7 +1,7 @@
 // Language detection using whatlang, mapped to ISO 639-1 family codes.
-// Returns None for empty or too-short input.
+// Returns None for empty input or when no installed languages match.
 
-use whatlang::Lang;
+use whatlang::{Detector, Lang};
 
 fn lang_to_family(lang: Lang) -> Option<&'static str> {
     match lang {
@@ -29,22 +29,60 @@ fn lang_to_family(lang: Lang) -> Option<&'static str> {
     }
 }
 
-pub fn detect_language_family(text: &str) -> Option<&'static str> {
-    let info = whatlang::detect(text)?;
-    if info.confidence() < 0.1 {
+fn family_to_lang(code: &str) -> Option<Lang> {
+    match code {
+        "en" => Some(Lang::Eng),
+        "fr" => Some(Lang::Fra),
+        "de" => Some(Lang::Deu),
+        "es" => Some(Lang::Spa),
+        "it" => Some(Lang::Ita),
+        "pt" => Some(Lang::Por),
+        "nl" => Some(Lang::Nld),
+        "ru" => Some(Lang::Rus),
+        "pl" => Some(Lang::Pol),
+        "sv" => Some(Lang::Swe),
+        "da" => Some(Lang::Dan),
+        "fi" => Some(Lang::Fin),
+        "no" => Some(Lang::Nob),
+        "cs" => Some(Lang::Ces),
+        "hu" => Some(Lang::Hun),
+        "tr" => Some(Lang::Tur),
+        "el" => Some(Lang::Ell),
+        "ro" => Some(Lang::Ron),
+        "uk" => Some(Lang::Ukr),
+        "hi" => Some(Lang::Hin),
+        _ => None,
+    }
+}
+
+pub fn detect_language_family(text: &str, installed_langs: &[String]) -> Option<&'static str> {
+    let langs: Vec<Lang> = installed_langs.iter().filter_map(|s| family_to_lang(s)).collect();
+    if langs.is_empty() {
         return None;
     }
-    lang_to_family(info.lang())
+    let detector = Detector::with_allowlist(langs);
+    let lang = detector.detect_lang(text)?;
+    lang_to_family(lang)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn all_langs() -> Vec<String> {
+        vec![
+            "en", "fr", "de", "es", "it", "pt", "nl", "ru", "pl", "sv",
+            "da", "fi", "no", "cs", "hu", "tr", "el", "ro", "uk", "hi",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect()
+    }
+
     #[test]
     fn detects_english() {
         assert_eq!(
-            detect_language_family("Hello, world! This is a test."),
+            detect_language_family("Hello, world! This is a test.", &all_langs()),
             Some("en")
         );
     }
@@ -52,7 +90,7 @@ mod tests {
     #[test]
     fn detects_french() {
         assert_eq!(
-            detect_language_family("Bonjour, comment allez-vous aujourd'hui?"),
+            detect_language_family("Bonjour, comment allez-vous aujourd'hui?", &all_langs()),
             Some("fr")
         );
     }
@@ -60,7 +98,7 @@ mod tests {
     #[test]
     fn detects_german() {
         assert_eq!(
-            detect_language_family("Guten Tag, wie geht es Ihnen?"),
+            detect_language_family("Guten Tag, wie geht es Ihnen?", &all_langs()),
             Some("de")
         );
     }
@@ -68,7 +106,7 @@ mod tests {
     #[test]
     fn detects_spanish() {
         assert_eq!(
-            detect_language_family("Hola, ¿cómo estás? Espero que bien."),
+            detect_language_family("Hola, ¿cómo estás? Espero que bien.", &all_langs()),
             Some("es")
         );
     }
@@ -76,7 +114,7 @@ mod tests {
     #[test]
     fn detects_italian() {
         assert_eq!(
-            detect_language_family("Buongiorno, come stai oggi?"),
+            detect_language_family("Buongiorno, come stai oggi?", &all_langs()),
             Some("it")
         );
     }
@@ -84,42 +122,39 @@ mod tests {
     #[test]
     fn detects_russian() {
         assert_eq!(
-            detect_language_family("Привет, как дела? Сегодня хорошая погода."),
+            detect_language_family("Привет, как дела? Сегодня хорошая погода.", &all_langs()),
             Some("ru")
         );
     }
 
     #[test]
+    fn detects_symptomes() {
+        let fr_only = vec!["fr".to_string()];
+        assert_eq!(detect_language_family("symptômes", &fr_only), Some("fr"));
+    }
+
+    #[test]
     fn returns_none_for_empty() {
-        assert_eq!(detect_language_family(""), None);
+        assert_eq!(detect_language_family("", &all_langs()), None);
     }
 
     #[test]
-    fn returns_none_for_too_short() {
-        assert_eq!(detect_language_family("ok"), None);
+    fn returns_none_for_no_installed_langs() {
+        assert_eq!(detect_language_family("Hello world", &[]), None);
     }
 
     #[test]
-    fn lang_to_family_covers_known_languages() {
-        assert_eq!(lang_to_family(Lang::Eng), Some("en"));
-        assert_eq!(lang_to_family(Lang::Fra), Some("fr"));
-        assert_eq!(lang_to_family(Lang::Deu), Some("de"));
-        assert_eq!(lang_to_family(Lang::Spa), Some("es"));
-        assert_eq!(lang_to_family(Lang::Ita), Some("it"));
-        assert_eq!(lang_to_family(Lang::Por), Some("pt"));
-        assert_eq!(lang_to_family(Lang::Nld), Some("nl"));
-        assert_eq!(lang_to_family(Lang::Rus), Some("ru"));
-        assert_eq!(lang_to_family(Lang::Pol), Some("pl"));
-        assert_eq!(lang_to_family(Lang::Swe), Some("sv"));
-        assert_eq!(lang_to_family(Lang::Dan), Some("da"));
-        assert_eq!(lang_to_family(Lang::Fin), Some("fi"));
-        assert_eq!(lang_to_family(Lang::Nob), Some("no"));
-        assert_eq!(lang_to_family(Lang::Ces), Some("cs"));
-        assert_eq!(lang_to_family(Lang::Hun), Some("hu"));
-        assert_eq!(lang_to_family(Lang::Tur), Some("tr"));
-        assert_eq!(lang_to_family(Lang::Ell), Some("el"));
-        assert_eq!(lang_to_family(Lang::Ron), Some("ro"));
-        assert_eq!(lang_to_family(Lang::Ukr), Some("uk"));
-        assert_eq!(lang_to_family(Lang::Hin), Some("hi"));
+    fn family_to_lang_roundtrip() {
+        for code in &["en", "fr", "de", "es", "it", "pt", "nl", "ru", "pl", "sv",
+                       "da", "fi", "no", "cs", "hu", "tr", "el", "ro", "uk", "hi"] {
+            let lang = family_to_lang(code).unwrap();
+            assert_eq!(lang_to_family(lang), Some(*code));
+        }
+    }
+
+    #[test]
+    fn family_to_lang_rejects_unknown() {
+        assert_eq!(family_to_lang("xx"), None);
+        assert_eq!(family_to_lang(""), None);
     }
 }

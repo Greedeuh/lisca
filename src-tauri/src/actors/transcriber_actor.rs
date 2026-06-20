@@ -4,6 +4,7 @@ use actix::{Actor, ActorFutureExt, Addr, AsyncContext, AtomicResponse, Context, 
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::catalog::{VoiceCatalog, VoiceCatalogOps};
 use crate::models::ModelPool;
 use crate::transcriber::{detect_language_family, UnifiedFactory};
 use crate::voice_prefs::VoiceMapping;
@@ -16,6 +17,7 @@ pub struct TranscriberActor {
     model_pool: Arc<TokioMutex<ModelPool>>,
     factory: Arc<UnifiedFactory>,
     voice_mapping: Arc<TokioMutex<VoiceMapping>>,
+    catalog: Arc<VoiceCatalog>,
     app_handle: AppHandle,
 }
 
@@ -25,6 +27,7 @@ impl TranscriberActor {
         model_pool: Arc<TokioMutex<ModelPool>>,
         factory: Arc<UnifiedFactory>,
         voice_mapping: Arc<TokioMutex<VoiceMapping>>,
+        catalog: Arc<VoiceCatalog>,
         app_handle: AppHandle,
     ) -> Self {
         Self {
@@ -32,6 +35,7 @@ impl TranscriberActor {
             model_pool,
             factory,
             voice_mapping,
+            catalog,
             app_handle,
         }
     }
@@ -57,6 +61,7 @@ impl Handler<Transcribe> for TranscriberActor {
         let model_pool = self.model_pool.clone();
         let factory = self.factory.clone();
         let voice_mapping = self.voice_mapping.clone();
+        let catalog = self.catalog.clone();
         let app_handle = self.app_handle.clone();
 
         AtomicResponse::new(Box::pin(
@@ -80,7 +85,13 @@ impl Handler<Transcribe> for TranscriberActor {
                 log::debug!("Transcribing item {id}: {}", &text[..text.len().min(50)]);
                 let _ = app_handle.emit("transcription_started", (id, text.clone()));
 
-                let language = detect_language_family(&text).map(|s| s.to_string());
+                let installed_langs: Vec<String> = catalog
+                    .list_installed()
+                    .into_iter()
+                    .map(|v| v.language)
+                    .collect();
+
+                let language = detect_language_family(&text, &installed_langs).map(|s| s.to_string());
 
                 let voice_key = {
                     let mapping = voice_mapping.lock().await;
