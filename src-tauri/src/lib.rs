@@ -56,10 +56,12 @@ pub fn run() {
 
             let queue_config_path = app_data_dir.join("queue_config.json");
             let queue_config = Queue::load_config(&queue_config_path);
-            let initial_auto_read = queue_config.auto_read;
             let queue = Queue::new()
                 .with_config(queue_config)
                 .with_config_path(queue_config_path);
+
+            let player_config_path = app_data_dir.join("player_config.json");
+            let player_config = SpeechPlayerActor::load_config(&player_config_path);
 
             let voice_mapping_path = app_data_dir.join("voice_mapping.json");
             let voice_mapping = Arc::new(tokio::sync::Mutex::new(
@@ -91,8 +93,9 @@ pub fn run() {
             let speech_player_actor = SpeechPlayerActor::new(
                 queue_actor.clone(),
                 app_handle.clone(),
-                initial_auto_read,
+                player_config.auto_read,
             )
+            .with_config_path(player_config_path)
             .start();
 
             // Wire player address into QueueActor
@@ -282,6 +285,7 @@ pub fn run() {
             commands::queue_move,
             commands::queue_clear,
             commands::queue_toggle_auto_read,
+            commands::player_state,
             commands::get_voice_preference,
             commands::set_voice_preference,
             commands::set_fallback_voice,

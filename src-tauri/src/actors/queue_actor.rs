@@ -93,23 +93,6 @@ impl Handler<GetQueueState> for QueueActor {
     }
 }
 
-impl Handler<ToggleAutoRead> for QueueActor {
-    type Result = bool;
-
-    fn handle(&mut self, _: ToggleAutoRead, _: &mut Context<Self>) -> Self::Result {
-        self.queue.config.auto_read = !self.queue.config.auto_read;
-        let val = self.queue.config.auto_read;
-        if let Err(e) = self.queue.save_config() {
-            log::error!("Failed to save queue config: {e}");
-        }
-        if let Some(ref player) = self.player_addr {
-            player.do_send(AutoReadChanged { value: val });
-        }
-        self.emit_event("config_changed");
-        val
-    }
-}
-
 impl Handler<ToggleOverlay> for QueueActor {
     type Result = bool;
 

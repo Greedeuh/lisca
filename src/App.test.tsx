@@ -3,7 +3,11 @@ import { describe, it, expect, vi } from "vitest";
 import App from "./App";
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn().mockResolvedValue(null),
+  invoke: vi.fn().mockImplementation((cmd: string) => {
+    if (cmd === "player_state") return Promise.resolve({ auto_read: true });
+    if (cmd === "queue_state") return Promise.resolve({ items: [], show_overlay: true });
+    return Promise.resolve(null);
+  }),
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({

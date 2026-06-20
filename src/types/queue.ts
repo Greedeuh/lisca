@@ -21,6 +21,5 @@ export type QueueItem =
 
 export type QueueSnapshot = {
   items: QueueItem[];
-  auto_read: boolean;
   show_overlay: boolean;
 };

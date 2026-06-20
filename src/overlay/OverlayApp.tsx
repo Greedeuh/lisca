@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { QueueList } from "../components/queue";
-import type { QueueItem, QueueSnapshot } from "../types/queue";
-import { getQueueState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay } from "../types/ipc";
+import type { QueueItem } from "../types/queue";
+import { getQueueState, getPlayerState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay } from "../types/ipc";
 import "./OverlayApp.css";
 
 export default function OverlayApp() {
@@ -11,9 +11,12 @@ export default function OverlayApp() {
 
   const refreshQueue = useCallback(async () => {
     try {
-      const snapshot: QueueSnapshot = await getQueueState();
+      const [snapshot, playerSnapshot] = await Promise.all([
+        getQueueState(),
+        getPlayerState(),
+      ]);
       setItems(snapshot.items);
-      setAutoRead(snapshot.auto_read);
+      setAutoRead(playerSnapshot.auto_read);
 
       if (snapshot.items.length === 0) {
         const win = getCurrentWindow();

@@ -6,6 +6,10 @@ import type { QueueSnapshot } from "./queue";
 import type { VoiceMapping } from "./voice-prefs";
 import type { ShortcutConfig } from "./hotkey";
 
+export type PlayerSnapshot = {
+  auto_read: boolean;
+};
+
 export function listCatalogVoices(): Promise<VoiceEntry[]> {
   return invoke("list_catalog_voices");
 }
@@ -24,6 +28,10 @@ export function uninstallVoice(voiceKey: string): Promise<void> {
 
 export function getQueueState(): Promise<QueueSnapshot> {
   return invoke("queue_state");
+}
+
+export function getPlayerState(): Promise<PlayerSnapshot> {
+  return invoke("player_state");
 }
 
 export function queueAdd(text: string): Promise<number> {

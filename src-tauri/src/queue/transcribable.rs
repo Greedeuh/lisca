@@ -191,7 +191,6 @@ mod tests {
 
         let config = super::super::QueueConfig {
             max_items: 10,
-            auto_read: false,
             show_overlay: false,
         };
         let q = Queue::new()

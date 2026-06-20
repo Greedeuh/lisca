@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getQueueState } from "../types/ipc";
-import type { QueueItem, QueueSnapshot } from "../types/queue";
+import { getQueueState, getPlayerState } from "../types/ipc";
+import type { QueueItem } from "../types/queue";
 
 export interface UseTtsQueueReturn {
   items: QueueItem[];
@@ -17,9 +17,12 @@ export function useTtsQueue(): UseTtsQueueReturn {
 
   const refresh = useCallback(async () => {
     try {
-      const snapshot: QueueSnapshot = await getQueueState();
+      const [snapshot, playerSnapshot] = await Promise.all([
+        getQueueState(),
+        getPlayerState(),
+      ]);
       setItems(snapshot.items);
-      setAutoRead(snapshot.auto_read);
+      setAutoRead(playerSnapshot.auto_read);
       setShowOverlay(snapshot.show_overlay);
     } catch (e) {
       console.error("Failed to load queue:", e);

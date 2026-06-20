@@ -101,6 +101,12 @@ pub struct SpeechReady;
 
 // ── SpeechPlayerActor messages ─────────────────────────────────────
 
+// ── SpeechPlayerActor messages ─────────────────────────────────────
+
+#[derive(Message)]
+#[rtype(result = "bool")]
+pub struct GetAutoRead;
+
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct PlaybackPause;

@@ -58,7 +58,6 @@ impl QueueItem {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct QueueConfig {
     pub max_items: usize,
-    pub auto_read: bool,
     pub show_overlay: bool,
 }
 
@@ -66,7 +65,6 @@ impl Default for QueueConfig {
     fn default() -> Self {
         Self {
             max_items: 50,
-            auto_read: true,
             show_overlay: true,
         }
     }
@@ -147,7 +145,6 @@ impl Queue {
     pub fn snapshot_dto(&self) -> crate::commands::QueueSnapshotDto {
         crate::commands::QueueSnapshotDto {
             items: self.items.iter().map(crate::commands::QueueItemDto::from).collect(),
-            auto_read: self.config.auto_read,
             show_overlay: self.config.show_overlay,
         }
     }

@@ -90,6 +90,16 @@ pub async fn queue_state(actors: tauri::State<'_, AppActors>) -> Result<QueueSna
 }
 
 #[tauri::command]
+pub async fn player_state(actors: tauri::State<'_, AppActors>) -> Result<PlayerSnapshotDto, String> {
+    let auto_read = actors
+        .player
+        .send(GetAutoRead)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(PlayerSnapshotDto { auto_read })
+}
+
+#[tauri::command]
 pub async fn queue_add(
     actors: tauri::State<'_, AppActors>,
     text: String,
@@ -139,7 +149,7 @@ pub async fn queue_clear(actors: tauri::State<'_, AppActors>) -> Result<(), Stri
 #[tauri::command]
 pub async fn queue_toggle_auto_read(actors: tauri::State<'_, AppActors>) -> Result<bool, String> {
     actors
-        .queue
+        .player
         .send(ToggleAutoRead)
         .await
         .map_err(|e| e.to_string())
@@ -383,8 +393,12 @@ impl From<&QueueItem> for QueueItemDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueueSnapshotDto {
     pub items: Vec<QueueItemDto>,
-    pub auto_read: bool,
     pub show_overlay: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerSnapshotDto {
+    pub auto_read: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

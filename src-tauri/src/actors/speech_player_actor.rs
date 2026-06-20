@@ -4,10 +4,22 @@ use std::thread;
 use actix::{Actor, Addr, AsyncContext, Context, Handler, WrapFuture};
 use tauri::{AppHandle, Emitter};
 
+use crate::persist::{load_json, save_json};
 use crate::speech_player::EndNotifier;
 
 use super::messages::*;
 use super::queue_actor::QueueActor;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct PlayerConfig {
+    pub auto_read: bool,
+}
+
+impl Default for PlayerConfig {
+    fn default() -> Self {
+        Self { auto_read: true }
+    }
+}
 
 pub struct SpeechPlayerActor {
     queue_addr: Addr<QueueActor>,
@@ -16,6 +28,7 @@ pub struct SpeechPlayerActor {
     _keepalive: Option<mpsc::Sender<()>>,
     auto_read: bool,
     stopped: bool,
+    config_path: Option<std::path::PathBuf>,
 }
 
 impl SpeechPlayerActor {
@@ -31,7 +44,28 @@ impl SpeechPlayerActor {
             _keepalive: None,
             auto_read,
             stopped: false,
+            config_path: None,
         }
+    }
+
+    pub fn with_config_path(mut self, path: std::path::PathBuf) -> Self {
+        self.config_path = Some(path);
+        self
+    }
+
+    pub fn load_config(path: &std::path::Path) -> PlayerConfig {
+        load_json(path)
+    }
+
+    fn save_config(&self) -> Result<(), String> {
+        let path = self
+            .config_path
+            .as_ref()
+            .ok_or("no config path configured")?;
+        let config = PlayerConfig {
+            auto_read: self.auto_read,
+        };
+        save_json(path, &config)
     }
 
     fn ensure_sink(&mut self) {
@@ -211,14 +245,27 @@ impl Handler<PlaybackStop> for SpeechPlayerActor {
     }
 }
 
-impl Handler<AutoReadChanged> for SpeechPlayerActor {
-    type Result = ();
+impl Handler<ToggleAutoRead> for SpeechPlayerActor {
+    type Result = bool;
 
-    fn handle(&mut self, msg: AutoReadChanged, ctx: &mut Context<Self>) {
-        self.auto_read = msg.value;
-        if msg.value {
+    fn handle(&mut self, _: ToggleAutoRead, ctx: &mut Context<Self>) -> Self::Result {
+        self.auto_read = !self.auto_read;
+        if let Err(e) = self.save_config() {
+            log::error!("Failed to save player config: {e}");
+        }
+        self.app_handle.emit("config_changed", ()).ok();
+        if self.auto_read {
             self.stopped = false;
             ctx.address().do_send(PlayNext);
         }
+        self.auto_read
+    }
+}
+
+impl Handler<GetAutoRead> for SpeechPlayerActor {
+    type Result = bool;
+
+    fn handle(&mut self, _: GetAutoRead, _: &mut Context<Self>) -> Self::Result {
+        self.auto_read
     }
 }
