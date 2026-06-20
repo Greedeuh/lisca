@@ -132,11 +132,10 @@ impl Handler<GetNextText> for QueueActor {
         let item = self.queue.items().iter().find(|i| i.id() == id)?;
         match item {
             crate::queue::QueueItem::TextMessage {
-                id, text, language, ..
+                id, text, ..
             } => Some(PendingTextItem {
                 id: *id,
                 text: text.clone(),
-                language: language.clone(),
             }),
             _ => None,
         }

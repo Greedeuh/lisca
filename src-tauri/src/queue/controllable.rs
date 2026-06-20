@@ -36,7 +36,6 @@ impl QueueControllable for Queue {
             .push(super::QueueItem::TextMessage {
                 id,
                 text,
-                language: None,
                 status: super::TextMessageStatus::Pending,
             });
         self.emit(QueueEvent::ItemAdded);

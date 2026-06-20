@@ -34,7 +34,6 @@ pub enum QueueItem {
     TextMessage {
         id: u64,
         text: String,
-        language: Option<String>,
         status: TextMessageStatus,
     },
     Speech {

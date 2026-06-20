@@ -339,7 +339,6 @@ pub enum QueueItemDto {
     TextMessage {
         id: u64,
         text: String,
-        language: Option<String>,
         status: String,
     },
     Speech {
@@ -357,12 +356,10 @@ impl From<&QueueItem> for QueueItemDto {
             QueueItem::TextMessage {
                 id,
                 text,
-                language,
                 status,
             } => QueueItemDto::TextMessage {
                 id: *id,
                 text: text.clone(),
-                language: language.clone(),
                 status: format!("{:?}", status).to_lowercase(),
             },
             QueueItem::Speech {

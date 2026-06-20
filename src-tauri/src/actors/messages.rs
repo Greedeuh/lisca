@@ -81,7 +81,6 @@ pub struct SetItemCompleted {
 pub struct PendingTextItem {
     pub id: u64,
     pub text: String,
-    pub language: Option<String>,
 }
 
 #[derive(Clone, Debug)]

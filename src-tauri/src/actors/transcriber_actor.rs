@@ -76,20 +76,15 @@ impl Handler<Transcribe> for TranscriberActor {
 
                 let id = pending.id;
                 let text = pending.text.clone();
-                let language = pending.language;
 
                 log::debug!("Transcribing item {id}: {}", &text[..text.len().min(50)]);
                 let _ = app_handle.emit("transcription_started", (id, text.clone()));
 
-                let detected_lang = detect_language_family(&text);
-                let resolved_language = language
-                    .clone()
-                    .or_else(|| detected_lang.map(String::from));
-                let lang = resolved_language.as_deref();
+                let language = detect_language_family(&text).map(|s| s.to_string());
 
                 let voice_key = {
                     let mapping = voice_mapping.lock().await;
-                    mapping.resolve(lang).map(|s| s.to_string())
+                    mapping.resolve(language.as_deref()).map(|s| s.to_string())
                 };
 
                 let result = match voice_key {
@@ -121,7 +116,7 @@ impl Handler<Transcribe> for TranscriberActor {
                                 id,
                                 audio_data: Some(audio_data),
                                 voice_key,
-                                language: resolved_language,
+                                language,
                             })
                             .await;
                         let _ = app_handle.emit("transcription_completed", id);
