@@ -185,6 +185,9 @@ impl Handler<GetNextSpeech> for QueueActor {
 
     fn handle(&mut self, _: GetNextSpeech, _: &mut Context<Self>) -> Self::Result {
         let (_, id) = self.queue.next_to_play_speech()?;
+        let _ = self
+            .queue
+            .set_speech_status(id, crate::queue::SpeechStatus::Playing);
         let item = self.queue.items().iter().find(|i| i.id() == id)?;
         match item {
             crate::queue::QueueItem::Speech { id, audio_data, .. } => Some(PendingSpeechItem {

@@ -1,8 +1,10 @@
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+
 use actix::{Actor, Addr, AsyncContext, Context, Handler, WrapFuture};
 use tauri::{AppHandle, Emitter};
 
-use crate::speech_player::play_with_controls;
-use crate::speech_player::playback::PlaybackController;
+use crate::speech_player::EndNotifier;
 
 use super::messages::*;
 use super::queue_actor::QueueActor;
@@ -10,10 +12,10 @@ use super::queue_actor::QueueActor;
 pub struct SpeechPlayerActor {
     queue_addr: Addr<QueueActor>,
     app_handle: AppHandle,
-    playback: PlaybackController,
-    busy: bool,
+    sink: Arc<Mutex<Option<rodio::Sink>>>,
+    _keepalive: Option<mpsc::Sender<()>>,
     auto_read: bool,
-    pending_work: bool,
+    stopped: bool,
 }
 
 impl SpeechPlayerActor {
@@ -25,17 +27,57 @@ impl SpeechPlayerActor {
         Self {
             queue_addr,
             app_handle,
-            playback: PlaybackController::new(),
-            busy: false,
+            sink: Arc::new(Mutex::new(None)),
+            _keepalive: None,
             auto_read,
-            pending_work: false,
+            stopped: false,
+        }
+    }
+
+    fn ensure_sink(&mut self) {
+        if self.sink.lock().unwrap().is_some() {
+            return;
+        }
+
+        let sink = self.sink.clone();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (keepalive_tx, keepalive_rx) = mpsc::channel::<()>();
+
+        thread::spawn(move || {
+            let (stream, handle) = match rodio::OutputStream::try_default() {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("Failed to open audio output stream: {e}");
+                    let _ = ready_tx.send(false);
+                    return;
+                }
+            };
+            let new_sink = match rodio::Sink::try_new(&handle) {
+                Ok(s) => s,
+                Err(e) => {
+                    log::error!("Failed to create audio sink: {e}");
+                    let _ = ready_tx.send(false);
+                    return;
+                }
+            };
+            *sink.lock().unwrap() = Some(new_sink);
+            let _ = ready_tx.send(true);
+
+            let _keep_alive = stream;
+            let _ = keepalive_rx.recv();
+        });
+
+        if ready_rx.recv().unwrap_or(false) {
+            self._keepalive = Some(keepalive_tx);
+            log::info!("Audio output stream opened");
+        } else {
+            log::error!("Audio output stream failed to open");
         }
     }
 }
 
 impl Actor for SpeechPlayerActor {
     type Context = Context<Self>;
-
     fn started(&mut self, _ctx: &mut Self::Context) {}
 }
 
@@ -45,38 +87,42 @@ impl actix::Message for PlayNext {
     type Result = ();
 }
 
-struct PlaybackDone;
-
-impl actix::Message for PlaybackDone {
-    type Result = ();
+#[derive(actix::Message)]
+#[rtype(result = "()")]
+pub(crate) struct PlaybackComplete {
+    pub id: u64,
 }
 
 impl Handler<PlayNext> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: PlayNext, ctx: &mut Context<Self>) {
-        // Guards against concurrent playback. Message handlers are sequential,
-        // but spawned futures run concurrently on the tokio runtime — two PlayNext
-        // handlers could otherwise both spawn playback futures for the same item.
-        if self.busy || !self.auto_read {
+        if !self.auto_read || self.stopped {
             return;
         }
 
-        self.busy = true;
+        self.ensure_sink();
+
+        let sink_empty = self
+            .sink
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map_or(true, |s| s.empty());
+
+        if !sink_empty {
+            return;
+        }
 
         let queue_addr = self.queue_addr.clone();
         let app_handle = self.app_handle.clone();
-        let playback = self.playback.clone();
+        let audio_sink = self.sink.clone();
         let my_addr = ctx.address();
 
         let fut = async move {
-            // 1. Get next speech to play from QueueActor
             let pending = match queue_addr.send(GetNextSpeech).await {
                 Ok(Some(item)) => item,
-                _ => {
-                    let _ = my_addr.send(PlaybackDone).await;
-                    return;
-                }
+                _ => return,
             };
 
             let id = pending.id;
@@ -85,7 +131,6 @@ impl Handler<PlayNext> for SpeechPlayerActor {
                 None => {
                     let _ = queue_addr.send(SetItemCompleted { id }).await;
                     let _ = app_handle.emit("queue_updated", ());
-                    let _ = my_addr.send(PlaybackDone).await;
                     return;
                 }
             };
@@ -93,38 +138,37 @@ impl Handler<PlayNext> for SpeechPlayerActor {
             let _ = app_handle.emit("playback_started", id);
             let _ = app_handle.emit("queue_updated", ());
 
-            // 2. Play audio via spawn_blocking (rodio is blocking)
-            let interrupted = play_with_controls(audio_data, 22050u32, &playback).await;
+            let sink_guard = audio_sink.lock().unwrap();
+            let sink = match sink_guard.as_ref() {
+                Some(s) => s,
+                None => {
+                    drop(sink_guard);
+                    let _ = app_handle.emit("playback_stopped", ());
+                    let _ = app_handle.emit("queue_updated", ());
+                    return;
+                }
+            };
 
-            if interrupted {
-                let _ = app_handle.emit("playback_stopped", ());
-                let _ = app_handle.emit("queue_updated", ());
-            } else {
-                let _ = queue_addr.send(SetItemCompleted { id }).await;
-                let _ = app_handle.emit("queue_updated", ());
-            }
-
-            // 3. Signal done
-            let _ = my_addr.send(PlaybackDone).await;
+            let buffer = rodio::buffer::SamplesBuffer::new(1, 22050, audio_data);
+            let notifier = EndNotifier::new(buffer, my_addr, id);
+            sink.append(notifier);
         };
 
         ctx.spawn(fut.into_actor(self));
     }
 }
 
-impl Handler<PlaybackDone> for SpeechPlayerActor {
+impl Handler<PlaybackComplete> for SpeechPlayerActor {
     type Result = ();
 
-    fn handle(&mut self, _: PlaybackDone, ctx: &mut Context<Self>) {
-        self.busy = false;
-        // Sends PlayNext synchronously (not via ctx.spawn) to avoid a race:
-        // a spawned future could query the queue concurrently with a future
-        // spawned by SpeechReady → PlayNext, causing double playback.
-        // pending_work prevents infinite loops when the queue is empty.
-        if self.auto_read && self.pending_work {
-            self.pending_work = false;
-            ctx.address().do_send(PlayNext);
+    fn handle(&mut self, msg: PlaybackComplete, ctx: &mut Context<Self>) {
+        if self.stopped {
+            return;
         }
+        let _ = self
+            .queue_addr
+            .do_send(SetItemCompleted { id: msg.id });
+        ctx.address().do_send(PlayNext);
     }
 }
 
@@ -132,11 +176,8 @@ impl Handler<SpeechReady> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: SpeechReady, ctx: &mut Context<Self>) {
-        self.pending_work = true;
-        // Only trigger if idle — PlaybackDone will chain the next item when
-        // this one finishes. If busy, the current playback future will check
-        // pending_work when it completes.
-        if !self.busy && self.auto_read {
+        self.stopped = false;
+        if self.auto_read {
             ctx.address().do_send(PlayNext);
         }
     }
@@ -146,7 +187,9 @@ impl Handler<PlaybackPause> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: PlaybackPause, _: &mut Context<Self>) {
-        self.playback.pause();
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.pause();
+        }
     }
 }
 
@@ -154,7 +197,9 @@ impl Handler<PlaybackResume> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: PlaybackResume, _: &mut Context<Self>) {
-        self.playback.resume();
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.play();
+        }
     }
 }
 
@@ -162,7 +207,10 @@ impl Handler<PlaybackStop> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: PlaybackStop, _: &mut Context<Self>) {
-        self.playback.stop();
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.stop();
+        }
+        self.stopped = true;
     }
 }
 
@@ -172,12 +220,8 @@ impl Handler<AutoReadChanged> for SpeechPlayerActor {
     fn handle(&mut self, msg: AutoReadChanged, ctx: &mut Context<Self>) {
         self.auto_read = msg.value;
         if msg.value {
-            self.pending_work = true;
-            // If idle, start playing immediately. If busy, PlaybackDone will
-            // chain when current playback finishes.
-            if !self.busy {
-                ctx.address().do_send(PlayNext);
-            }
+            self.stopped = false;
+            ctx.address().do_send(PlayNext);
         }
     }
 }
