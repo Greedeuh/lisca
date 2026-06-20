@@ -33,6 +33,7 @@ const defaults = {
   onPause: vi.fn(),
   onResume: vi.fn(),
   onStop: vi.fn(),
+  onSkip: vi.fn(),
 };
 
 function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}) {
@@ -48,6 +49,7 @@ function renderList(items: QueueItem[], overrides: Partial<typeof defaults> = {}
       onPause={props.onPause}
       onResume={props.onResume}
       onStop={props.onStop}
+      onSkip={props.onSkip}
     />,
   );
 }
@@ -118,17 +120,40 @@ describe("QueueListView", () => {
     expect(onRemove).toHaveBeenCalledWith(1);
   });
 
-  it("calls onRemove when skip button clicked for playing Speech", () => {
-    const onRemove = vi.fn();
-    renderList([speech(1, "text", "playing")], { onRemove });
-    fireEvent.click(screen.getByLabelText("Skip"));
-    expect(onRemove).toHaveBeenCalledWith(1);
+  it("shows skip button only for playing/paused Speech", () => {
+    renderList([speech(1, "text", "playing")]);
+    expect(screen.getByLabelText("Skip")).toBeInTheDocument();
   });
 
-  it("calls onRemove when remove button clicked for to_play Speech", () => {
-    const onRemove = vi.fn();
-    renderList([speech(1, "text", "to_play")], { onRemove });
+  it("does not show skip button for to_play Speech", () => {
+    renderList([speech(1, "text", "to_play")]);
+    expect(screen.queryByLabelText("Skip")).not.toBeInTheDocument();
+  });
+
+  it("calls onSkip when skip button clicked for playing Speech", () => {
+    const onSkip = vi.fn();
+    renderList([speech(1, "text", "playing")], { onSkip });
+    fireEvent.click(screen.getByLabelText("Skip"));
+    expect(onSkip).toHaveBeenCalled();
+  });
+
+  it("calls onStop then onRemove when remove button clicked for playing Speech", async () => {
+    const onStop = vi.fn().mockResolvedValue(undefined);
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    renderList([speech(1, "text", "playing")], { onStop, onRemove });
     fireEvent.click(screen.getByLabelText("Remove"));
+    await vi.waitFor(() => {
+      expect(onStop).toHaveBeenCalled();
+      expect(onRemove).toHaveBeenCalledWith(1);
+    });
+  });
+
+  it("calls onRemove without onStop when remove button clicked for to_play Speech", () => {
+    const onStop = vi.fn();
+    const onRemove = vi.fn();
+    renderList([speech(1, "text", "to_play")], { onStop, onRemove });
+    fireEvent.click(screen.getByLabelText("Remove"));
+    expect(onStop).not.toHaveBeenCalled();
     expect(onRemove).toHaveBeenCalledWith(1);
   });
 
@@ -183,6 +208,7 @@ describe("QueueListView", () => {
         onPause={vi.fn()}
         onResume={vi.fn()}
         onStop={vi.fn()}
+        onSkip={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox")).toBeChecked();
@@ -197,6 +223,7 @@ describe("QueueListView", () => {
         onPause={vi.fn()}
         onResume={vi.fn()}
         onStop={vi.fn()}
+        onSkip={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox")).not.toBeChecked();

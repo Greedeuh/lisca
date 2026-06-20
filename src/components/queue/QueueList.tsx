@@ -10,6 +10,7 @@ import {
   playbackPause,
   playbackResume,
   playbackStop,
+  playbackSkip,
 } from "../../types/ipc";
 import { QueueListView } from "./QueueListView";
 
@@ -99,6 +100,15 @@ export function QueueList() {
     }
   }, [addToast, refresh]);
 
+  const handleSkip = useCallback(async () => {
+    try {
+      await playbackSkip();
+      await refresh();
+    } catch (e) {
+      addToast(`Failed to skip: ${e}`);
+    }
+  }, [addToast, refresh]);
+
   return (
     <QueueListView
       items={items}
@@ -110,6 +120,7 @@ export function QueueList() {
       onPause={handlePause}
       onResume={handleResume}
       onStop={handleStop}
+      onSkip={handleSkip}
     />
   );
 }

@@ -24,12 +24,16 @@ export function SpeechControls({
   total,
   onRemove,
   onMove,
+  onStop,
+  onSkip,
 }: {
   item: QueueItem & { type: "Speech" };
   index: number;
   total: number;
   onRemove: (id: number) => void;
   onMove: (id: number, index: number) => void;
+  onStop: () => void;
+  onSkip: () => void;
 }) {
   const isPlaying = item.status === "playing";
   const isPaused = item.status === "paused";
@@ -54,12 +58,26 @@ export function SpeechControls({
           ▼
         </button>
       )}
+      {(isPlaying || isPaused) && (
+        <button
+          className="ql-btn"
+          onClick={() => onSkip()}
+          aria-label="Skip"
+        >
+          ⏭
+        </button>
+      )}
       <button
         className="ql-btn ql-btn-remove"
-        onClick={() => onRemove(item.id)}
-        aria-label={isPlaying || isPaused ? "Skip" : "Remove"}
+        onClick={async () => {
+          if (isPlaying || isPaused) {
+            await onStop();
+          }
+          await onRemove(item.id);
+        }}
+        aria-label="Remove"
       >
-        {(isPlaying || isPaused) ? "⏭" : "✕"}
+        ✕
       </button>
     </div>
   );

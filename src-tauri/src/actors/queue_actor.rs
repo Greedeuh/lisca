@@ -80,6 +80,9 @@ impl Handler<ClearQueue> for QueueActor {
 
     fn handle(&mut self, _: ClearQueue, _: &mut Context<Self>) -> Self::Result {
         self.queue.clear()?;
+        if let Some(ref addr) = self.player_addr {
+            addr.do_send(PlaybackStop);
+        }
         self.emit_event("item_cleared");
         Ok(())
     }

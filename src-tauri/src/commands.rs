@@ -191,6 +191,15 @@ pub async fn playback_stop(actors: tauri::State<'_, AppActors>) -> Result<(), St
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn playback_skip(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+    actors
+        .player
+        .send(PlaybackSkip)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ── Voice mapping commands ────────────────────────────────────────
 
 #[tauri::command]

@@ -133,6 +133,7 @@ impl Handler<PlayNext> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: PlayNext, ctx: &mut Context<Self>) {
+        log::debug!("PlayNext received auto_read:{}, stopped:{}", self.auto_read, self.stopped);
         if !self.auto_read || self.stopped {
             return;
         }
@@ -145,6 +146,9 @@ impl Handler<PlayNext> for SpeechPlayerActor {
             .unwrap()
             .as_ref()
             .map_or(true, |s| s.empty());
+
+        log::debug!("PlayNext sink_empty: {}", sink_empty);
+
 
         if !sink_empty {
             return;
@@ -188,6 +192,7 @@ impl Handler<PlayNext> for SpeechPlayerActor {
             let buffer = rodio::buffer::SamplesBuffer::new(1, 22050, audio_data);
             let notifier = EndNotifier::new(buffer, my_addr, id);
             sink.append(notifier);
+            sink.play();
         };
 
         ctx.spawn(fut.into_actor(self));
@@ -237,9 +242,14 @@ impl Handler<PlaybackPause> for SpeechPlayerActor {
 impl Handler<PlaybackResume> for SpeechPlayerActor {
     type Result = ();
 
-    fn handle(&mut self, _: PlaybackResume, _: &mut Context<Self>) {
-        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+    fn handle(&mut self, _: PlaybackResume, ctx: &mut Context<Self>) {
+        self.stopped = false;
+
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {            
             sink.play();
+            if sink.empty() {
+                ctx.address().do_send(PlayNext);
+            }
         }
         if let Some(id) = self.current_id {
             let _ = self.queue_addr.do_send(SetSpeechResumed { id });
@@ -261,6 +271,33 @@ impl Handler<PlaybackStop> for SpeechPlayerActor {
         }
         self.stopped = true;
         self.app_handle.emit("playback_stopped", ()).ok();
+    }
+}
+
+impl Handler<PlaybackSkip> for SpeechPlayerActor {
+    type Result = ();
+
+    fn handle(&mut self, _: PlaybackSkip, ctx: &mut Context<Self>) {
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
+            sink.stop();
+            sink.clear();
+            log::debug!("PlaybackSkip sink.empty() {:?}", sink.empty());
+        }
+
+        let current_id = self.current_id;
+        let queue_addr = self.queue_addr.clone();
+        let app_handle = self.app_handle.clone();
+        let my_addr = ctx.address();
+
+        let fut = async move {
+            if let Some(id) = current_id {
+                let _ = queue_addr.send(SetItemCompleted { id }).await;
+            }
+            app_handle.emit("playback_stopped", ()).ok();
+            my_addr.do_send(PlayNext);
+        };
+
+        ctx.spawn(fut.into_actor(self));
     }
 }
 

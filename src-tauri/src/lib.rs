@@ -318,6 +318,7 @@ pub fn run() {
             commands::playback_pause,
             commands::playback_resume,
             commands::playback_stop,
+            commands::playback_skip,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

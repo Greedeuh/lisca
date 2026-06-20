@@ -139,6 +139,10 @@ pub struct PlaybackStop;
 
 #[derive(Message)]
 #[rtype(result = "()")]
+pub struct PlaybackSkip;
+
+#[derive(Message)]
+#[rtype(result = "()")]
 pub struct SetCurrentId {
     pub id: Option<u64>,
 }

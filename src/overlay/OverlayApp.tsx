@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { QueueListView } from "../components/queue/QueueListView";
 import type { QueueItem } from "../types/queue";
-import { getQueueState, getPlayerState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay, playbackPause, playbackResume, playbackStop } from "../types/ipc";
+import { getQueueState, getPlayerState, queueRemove, queueMove, queueClear, queueToggleAutoRead, queueToggleOverlay, playbackPause, playbackResume, playbackStop, playbackSkip } from "../types/ipc";
 import "./OverlayApp.css";
 
 export default function OverlayApp() {
@@ -111,6 +111,13 @@ export default function OverlayApp() {
     } catch {}
   }, [refreshQueue]);
 
+  const handleSkip = useCallback(async () => {
+    try {
+      await playbackSkip();
+      await refreshQueue();
+    } catch {}
+  }, [refreshQueue]);
+
   const handleClose = useCallback(async () => {
     try {
       const snapshot = await getQueueState();
@@ -147,6 +154,7 @@ export default function OverlayApp() {
           onPause={handlePause}
           onResume={handleResume}
           onStop={handleStop}
+          onSkip={handleSkip}
         />
       </div>
     </div>
