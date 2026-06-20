@@ -162,7 +162,7 @@ impl Handler<PlaybackComplete> for SpeechPlayerActor {
         if self.stopped {
             return;
         }
-        let _ = self
+        self
             .queue_addr
             .do_send(SetItemCompleted { id: msg.id });
         ctx.address().do_send(PlayNext);

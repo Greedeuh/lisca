@@ -91,7 +91,7 @@ impl PiperCatalog {
         // Download model file
         let url = Self::download_url(voice_key);
         log::info!("Downloading Piper model from {url}");
-        download_file(&url, &model_path, &mut |downloaded, total| {
+        super::download::download_file(&url, &model_path, &mut |downloaded, total| {
             on_progress(DownloadProgress::Downloading {
                 voice_key: voice_key.to_string(),
                 bytes_downloaded: downloaded,
@@ -103,7 +103,7 @@ impl PiperCatalog {
         // Download config file
         let config_url = Self::config_url(voice_key);
         log::info!("Downloading Piper config from {config_url}");
-        download_file(&config_url, &config_path, &mut |_dl, _total| {}).await?;
+        super::download::download_file(&config_url, &config_path, &mut |_dl, _total| {}).await?;
 
         on_progress(DownloadProgress::Complete {
             voice_key: voice_key.to_string(),
@@ -143,37 +143,6 @@ impl PiperCatalog {
         let hash = simple_hash_hex(&data);
         Ok(hash == expected)
     }
-}
-
-async fn download_file<F>(url: &str, dest: &PathBuf, on_progress: &mut F) -> Result<(), String>
-where
-    F: FnMut(u64, u64),
-{
-    let client = reqwest::Client::new();
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("HTTP request failed: {e}"))?;
-
-    let total = resp.content_length().unwrap_or(0);
-    let mut downloaded: u64 = 0;
-
-    let mut resp = resp.bytes_stream();
-    let mut file = std::fs::File::create(dest).map_err(|e| format!("Create file: {e}"))?;
-
-    use futures_util::StreamExt;
-    use std::io::Write;
-    while let Some(chunk) = resp.next().await {
-        let chunk = chunk.map_err(|e| format!("Read chunk: {e}"))?;
-        file.write_all(&chunk)
-            .map_err(|e| format!("Write file: {e}"))?;
-        downloaded += chunk.len() as u64;
-        on_progress(downloaded, total);
-    }
-
-    file.flush().map_err(|e| format!("Flush file: {e}"))?;
-    Ok(())
 }
 
 impl VoiceCatalogOps for PiperCatalog {

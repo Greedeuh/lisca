@@ -3,6 +3,7 @@
 
 mod piper;
 mod kokoro;
+pub(crate) mod download;
 
 pub use piper::PiperCatalog;
 pub use kokoro::KokoroCatalog;
