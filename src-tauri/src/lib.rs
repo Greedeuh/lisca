@@ -245,7 +245,6 @@ pub fn run() {
             tray::create_tray(app.handle())?;
 
             // Register global shortcut if configured
-            use tauri_plugin_clipboard_manager::ClipboardExt;
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             if let Some(config) = hotkey_config {
                 let shortcut_str = config.to_string_repr();
@@ -258,28 +257,25 @@ pub fn run() {
                         shortcut,
                         move |_app, _shortcut, event| {
                             if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                                if let Ok(text) = _app.clipboard().read_text() {
-                                    let text = text.to_string();
-                                    if !text.is_empty() {
-                                        let actors = _app.state::<AppActors>();
-                                        let queue = actors.queue.clone();
-                                        tauri::async_runtime::spawn(async move {
-                                            use actors::messages::AddText;
-                                            match queue.send(AddText { text }).await {
-                                                Ok(Ok(id)) => {
-                                                    log::info!("Added item {id} via hotkey");
-                                                }
-                                                Ok(Err(e)) => {
-                                                    log::error!("Failed to add text to queue: {e}");
-                                                }
-                                                Err(e) => {
-                                                    log::error!("Actor mailbox error: {e}");
-                                                }
+                                if let Some(text) = clipboard::auto_copy_and_read(&_app) {
+                                    let actors = _app.state::<AppActors>();
+                                    let queue = actors.queue.clone();
+                                    tauri::async_runtime::spawn(async move {
+                                        use actors::messages::AddText;
+                                        match queue.send(AddText { text }).await {
+                                            Ok(Ok(id)) => {
+                                                log::info!("Added item {id} via hotkey");
                                             }
-                                        });
-                                    }
+                                            Ok(Err(e)) => {
+                                                log::error!("Failed to add text to queue: {e}");
+                                            }
+                                            Err(e) => {
+                                                log::error!("Actor mailbox error: {e}");
+                                            }
+                                        }
+                                    });
                                 } else {
-                                    log::warn!("Failed to read clipboard");
+                                    log::warn!("No text selected or clipboard copy failed");
                                 }
                             }
                         },
