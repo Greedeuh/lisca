@@ -76,15 +76,14 @@ pub fn run() {
             let piper_factory: Arc<dyn models::ModelFactory> =
                 Arc::new(PiperFactory::new(piper_models_dir.clone(), app_data_dir.clone()));
             let shared_engine_path = kokoro_models_dir.join("kokoro_engine.onnx");
-            let kokoro_factory: Arc<dyn models::ModelFactory> =
-                Arc::new(KokoroFactory::new(kokoro_models_dir.clone(), shared_engine_path));
-            let unified_factory = Arc::new(UnifiedFactory::new(piper_factory, kokoro_factory));
-
-            // Create catalog in actix thread for transcriber actor
             let resource_dir = app_handle
                 .path()
                 .resource_dir()
                 .unwrap_or_else(|_| app_data_dir.clone());
+            let kokoro_factory: Arc<dyn models::ModelFactory> =
+                Arc::new(KokoroFactory::new(kokoro_models_dir.clone(), shared_engine_path, resource_dir.clone()));
+            let unified_factory = Arc::new(UnifiedFactory::new(piper_factory, kokoro_factory));
+
             let catalog = Arc::new(VoiceCatalog::new(
                 piper_models_dir.clone(),
                 kokoro_models_dir.clone(),

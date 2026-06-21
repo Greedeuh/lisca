@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::{Model, ModelFactory};
-use super::kokoro_phonemizer::Phonemizer;
+use super::kokoro_phonemizer::{KokoroPhonemizer, KokoroTokenizerConfig};
 
 pub struct KokoroEngine {
     session: std::sync::Mutex<ort::session::Session>,
@@ -46,8 +46,9 @@ impl KokoroEngine {
 pub struct KokoroModel {
     engine: Arc<KokoroEngine>,
     vocab: HashMap<char, i64>,
+    pad_token_id: i64,
     voices: Vec<Vec<f32>>,
-    phonemizer: Phonemizer,
+    phonemizer: KokoroPhonemizer,
     sample_rate: u32,
 }
 
@@ -55,56 +56,27 @@ impl KokoroModel {
     pub fn new(
         engine: Arc<KokoroEngine>,
         voice_path: &Path,
+        resource_dir: &Path,
         sample_rate: u32,
     ) -> Result<Self, String> {
         let voice_data = std::fs::read(voice_path)
             .map_err(|e| format!("failed to read voice file {}: {e}", voice_path.display()))?;
 
         let voices = Self::load_voice_data(&voice_data)?;
-        let vocab = Self::load_vocab();
+
+        let config = KokoroTokenizerConfig::load(resource_dir)?;
+        let (vocab, pad_token_id) = config.build_tokenizer();
+
+        let phonemizer = KokoroPhonemizer::new(resource_dir, "en");
 
         Ok(Self {
             engine,
             vocab,
+            pad_token_id,
             voices,
-            phonemizer: Phonemizer::new(),
+            phonemizer,
             sample_rate,
         })
-    }
-
-    fn load_vocab() -> HashMap<char, i64> {
-        let mut vocab = HashMap::new();
-        // Generated from hexgrad/Kokoro-82M config.json
-        let pairs = &[
-            (';', 1), (':', 2), (',', 3), ('.', 4), ('!', 5), ('?', 6),
-            ('—', 9), ('…', 10), ('"', 11), ('(', 12), (')', 13),
-            ('\u{201C}', 14), ('\u{201D}', 15), (' ', 16),
-            ('\u{0303}', 17), ('ʣ', 18), ('ʥ', 19), ('ʦ', 20), ('ʨ', 21),
-            ('ᵝ', 22), ('\u{AB67}', 23),
-            ('A', 24), ('I', 25), ('O', 31), ('Q', 33), ('S', 35),
-            ('T', 36), ('W', 39), ('Y', 41), ('ᵊ', 42),
-            ('a', 43), ('b', 44), ('c', 45), ('d', 46), ('e', 47),
-            ('f', 48), ('h', 50), ('i', 51), ('j', 52), ('k', 53),
-            ('l', 54), ('m', 55), ('n', 56), ('o', 57), ('p', 58),
-            ('q', 59), ('r', 60), ('s', 61), ('t', 62), ('u', 63),
-            ('v', 64), ('w', 65), ('x', 66), ('y', 67), ('z', 68),
-            ('ɑ', 69), ('ɐ', 70), ('ɒ', 71), ('æ', 72), ('β', 75),
-            ('ɔ', 76), ('ɕ', 77), ('ç', 78), ('ɖ', 80), ('ð', 81),
-            ('ʤ', 82), ('ə', 83), ('ɚ', 85), ('ɛ', 86), ('ɜ', 87),
-            ('ɟ', 90), ('ɡ', 92), ('ɥ', 99), ('ɨ', 101), ('ɪ', 102),
-            ('ʝ', 103), ('ɯ', 110), ('ɰ', 111), ('ŋ', 112), ('ɳ', 113),
-            ('ɲ', 114), ('ɴ', 115), ('ø', 116), ('ɸ', 118), ('θ', 119),
-            ('œ', 120), ('ɹ', 123), ('ɾ', 125), ('ɻ', 126), ('ʁ', 128),
-            ('ɽ', 129), ('ʂ', 130), ('ʃ', 131), ('ʈ', 132), ('ʧ', 133),
-            ('ʊ', 135), ('ʋ', 136), ('ʌ', 138), ('ɣ', 139), ('ɤ', 140),
-            ('χ', 142), ('ʎ', 143), ('ʒ', 147), ('ʔ', 148),
-            ('ˈ', 156), ('ˌ', 157), ('ː', 158), ('ʰ', 162), ('ʲ', 164),
-            ('↓', 169), ('→', 171), ('↗', 172), ('↘', 173), ('ᵻ', 177),
-        ];
-        for &(ch, id) in pairs {
-            vocab.insert(ch, id);
-        }
-        vocab
     }
 
     fn load_voice_data(bytes: &[u8]) -> Result<Vec<Vec<f32>>, String> {
@@ -134,25 +106,13 @@ impl KokoroModel {
     }
 
     fn tokenize(&self, text: &str) -> Vec<i64> {
-        let mut tokens = Vec::new();
-
+        let mut tokens = vec![self.pad_token_id];
         for ch in text.chars() {
-            // Direct mapping
             if let Some(&id) = self.vocab.get(&ch) {
                 tokens.push(id);
-                continue;
             }
-
-            // Try lowercase
-            let lower = ch.to_lowercase().next().unwrap_or(ch);
-            if let Some(&id) = self.vocab.get(&lower) {
-                tokens.push(id);
-                continue;
-            }
-
-            // Skip unknown
         }
-
+        tokens.push(self.pad_token_id);
         tokens
     }
 }
@@ -179,14 +139,13 @@ impl Model for KokoroModel {
             &tokens
         };
 
-        // Select style vector based on token count
-        let style_idx = (tokens.len() - 1).min(self.voices.len() - 1);
+        // Select style vector based on token count (exclude BOS/EOS)
+        let inner_len = tokens.len().saturating_sub(2).max(1);
+        let style_idx = (inner_len - 1).min(self.voices.len() - 1);
         let ref_s = &self.voices[style_idx];
 
-        // Build input: add pad token (0) at start and end
-        let mut input_ids = vec![0i64];
-        input_ids.extend_from_slice(tokens);
-        input_ids.push(0);
+        // Build input: tokenize() already adds pad tokens at start and end
+        let input_ids: Vec<i64> = tokens.to_vec();
 
         // Create tensors
         let t_input_ids = ort::value::Tensor::from_array(([1, input_ids.len()], input_ids))
@@ -215,15 +174,17 @@ impl Model for KokoroModel {
 pub struct KokoroFactory {
     models_dir: PathBuf,
     shared_engine_path: PathBuf,
+    resource_dir: PathBuf,
     shared_engine: std::sync::Mutex<Option<Arc<KokoroEngine>>>,
     default_sample_rate: u32,
 }
 
 impl KokoroFactory {
-    pub fn new(models_dir: PathBuf, shared_engine_path: PathBuf) -> Self {
+    pub fn new(models_dir: PathBuf, shared_engine_path: PathBuf, resource_dir: PathBuf) -> Self {
         Self {
             models_dir,
             shared_engine_path,
+            resource_dir,
             shared_engine: std::sync::Mutex::new(None),
             default_sample_rate: 24000,
         }
@@ -263,7 +224,7 @@ impl ModelFactory for KokoroFactory {
     fn create(&self, voice_key: &str) -> Result<Arc<Mutex<dyn Model>>, String> {
         let engine = self.ensure_engine()?;
         let voice_path = self.models_dir.join(format!("{voice_key}.bin"));
-        let model = KokoroModel::new(engine, &voice_path, self.default_sample_rate)?;
+        let model = KokoroModel::new(engine, &voice_path, &self.resource_dir, self.default_sample_rate)?;
         Ok(Arc::new(Mutex::new(model)))
     }
 
@@ -301,7 +262,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("voice-a.bin"), "").unwrap();
 
-        let factory = KokoroFactory::new(dir.clone(), PathBuf::from("unused.onnx"));
+        let factory = KokoroFactory::new(dir.clone(), PathBuf::from("unused.onnx"), dir.clone());
         assert!(factory.is_installed("voice-a"));
         assert!(!factory.is_installed("nonexistent"));
 
@@ -316,7 +277,7 @@ mod tests {
         fs::write(dir.join("voice-b.bin"), "").unwrap();
         fs::write(dir.join("voice-c.txt"), "").unwrap(); // not a .bin
 
-        let factory = KokoroFactory::new(dir.clone(), PathBuf::from("unused.onnx"));
+        let factory = KokoroFactory::new(dir.clone(), PathBuf::from("unused.onnx"), dir.clone());
         let mut voices = factory.installed_voices();
         voices.sort();
         assert_eq!(voices, vec!["voice-a", "voice-b"]);
@@ -326,7 +287,7 @@ mod tests {
 
     #[test]
     fn kokoro_factory_create_fails_without_engine() {
-        let factory = KokoroFactory::new(PathBuf::from("/tmp"), PathBuf::from("unused.onnx"));
+        let factory = KokoroFactory::new(PathBuf::from("/tmp"), PathBuf::from("unused.onnx"), PathBuf::from("/tmp"));
         match factory.create("voice-a") {
             Err(e) => assert!(e.contains("shared engine not found")),
             Ok(_) => panic!("expected error"),
@@ -338,7 +299,7 @@ mod tests {
         let dir = std::env::temp_dir().join("lisca_kokoro_test_missing");
         fs::create_dir_all(&dir).unwrap();
 
-        let factory = KokoroFactory::new(dir.clone(), dir.join("shared.onnx"));
+        let factory = KokoroFactory::new(dir.clone(), dir.join("shared.onnx"), dir.clone());
         let result = factory.create("nonexistent");
         assert!(result.is_err());
 
