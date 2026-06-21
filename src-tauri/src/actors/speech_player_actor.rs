@@ -71,7 +71,7 @@ impl SpeechPlayerActor {
         save_json(path, &config)
     }
 
-    fn ensure_sink(&mut self) {
+    fn init_sink(&mut self) {
         if self.sink.lock().unwrap().is_some() {
             return;
         }
@@ -115,7 +115,9 @@ impl SpeechPlayerActor {
 
 impl Actor for SpeechPlayerActor {
     type Context = Context<Self>;
-    fn started(&mut self, _ctx: &mut Self::Context) {}
+    fn started(&mut self, _ctx: &mut Self::Context) {
+        self.init_sink();
+    }
 }
 
 struct PlayNext;
@@ -135,11 +137,9 @@ impl Handler<PlayNext> for SpeechPlayerActor {
 
     fn handle(&mut self, _: PlayNext, ctx: &mut Context<Self>) {
         log::debug!("PlayNext received auto_read:{}, stopped:{}", self.auto_read, self.stopped);
-        if !self.auto_read || self.stopped {
+        if self.stopped {
             return;
         }
-
-        self.ensure_sink();
 
         let sink_empty = self
             .sink
@@ -219,7 +219,6 @@ impl Handler<SpeechReady> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: SpeechReady, ctx: &mut Context<Self>) {
-        self.stopped = false;
         if self.auto_read {
             ctx.address().do_send(PlayNext);
         }
@@ -248,7 +247,10 @@ impl Handler<PlaybackResume> for SpeechPlayerActor {
 
         if let Some(sink) = self.sink.lock().unwrap().as_ref() {            
             sink.play();
+            log::debug!("PlaybackResume: sink.empty(): {}", sink.empty());
+
             if sink.empty() {
+                log::debug!("PlaybackResume: sink is empty sending PlayNext");
                 ctx.address().do_send(PlayNext);
             }
         }
