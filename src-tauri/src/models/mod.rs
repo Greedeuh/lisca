@@ -1,7 +1,7 @@
 // TTS model trait, LRU pool, and backend implementations (Piper, Kokoro).
 
 mod kokoro;
-pub mod kokoro_phonemizer;
+mod kokoro_phonemizer;
 mod piper;
 mod pool;
 

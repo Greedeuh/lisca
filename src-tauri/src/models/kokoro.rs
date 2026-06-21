@@ -6,8 +6,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use misaki_rs::{G2P, Language};
+
 use super::{Model, ModelFactory};
-use super::kokoro_phonemizer::{KokoroPhonemizer, KokoroTokenizerConfig};
+use super::kokoro_phonemizer::KokoroTokenizerConfig;
 
 pub struct KokoroEngine {
     session: std::sync::Mutex<ort::session::Session>,
@@ -48,7 +50,7 @@ pub struct KokoroModel {
     vocab: HashMap<char, i64>,
     pad_token_id: i64,
     voices: Vec<Vec<f32>>,
-    phonemizer: KokoroPhonemizer,
+    g2p: G2P,
     sample_rate: u32,
 }
 
@@ -67,14 +69,14 @@ impl KokoroModel {
         let config = KokoroTokenizerConfig::load(resource_dir)?;
         let (vocab, pad_token_id) = config.build_tokenizer();
 
-        let phonemizer = KokoroPhonemizer::new(resource_dir, "en");
+        let g2p = G2P::new(Language::EnglishUS);
 
         Ok(Self {
             engine,
             vocab,
             pad_token_id,
             voices,
-            phonemizer,
+            g2p,
             sample_rate,
         })
     }
@@ -105,9 +107,14 @@ impl KokoroModel {
         Ok(voices)
     }
 
-    fn tokenize(&self, text: &str) -> Vec<i64> {
+    fn phonemize(&self, text: &str) -> String {
+        let (phonemes, _) = self.g2p.g2p(text).unwrap_or_default();
+        phonemes
+    }
+
+    fn tokenize(&self, phonemes: &str) -> Vec<i64> {
         let mut tokens = vec![self.pad_token_id];
-        for ch in text.chars() {
+        for ch in phonemes.chars() {
             if let Some(&id) = self.vocab.get(&ch) {
                 tokens.push(id);
             }
@@ -119,8 +126,7 @@ impl KokoroModel {
 
 impl Model for KokoroModel {
     fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, String> {
-        // Convert text to IPA phonemes first
-        let phonemes = self.phonemizer.phonemize(text);
+        let phonemes = self.phonemize(text);
         log::debug!("Text: {}", text);
         log::debug!("Phonemes: {}", phonemes);
 
