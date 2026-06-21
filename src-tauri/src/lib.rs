@@ -26,7 +26,7 @@ use commands::AppState;
 use models::{KokoroFactory, ModelPool, PiperFactory};
 use queue::Queue;
 use std::sync::Arc;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use transcriber::UnifiedFactory;
 use voice_prefs::VoiceMapping;
 
@@ -194,6 +194,25 @@ pub fn run() {
             app.manage(actors);
             app.manage(state);
 
+            // Show overlay when item added and main window is hidden
+            {
+                let handle = app.handle().clone();
+                app.listen("item_added", move |_| {
+                    let h = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let main_hidden = h
+                            .get_webview_window("main")
+                            .map(|w| !w.is_visible().unwrap_or(true))
+                            .unwrap_or(true);
+                        if main_hidden {
+                            if let Err(e) = crate::overlay::show_overlay(&h) {
+                                log::warn!("Failed to show overlay: {e}");
+                            }
+                        }
+                    });
+                });
+            }
+
             // Spawn periodic model pool eviction task
             {
                 let model_pool = model_pool.clone();
@@ -221,7 +240,7 @@ pub fn run() {
             .build()
             .map_err(|e| e.to_string())?;
 
-            // Intercept window close: always hide to tray
+            // Intercept window close: hide to tray, show overlay only if queue has playable items
             {
                 let win = main_window.clone();
                 let app_handle = app.handle().clone();
@@ -230,14 +249,22 @@ pub fn run() {
                         return;
                     };
 
-                    // Default: hide to tray. Overlay shown if queue was non-empty on last check.
                     api.prevent_close();
                     if let Err(e) = win.hide() {
                         log::warn!("Failed to hide main window: {e}");
                     }
-                    if let Err(e) = overlay::show_overlay(&app_handle) {
-                        log::warn!("Failed to show overlay: {e}");
-                    }
+
+                    let handle = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let actors = handle.state::<AppActors>();
+                        if let Ok(has_playable) = actors.queue.send(actors::messages::HasPlayableItems).await {
+                            if has_playable {
+                                if let Err(e) = overlay::show_overlay(&handle) {
+                                    log::warn!("Failed to show overlay: {e}");
+                                }
+                            }
+                        }
+                    });
                 });
             }
 

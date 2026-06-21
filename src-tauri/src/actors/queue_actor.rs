@@ -96,6 +96,24 @@ impl Handler<GetQueueState> for QueueActor {
     }
 }
 
+impl Handler<HasPlayableItems> for QueueActor {
+    type Result = bool;
+
+    fn handle(&mut self, _: HasPlayableItems, _: &mut Context<Self>) -> Self::Result {
+        use crate::queue::{Playable, QueueControllable};
+        self.queue.next_to_play_speech().is_some()
+            || self.queue.items().iter().any(|item| {
+                matches!(
+                    item,
+                    crate::queue::QueueItem::TextMessage {
+                        status: crate::queue::TextMessageStatus::Pending,
+                        ..
+                    }
+                )
+            })
+    }
+}
+
 impl Handler<ToggleOverlay> for QueueActor {
     type Result = bool;
 

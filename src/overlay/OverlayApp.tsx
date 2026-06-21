@@ -19,7 +19,16 @@ export default function OverlayApp() {
       setItems(snapshot.items);
       setAutoRead(playerSnapshot.auto_read);
 
-      if (snapshot.items.length === 0) {
+      const hasPlayable = snapshot.items.some(
+        (item) => item.type === "TextMessage" || item.status !== "played"
+      );
+      console.log("[overlay] refreshQueue", {
+        itemCount: snapshot.items.length,
+        hasPlayable,
+        items: snapshot.items.map((i) => ({ type: i.type, status: i.status })),
+      });
+      if (!hasPlayable) {
+        console.log("[overlay] hiding — no playable items");
         const win = getCurrentWindow();
         await win.hide();
       }

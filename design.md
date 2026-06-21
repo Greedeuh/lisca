@@ -76,7 +76,7 @@ When main window is closed, app minimizes to system tray. Tray menu:
 
 ### Queue Overlay
 
-Frosted glass window. Top-right corner. Only visible when queue has items pending. Shows:
+Frosted glass window. Top-right corner. Only visible when queue has items with actionable status (Pending, Processing, ToPlay, Playing, Paused). Hides when only Played items remain or queue is empty. Shows:
 
 #### Text Message items
 - Text preview (truncated)

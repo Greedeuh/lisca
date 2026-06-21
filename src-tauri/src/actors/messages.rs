@@ -35,6 +35,10 @@ pub struct GetQueueState;
 
 #[derive(Message)]
 #[rtype(result = "bool")]
+pub struct HasPlayableItems;
+
+#[derive(Message)]
+#[rtype(result = "bool")]
 pub struct ToggleAutoRead;
 
 #[derive(Message)]
