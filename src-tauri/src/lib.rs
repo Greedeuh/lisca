@@ -23,6 +23,7 @@ use actors::speech_player_actor::SpeechPlayerActor;
 use actors::transcriber_actor::TranscriberActor;
 use actix::Actor;
 use app_paths::AppPaths;
+use catalog::VoiceCatalog;
 use commands::AppState;
 use models::{KokoroFactory, ModelPool, PiperFactory};
 use queue::Queue;
@@ -114,7 +115,11 @@ fn spawn_actix_system(
                 Arc::new(KokoroFactory::new(paths.kokoro_models_dir.clone(), shared_engine_path, paths.resource_dir.clone()));
             let unified_factory = Arc::new(UnifiedFactory::new(piper_factory, kokoro_factory));
 
-            let catalog = Arc::new(paths.voice_catalog());
+            let catalog = Arc::new(VoiceCatalog::new(
+                paths.piper_models_dir.clone(),
+                paths.kokoro_models_dir.clone(),
+                &paths.resource_dir,
+            ));
 
             let queue_actor = QueueActor::new(queue, app_handle.clone()).start();
             let transcriber_actor = TranscriberActor::new(
@@ -190,7 +195,11 @@ fn setup_app(
         }
     };
 
-    let catalog = paths.voice_catalog();
+    let catalog = VoiceCatalog::new(
+        paths.piper_models_dir.clone(),
+        paths.kokoro_models_dir.clone(),
+        &paths.resource_dir,
+    );
 
     handle_tx
         .send(app.handle().clone())

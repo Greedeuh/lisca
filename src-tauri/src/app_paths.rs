@@ -1,4 +1,3 @@
-use crate::catalog::VoiceCatalog;
 use std::path::PathBuf;
 use tauri::Manager;
 
@@ -30,13 +29,5 @@ impl AppPaths {
             kokoro_models_dir,
             resource_dir,
         }
-    }
-
-    pub fn voice_catalog(&self) -> VoiceCatalog {
-        VoiceCatalog::new(
-            self.piper_models_dir.clone(),
-            self.kokoro_models_dir.clone(),
-            &self.resource_dir,
-        )
     }
 }
