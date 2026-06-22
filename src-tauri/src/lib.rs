@@ -7,7 +7,6 @@
  mod catalog;
  mod clipboard;
  mod commands;
- mod errors;
  mod hotkey;
  mod models;
  mod overlay;
