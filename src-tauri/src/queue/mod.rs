@@ -70,22 +70,10 @@ impl Default for QueueConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
- enum QueueEvent {
-    ItemAdded,
-    ItemRemoved,
-    ItemMoved,
-    ItemCleared,
-    ItemReplaced,
-    ConfigChanged,
-}
-
 pub(super)  struct Queue {
      items: Vec<QueueItem>,
      next_id: u64,
     pub(super) config: QueueConfig,
-    on_event: Option<Box<dyn Fn(QueueEvent) + Send + Sync>>,
     config_path: Option<PathBuf>,
 }
 
@@ -101,7 +89,6 @@ impl Queue {
             items: Vec::new(),
             next_id: 1,
             config: QueueConfig::default(),
-            on_event: None,
             config_path: None,
         }
     }
@@ -116,14 +103,6 @@ impl Queue {
         self
     }
 
-     fn with_event_handler<F: Fn(QueueEvent) + Send + Sync + 'static>(
-        mut self,
-        handler: F,
-    ) -> Self {
-        self.on_event = Some(Box::new(handler));
-        self
-    }
-
     pub(super)  fn save_config(&self) -> Result<(), String> {
         let path = self
             .config_path
@@ -134,12 +113,6 @@ impl Queue {
 
     pub(super)  fn load_config(path: &Path) -> QueueConfig {
         load_json(path)
-    }
-
-     fn emit(&self, event: QueueEvent) {
-        if let Some(ref handler) = self.on_event {
-            handler(event);
-        }
     }
 
     pub(super)  fn snapshot_dto(&self) -> crate::commands::QueueSnapshotDto {

@@ -1,7 +1,7 @@
 // Transcriber's view of the queue: find next Pending TextMessage,
 // update status, and replace with Speech on completion.
 
-use super::{Queue, QueueEvent, QueueItem, SpeechStatus, TextMessageStatus};
+use super::{Queue, QueueItem, SpeechStatus, TextMessageStatus};
 
 pub(crate)  trait Transcribable {
     fn next_pending_text_message(&self) -> Option<(usize, u64)>;
@@ -54,7 +54,6 @@ impl Transcribable for Queue {
             }
             _ => return Err("item is not a TextMessage".to_string()),
         }
-        self.emit(QueueEvent::ItemReplaced);
         Ok(())
     }
 
@@ -84,7 +83,6 @@ impl Transcribable for Queue {
             language,
             status: SpeechStatus::ToPlay,
         };
-        self.emit(QueueEvent::ItemReplaced);
         Ok(())
     }
 }

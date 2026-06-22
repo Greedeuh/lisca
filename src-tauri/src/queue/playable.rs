@@ -1,7 +1,7 @@
 // Speech player's view of the queue: find next ToPlay item, update status.
 // Used by the speech_player background task.
 
-use super::{Queue, QueueEvent, QueueItem, SpeechStatus};
+use super::{Queue, QueueItem, SpeechStatus};
 
 pub(crate)  trait Playable {
     fn next_to_play_speech(&self) -> Option<(usize, u64)>;
@@ -39,7 +39,6 @@ impl Playable for Queue {
             }
             _ => return Err("item is not a Speech".to_string()),
         }
-        self.emit(QueueEvent::ItemReplaced);
         Ok(())
     }
 }

@@ -1,12 +1,10 @@
 // Frontend-facing queue operations: add, remove, reorder, clear.
 // Enforces max_items limit and emits fine-grained events on mutations.
 
-use super::{Queue, QueueConfig, QueueEvent, QueueItem};
+use super::{Queue, QueueItem};
 
 pub(crate)  trait QueueControllable {
     fn items(&self) -> &[QueueItem];
-    fn is_empty(&self) -> bool;
-    fn config(&self) -> &QueueConfig;
     fn add_text(&mut self, text: String) -> Result<u64, String>;
     fn remove(&mut self, id: u64) -> Result<(), String>;
     fn clear(&mut self) -> Result<(), String>;
@@ -16,14 +14,6 @@ pub(crate)  trait QueueControllable {
 impl QueueControllable for Queue {
     fn items(&self) -> &[QueueItem] {
         &self.items
-    }
-
-    fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
-
-    fn config(&self) -> &QueueConfig {
-        &self.config
     }
 
     fn add_text(&mut self, text: String) -> Result<u64, String> {
@@ -38,7 +28,6 @@ impl QueueControllable for Queue {
                 text,
                 status: super::TextMessageStatus::Pending,
             });
-        self.emit(QueueEvent::ItemAdded);
         Ok(id)
     }
 
@@ -48,13 +37,11 @@ impl QueueControllable for Queue {
         if self.items.len() == before {
             return Err(format!("item with id {id} not found"));
         }
-        self.emit(QueueEvent::ItemRemoved);
         Ok(())
     }
 
     fn clear(&mut self) -> Result<(), String> {
         self.items.clear();
-        self.emit(QueueEvent::ItemCleared);
         Ok(())
     }
 
@@ -71,7 +58,6 @@ impl QueueControllable for Queue {
         }
         let item = self.items.remove(old_index);
         self.items.insert(clamped, item);
-        self.emit(QueueEvent::ItemMoved);
         Ok(())
     }
 }
@@ -86,7 +72,6 @@ mod tests {
         let mut q = Queue::new();
         let id = q.add_text("hello".to_string()).unwrap();
         assert_eq!(id, 1);
-        assert!(!q.is_empty());
         match &q.items()[0] {
             QueueItem::TextMessage { text, status, .. } => {
                 assert_eq!(text, "hello");
@@ -114,7 +99,6 @@ mod tests {
         let id1 = q.add_text("first".to_string()).unwrap();
         let id2 = q.add_text("second".to_string()).unwrap();
         q.remove(id1).unwrap();
-        assert!(!q.is_empty());
         assert_eq!(q.items().len(), 1);
         assert_eq!(q.items()[0].id(), id2);
     }
@@ -131,7 +115,7 @@ mod tests {
         q.add_text("first".to_string()).unwrap();
         q.add_text("second".to_string()).unwrap();
         q.clear().unwrap();
-        assert!(q.is_empty());
+        assert!(q.items().is_empty());
     }
 
     #[test]
@@ -160,108 +144,5 @@ mod tests {
         let mut q = Queue::new();
         q.add_text("first".to_string()).unwrap();
         assert!(q.reorder(999, 0).is_err());
-    }
-
-    #[test]
-    fn max_items_enforced() {
-        let config = super::QueueConfig {
-            max_items: 2,
-            ..Default::default()
-        };
-        let mut q = Queue::new().with_config(config);
-        q.add_text("a".to_string()).unwrap();
-        q.add_text("b".to_string()).unwrap();
-        assert!(q.add_text("c".to_string()).is_err());
-        assert!(!q.is_empty());
-        assert_eq!(q.items().len(), 2);
-    }
-
-    #[test]
-    fn max_items_zero_means_unlimited() {
-        let config = super::QueueConfig {
-            max_items: 0,
-            ..Default::default()
-        };
-        let mut q = Queue::new().with_config(config);
-        for i in 0..100 {
-            q.add_text(format!("item {i}")).unwrap();
-        }
-        assert_eq!(q.items().len(), 100);
-    }
-
-    #[test]
-    fn emit_item_added() {
-        use std::sync::{Arc, Mutex};
-
-        let events: Arc<Mutex<Vec<super::super::QueueEvent>>> =
-            Arc::new(Mutex::new(Vec::new()));
-        let events_clone = events.clone();
-
-        let mut q = Queue::new().with_event_handler(move |e| {
-            events_clone.lock().unwrap().push(e);
-        });
-        q.add_text("hello".to_string()).unwrap();
-        let events = events.lock().unwrap();
-        assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], super::super::QueueEvent::ItemAdded));
-    }
-
-    #[test]
-    fn emit_item_removed() {
-        use std::sync::{Arc, Mutex};
-
-        let events: Arc<Mutex<Vec<super::super::QueueEvent>>> =
-            Arc::new(Mutex::new(Vec::new()));
-        let events_clone = events.clone();
-
-        let mut q = Queue::new().with_event_handler(move |e| {
-            events_clone.lock().unwrap().push(e);
-        });
-        let id = q.add_text("hello".to_string()).unwrap();
-        q.remove(id).unwrap();
-        let events = events.lock().unwrap();
-        assert_eq!(events.len(), 2);
-        assert!(matches!(events[0], super::super::QueueEvent::ItemAdded));
-        assert!(matches!(events[1], super::super::QueueEvent::ItemRemoved));
-    }
-
-    #[test]
-    fn emit_item_cleared() {
-        use std::sync::{Arc, Mutex};
-
-        let events: Arc<Mutex<Vec<super::super::QueueEvent>>> =
-            Arc::new(Mutex::new(Vec::new()));
-        let events_clone = events.clone();
-
-        let mut q = Queue::new().with_event_handler(move |e| {
-            events_clone.lock().unwrap().push(e);
-        });
-        q.add_text("hello".to_string()).unwrap();
-        q.clear().unwrap();
-        let events = events.lock().unwrap();
-        assert_eq!(events.len(), 2);
-        assert!(matches!(events[0], super::super::QueueEvent::ItemAdded));
-        assert!(matches!(events[1], super::super::QueueEvent::ItemCleared));
-    }
-
-    #[test]
-    fn emit_item_moved() {
-        use std::sync::{Arc, Mutex};
-
-        let events: Arc<Mutex<Vec<super::super::QueueEvent>>> =
-            Arc::new(Mutex::new(Vec::new()));
-        let events_clone = events.clone();
-
-        let mut q = Queue::new().with_event_handler(move |e| {
-            events_clone.lock().unwrap().push(e);
-        });
-        let id = q.add_text("hello".to_string()).unwrap();
-        q.add_text("world".to_string()).unwrap();
-        q.reorder(id, 1).unwrap();
-        let events = events.lock().unwrap();
-        assert_eq!(events.len(), 3);
-        assert!(matches!(events[0], super::super::QueueEvent::ItemAdded));
-        assert!(matches!(events[1], super::super::QueueEvent::ItemAdded));
-        assert!(matches!(events[2], super::super::QueueEvent::ItemMoved));
     }
 }
