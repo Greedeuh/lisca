@@ -54,7 +54,6 @@ pub(super)  async fn install_voice(
             let event_name = match &progress {
                 DownloadProgress::Downloading { .. } => "download_progress",
                 DownloadProgress::Complete { .. } => "download_complete",
-                DownloadProgress::Error { .. } => "download_error",
             };
             if let Err(e) = app.emit(event_name, &progress) {
                 log::warn!("Failed to emit download event: {e}");

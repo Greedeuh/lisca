@@ -31,10 +31,6 @@ impl KokoroCatalog {
         )
     }
 
-     fn is_shared_engine_installed(&self) -> bool {
-        self.shared_engine_path.exists()
-    }
-
     pub(super)   async fn install<F>(
         &self,
         voice_key: &str,
@@ -216,11 +212,5 @@ mod tests {
     fn uninstall_nonexistent_is_ok() {
         let (catalog, _dir) = setup_kokoro_catalog();
         catalog.uninstall("nonexistent").unwrap();
-    }
-
-    #[test]
-    fn shared_engine_not_installed_initially() {
-        let (catalog, _dir) = setup_kokoro_catalog();
-        assert!(!catalog.is_shared_engine_installed());
     }
 }

@@ -12,7 +12,7 @@ pub(crate)  struct QueueActor {
     queue: Queue,
     app_handle: AppHandle,
     player_addr: Option<Addr<SpeechPlayerActor>>,
-    transcriber_addr: Option<Addr<TranscriberActor>>,
+    transcriber_addr: Option<Addr<TranscriberActor>>, // TODO: does it need to be an Option?
 }
 
 impl QueueActor {
@@ -23,14 +23,6 @@ impl QueueActor {
             player_addr: None,
             transcriber_addr: None,
         }
-    }
-
-     fn set_player_addr(&mut self, addr: Addr<SpeechPlayerActor>) {
-        self.player_addr = Some(addr);
-    }
-
-     fn set_transcriber_addr(&mut self, addr: Addr<TranscriberActor>) {
-        self.transcriber_addr = Some(addr);
     }
 
     fn emit_event(&self, event: &str) {

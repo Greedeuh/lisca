@@ -58,8 +58,6 @@ pub(super)  enum DownloadProgress {
     },
     #[serde(rename = "complete")]
     Complete { voice_key: String },
-    #[serde(rename = "error")]
-    Error { voice_key: String, reason: String },
 }
 
 #[derive(Debug, Clone, Serialize)]
