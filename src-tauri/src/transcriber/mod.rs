@@ -35,12 +35,4 @@ impl ModelFactory for UnifiedFactory {
     fn is_installed(&self, voice_key: &str) -> bool {
         self.piper.is_installed(voice_key) || self.kokoro.is_installed(voice_key)
     }
-
-    fn installed_voices(&self) -> Vec<String> {
-        let mut voices = self.piper.installed_voices();
-        voices.extend(self.kokoro.installed_voices());
-        voices.sort();
-        voices.dedup();
-        voices
-    }
 }

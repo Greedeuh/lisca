@@ -171,10 +171,6 @@ impl Model for KokoroModel {
         log::debug!("Kokoro output length: {}", audio.len());
         Ok(audio)
     }
-
-    fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
 }
 
 pub(crate)  struct KokoroFactory {
@@ -237,24 +233,6 @@ impl ModelFactory for KokoroFactory {
     fn is_installed(&self, voice_key: &str) -> bool {
         self.models_dir.join(format!("{voice_key}.bin")).exists()
     }
-
-    fn installed_voices(&self) -> Vec<String> {
-        std::fs::read_dir(&self.models_dir)
-            .map(|entries| {
-                entries
-                    .filter_map(|e| e.ok())
-                    .filter(|e| {
-                        e.path()
-                            .extension()
-                            .map(|ext| ext == "bin")
-                            .unwrap_or(false)
-                    })
-                    .filter_map(|e| e.file_name().into_string().ok())
-                    .map(|name| name.trim_end_matches(".bin").to_string())
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
 }
 
 #[cfg(test)]
@@ -271,22 +249,6 @@ mod tests {
         let factory = KokoroFactory::new(dir.clone(), PathBuf::from("unused.onnx"), dir.clone());
         assert!(factory.is_installed("voice-a"));
         assert!(!factory.is_installed("nonexistent"));
-
-        let _ = fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn kokoro_factory_lists_installed_voices() {
-        let dir = std::env::temp_dir().join("lisca_kokoro_test_list");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("voice-a.bin"), "").unwrap();
-        fs::write(dir.join("voice-b.bin"), "").unwrap();
-        fs::write(dir.join("voice-c.txt"), "").unwrap(); // not a .bin
-
-        let factory = KokoroFactory::new(dir.clone(), PathBuf::from("unused.onnx"), dir.clone());
-        let mut voices = factory.installed_voices();
-        voices.sort();
-        assert_eq!(voices, vec!["voice-a", "voice-b"]);
 
         let _ = fs::remove_dir_all(dir);
     }

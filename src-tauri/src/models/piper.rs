@@ -234,10 +234,6 @@ impl Model for PiperModel {
 
         Ok(data.to_vec())
     }
-
-    fn sample_rate(&self) -> u32 {
-        self.config.audio.sample_rate
-    }
 }
 
 pub(crate)  struct PiperFactory {
@@ -268,23 +264,6 @@ impl ModelFactory for PiperFactory {
         voice_dir.join(format!("{}.onnx", voice_key)).exists()
             && voice_dir.join(format!("{}.onnx.json", voice_key)).exists()
     }
-
-    fn installed_voices(&self) -> Vec<String> {
-        std::fs::read_dir(&self.models_dir)
-            .map(|entries| {
-                entries
-                    .filter_map(|e| e.ok())
-                    .filter(|e| e.path().is_dir())
-                    .filter(|e| {
-                        let name = e.file_name().to_string_lossy().to_string();
-                        e.path().join(format!("{}.onnx", name)).exists()
-                            && e.path().join(format!("{}.onnx.json", name)).exists()
-                    })
-                    .filter_map(|e| e.file_name().into_string().ok())
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
 }
 
 #[cfg(test)]
@@ -303,26 +282,6 @@ mod tests {
         let factory = PiperFactory::new(dir.clone(), PathBuf::from("/tmp"));
         assert!(factory.is_installed("test-voice"));
         assert!(!factory.is_installed("nonexistent"));
-
-        let _ = fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn piper_factory_lists_installed_voices() {
-        let dir = std::env::temp_dir().join("lisca_piper_test_list");
-        fs::create_dir_all(dir.join("voice-a")).unwrap();
-        fs::create_dir_all(dir.join("voice-b")).unwrap();
-        fs::create_dir_all(dir.join("voice-c")).unwrap();
-        fs::write(dir.join("voice-a").join("voice-a.onnx"), "").unwrap();
-        fs::write(dir.join("voice-a").join("voice-a.onnx.json"), "{}").unwrap();
-        fs::write(dir.join("voice-b").join("voice-b.onnx"), "").unwrap();
-        fs::write(dir.join("voice-b").join("voice-b.onnx.json"), "{}").unwrap();
-        // voice-c has no config
-
-        let factory = PiperFactory::new(dir.clone(), PathBuf::from("/tmp"));
-        let mut voices = factory.installed_voices();
-        voices.sort();
-        assert_eq!(voices, vec!["voice-a", "voice-b"]);
 
         let _ = fs::remove_dir_all(dir);
     }

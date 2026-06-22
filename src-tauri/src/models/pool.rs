@@ -167,10 +167,6 @@ mod tests {
         fn synthesize(&mut self, _text: &str) -> Result<Vec<f32>, String> {
             Ok(vec![0.1, 0.2, 0.3])
         }
-
-        fn sample_rate(&self) -> u32 {
-            self.sample_rate
-        }
     }
 
     struct MockFactory {
@@ -198,28 +194,6 @@ mod tests {
         fn is_installed(&self, _voice_key: &str) -> bool {
             true
         }
-
-        fn installed_voices(&self) -> Vec<String> {
-            vec![
-                "voice-a".to_string(),
-                "voice-b".to_string(),
-                "voice-c".to_string(),
-            ]
-        }
-    }
-
-    #[tokio::test]
-    async fn loads_model_on_first_access() {
-        let (factory, create_count) = MockFactory::new();
-        let mut pool = ModelPool::new(4, None);
-
-        let model = pool.get("voice-a", &factory).await.unwrap();
-        assert_eq!(create_count.load(Ordering::SeqCst), 1);
-        assert_eq!(pool.cache_size(), 1);
-        assert_eq!(pool.cached_keys(), vec!["voice-a"]);
-
-        let m = model.lock().await;
-        assert_eq!(m.sample_rate(), 22050);
     }
 
     #[tokio::test]
@@ -400,10 +374,6 @@ mod tests {
 
             fn is_installed(&self, _voice_key: &str) -> bool {
                 false
-            }
-
-            fn installed_voices(&self) -> Vec<String> {
-                vec![]
             }
         }
 
