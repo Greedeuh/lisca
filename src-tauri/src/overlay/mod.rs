@@ -2,7 +2,7 @@
 // The overlay is a transparent, always-on-top, frameless window
 // that shows the queue when the main window is closed.
 
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
  const OVERLAY_LABEL: &str = "overlay";
  const OVERLAY_WIDTH: f64 = 340.0;
@@ -68,21 +68,6 @@ pub(super)  fn toggle_overlay(app: &AppHandle) -> Result<bool, String> {
         position_overlay(&win);
         win.show().map_err(|e| e.to_string())?;
         Ok(true)
-    }
-}
-
- fn update_overlay_visibility(app: &AppHandle, has_items: bool) {
-    if !has_items {
-        if let Some(win) = app.get_webview_window(OVERLAY_LABEL) {
-            if win.is_visible().unwrap_or(false) {
-                if let Err(e) = win.hide() {
-                    log::warn!("Failed to hide overlay: {e}");
-                }
-                if let Err(e) = app.emit("overlay_hidden", ()) {
-                    log::warn!("Failed to emit overlay_hidden event: {e}");
-                }
-            }
-        }
     }
 }
 

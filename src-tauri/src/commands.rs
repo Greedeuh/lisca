@@ -5,7 +5,6 @@ use crate::actors::AppActors;
 use crate::actors::messages::*;
 use crate::catalog::{DownloadProgress, InstalledVoice, VoiceCatalog, VoiceCatalogOps};
 use crate::hotkey::{ShortcutConfig, load_hotkey, parse_shortcut, save_hotkey};
-use crate::models::ModelPool;
 use crate::queue::QueueItem;
 use crate::voice_prefs::VoiceMapping;
 use serde::{Deserialize, Serialize};
@@ -17,7 +16,6 @@ pub(super)  struct AppState {
     pub(super)  catalog: VoiceCatalog,
     pub(super)  voice_mapping: Arc<tokio::sync::Mutex<VoiceMapping>>,
     pub(super)  app_data_dir: PathBuf,
-    pub(super)  model_pool: Arc<tokio::sync::Mutex<ModelPool>>,
 }
 
 // ── Catalog commands ──────────────────────────────────────────────

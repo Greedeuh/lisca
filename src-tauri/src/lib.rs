@@ -151,7 +151,6 @@ fn setup_app(
         catalog,
         voice_mapping: actors.voice_mapping.clone(),
         app_data_dir: paths.app_data_dir,
-        model_pool: model_pool.clone(),
     };
 
     app.manage(actors);
