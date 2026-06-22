@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-pub async fn download_file<F>(url: &str, dest: &PathBuf, on_progress: &mut F) -> Result<(), String>
+pub(crate) async fn download_file<F>(url: &str, dest: &PathBuf, on_progress: &mut F) -> Result<(), String>
 where
     F: FnMut(u64, u64),
 {

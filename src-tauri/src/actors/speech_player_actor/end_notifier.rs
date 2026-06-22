@@ -7,7 +7,7 @@ use crate::actors::messages::PlaybackComplete;
 
 use super::SpeechPlayerActor;
 
-pub struct EndNotifier<S> {
+pub(super) struct EndNotifier<S> {
     source: S,
     addr: Addr<SpeechPlayerActor>,
     id: u64,
@@ -15,7 +15,7 @@ pub struct EndNotifier<S> {
 }
 
 impl<S> EndNotifier<S> {
-    pub fn new(source: S, addr: Addr<SpeechPlayerActor>, id: u64) -> Self {
+    pub(super) fn new(source: S, addr: Addr<SpeechPlayerActor>, id: u64) -> Self {
         Self {
             source,
             addr,

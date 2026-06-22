@@ -2,30 +2,30 @@ use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(serde::Deserialize)]
-pub struct KokoroTokenizerConfig {
+pub(super) struct KokoroTokenizerConfig {
     pub post_processor: PostProcessorConfig,
     pub model: ModelConfig,
 }
 
 #[derive(serde::Deserialize)]
-pub struct PostProcessorConfig {
+pub(super) struct PostProcessorConfig {
     pub special_tokens: HashMap<String, SpecialToken>,
 }
 
 #[derive(serde::Deserialize)]
-pub struct SpecialToken {
+pub(super) struct SpecialToken {
     #[allow(dead_code)]
     pub id: String,
     pub ids: Vec<i64>,
 }
 
 #[derive(serde::Deserialize)]
-pub struct ModelConfig {
+pub(super) struct ModelConfig {
     pub vocab: HashMap<String, i64>,
 }
 
 impl KokoroTokenizerConfig {
-    pub fn load(resource_dir: &Path) -> Result<Self, String> {
+    pub(super) fn load(resource_dir: &Path) -> Result<Self, String> {
         let config_path = resource_dir.join("kokoro_tokenizer.json");
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| format!("Read tokenizer config: {}", e))?;
@@ -33,7 +33,7 @@ impl KokoroTokenizerConfig {
             .map_err(|e| format!("Parse tokenizer config: {}", e))
     }
 
-    pub fn build_tokenizer(&self) -> (HashMap<char, i64>, i64) {
+    pub(super) fn build_tokenizer(&self) -> (HashMap<char, i64>, i64) {
         let mut vocab = HashMap::new();
         for (key, &id) in &self.model.vocab {
             if let Some(ch) = key.chars().next() {
