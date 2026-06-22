@@ -142,9 +142,7 @@ impl Handler<Transcribe> for TranscriberActor {
                         log::error!("Transcription error for item {id}: {e}");
                         let _ = queue_addr
                             .send(SetTranscriptionError {
-                                id,
-                                error: e.clone(),
-                            })
+                                id                            })
                             .await;
                         let _ = app_handle.emit("transcription_error", (id, e));
                     }

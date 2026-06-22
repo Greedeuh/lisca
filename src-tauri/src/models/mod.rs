@@ -25,7 +25,6 @@ mod tests {
     use super::*;
 
     struct MockModel {
-        sample_rate: u32,
     }
 
     impl Model for MockModel {
@@ -36,7 +35,7 @@ mod tests {
 
     #[test]
     fn mock_model_synthesize() {
-        let mut model = MockModel { sample_rate: 22050 };
+        let mut model = MockModel { };
         let audio = model.synthesize("hello").unwrap();
         assert_eq!(audio.len(), 100);
     }

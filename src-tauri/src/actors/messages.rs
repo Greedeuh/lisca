@@ -67,8 +67,7 @@ pub(super)  struct ReplaceWithSpeech {
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
 pub(super)  struct SetTranscriptionError {
-    pub(super)  id: u64,
-    pub(super)  error: String,
+    pub(super)  id: u64
 }
 
 #[derive(Message)]

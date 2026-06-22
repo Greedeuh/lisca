@@ -72,21 +72,6 @@ impl PiperCatalog {
             model_path: model_path.to_string_lossy().to_string(),
         })
     }
-
-     fn verify_checksum(&self, voice_key: &str, expected: &str) -> Result<bool, String> {
-        let model_path = self
-            .models_dir
-            .join(voice_key)
-            .join(format!("{}.onnx", voice_key));
-
-        if !model_path.exists() {
-            return Err(format!("model file not found: {}", model_path.display()));
-        }
-
-        let data = std::fs::read(&model_path).map_err(|e| e.to_string())?;
-        let hash = simple_hash_hex(&data);
-        Ok(hash == expected)
-    }
 }
 
 impl VoiceCatalogOps for PiperCatalog {
@@ -134,12 +119,4 @@ impl VoiceCatalogOps for PiperCatalog {
         }
         Ok(())
     }
-}
-
-fn simple_hash_hex(data: &[u8]) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut hasher = DefaultHasher::new();
-    data.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
 }

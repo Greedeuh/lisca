@@ -51,7 +51,6 @@ pub(crate)  struct KokoroModel {
     pad_token_id: i64,
     voices: Vec<Vec<f32>>,
     g2p: G2P,
-    sample_rate: u32,
 }
 
 impl KokoroModel {
@@ -59,7 +58,6 @@ impl KokoroModel {
         engine: Arc<KokoroEngine>,
         voice_path: &Path,
         resource_dir: &Path,
-        sample_rate: u32,
     ) -> Result<Self, String> {
         let voice_data = std::fs::read(voice_path)
             .map_err(|e| format!("failed to read voice file {}: {e}", voice_path.display()))?;
@@ -77,7 +75,6 @@ impl KokoroModel {
             pad_token_id,
             voices,
             g2p,
-            sample_rate,
         })
     }
 
@@ -178,7 +175,6 @@ pub(crate)  struct KokoroFactory {
     shared_engine_path: PathBuf,
     resource_dir: PathBuf,
     shared_engine: std::sync::Mutex<Option<Arc<KokoroEngine>>>,
-    default_sample_rate: u32,
 }
 
 impl KokoroFactory {
@@ -188,13 +184,7 @@ impl KokoroFactory {
             shared_engine_path,
             resource_dir,
             shared_engine: std::sync::Mutex::new(None),
-            default_sample_rate: 24000,
         }
-    }
-
-     fn with_shared_engine(self, engine: Arc<KokoroEngine>) -> Self {
-        *self.shared_engine.lock().unwrap() = Some(engine);
-        self
     }
 
     fn ensure_engine(&self) -> Result<Arc<KokoroEngine>, String> {
@@ -226,7 +216,7 @@ impl ModelFactory for KokoroFactory {
     fn create(&self, voice_key: &str) -> Result<Arc<Mutex<dyn Model>>, String> {
         let engine = self.ensure_engine()?;
         let voice_path = self.models_dir.join(format!("{voice_key}.bin"));
-        let model = KokoroModel::new(engine, &voice_path, &self.resource_dir, self.default_sample_rate)?;
+        let model = KokoroModel::new(engine, &voice_path, &self.resource_dir)?;
         Ok(Arc::new(Mutex::new(model)))
     }
 
