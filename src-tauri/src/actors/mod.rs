@@ -1,8 +1,10 @@
 pub mod messages;
 
-pub(crate) mod queue_actor;
-pub(crate) mod speech_player_actor;
-pub(crate) mod transcriber_actor;
+mod queue_actor;
+mod speech_player_actor;
+mod transcriber_actor;
+
+use self::speech_player_actor::SpeechPlayerActor;
 
 use actix::Actor;
 use actix::Addr;
@@ -17,7 +19,6 @@ use crate::transcriber::UnifiedFactory;
 use crate::voice_prefs::VoiceMapping;
 
 use self::queue_actor::QueueActor;
-use self::speech_player_actor::SpeechPlayerActor;
 use self::transcriber_actor::TranscriberActor;
 
 pub struct AppActors {

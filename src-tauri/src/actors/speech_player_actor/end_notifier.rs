@@ -3,7 +3,9 @@ use std::time::Duration;
 use actix::Addr;
 use rodio::Source;
 
-use crate::actors::speech_player_actor::{SpeechPlayerActor, PlaybackComplete};
+use crate::actors::messages::PlaybackComplete;
+
+use super::SpeechPlayerActor;
 
 pub struct EndNotifier<S> {
     source: S,

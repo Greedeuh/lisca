@@ -12,7 +12,6 @@ pub mod models;
 pub mod overlay;
 pub mod persist;
 pub mod queue;
-pub mod speech_player;
 pub mod tray;
 pub mod transcriber;
 pub mod voice_prefs;

@@ -129,7 +129,11 @@ pub struct SpeechReady;
 
 // ── SpeechPlayerActor messages ─────────────────────────────────────
 
-// ── SpeechPlayerActor messages ─────────────────────────────────────
+#[derive(Message)]
+#[rtype(result = "()")]
+pub(crate) struct PlaybackComplete {
+    pub id: u64,
+}
 
 #[derive(Message)]
 #[rtype(result = "bool")]

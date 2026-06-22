@@ -1,3 +1,5 @@
+mod end_notifier;
+
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -6,8 +8,8 @@ use actix::{Actor, Addr, AsyncContext, Context, Handler, WrapFuture};
 use tauri::{AppHandle, Emitter};
 
 use crate::persist::{load_json, save_json};
-use crate::speech_player::EndNotifier;
 
+use self::end_notifier::EndNotifier;
 use super::messages::*;
 use super::queue_actor::QueueActor;
 
@@ -124,12 +126,6 @@ struct PlayNext;
 
 impl actix::Message for PlayNext {
     type Result = ();
-}
-
-#[derive(actix::Message)]
-#[rtype(result = "()")]
-pub(crate) struct PlaybackComplete {
-    pub id: u64,
 }
 
 impl Handler<PlayNext> for SpeechPlayerActor {
