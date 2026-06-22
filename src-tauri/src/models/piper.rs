@@ -38,8 +38,6 @@ struct PiperConfig {
     #[serde(default)]
     inference: PiperInference,
     #[serde(default)]
-    audio: PiperAudio,
-    #[serde(default)]
     espeak: PiperEspeak,
     phoneme_id_map: HashMap<String, Vec<i64>>,
 }
@@ -64,16 +62,9 @@ struct PiperInference {
     noise_w: f32,
 }
 
-#[derive(serde::Deserialize)]
-struct PiperAudio {
-    #[serde(default = "default_sample_rate")]
-    sample_rate: u32,
-}
-
 fn default_noise_scale() -> f32 { 0.667 }
 fn default_length_scale() -> f32 { 1.0 }
 fn default_noise_w() -> f32 { 0.8 }
-fn default_sample_rate() -> u32 { 22050 }
 
 impl Default for PiperInference {
     fn default() -> Self {
@@ -81,14 +72,6 @@ impl Default for PiperInference {
             noise_scale: default_noise_scale(),
             length_scale: default_length_scale(),
             noise_w: default_noise_w(),
-        }
-    }
-}
-
-impl Default for PiperAudio {
-    fn default() -> Self {
-        Self {
-            sample_rate: default_sample_rate(),
         }
     }
 }
