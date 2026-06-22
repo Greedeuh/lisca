@@ -9,8 +9,8 @@ use tokio::sync::Mutex;
 use super::{Model, ModelFactory};
 
 pub(crate)  enum ModelEvent {
-    Loaded { voice_key: String },
-    Unloaded { voice_key: String },
+    Loaded,
+    Unloaded,
 }
 
 struct CacheEntry {
@@ -23,7 +23,6 @@ pub(crate)  struct ModelPool {
     order: VecDeque<String>,
     max_size: usize,
     idle_timeout: Option<Duration>,
-    on_event: Option<Box<dyn Fn(ModelEvent) + Send + Sync>>,
 }
 
 impl ModelPool {
@@ -33,16 +32,7 @@ impl ModelPool {
             order: VecDeque::new(),
             max_size,
             idle_timeout,
-            on_event: None,
         }
-    }
-
-     fn with_event_handler<F>(mut self, handler: F) -> Self
-    where
-        F: Fn(ModelEvent) + Send + Sync + 'static,
-    {
-        self.on_event = Some(Box::new(handler));
-        self
     }
 
     pub(crate)  async fn get(
@@ -73,25 +63,12 @@ impl ModelPool {
         );
         self.order.push_back(voice_key.to_string());
 
-        if let Some(ref handler) = self.on_event {
-            handler(ModelEvent::Loaded {
-                voice_key: voice_key.to_string(),
-            });
-        }
-
         Ok(model)
     }
 
      fn clear_cache(&mut self) {
-        let keys: Vec<String> = self.cache.keys().cloned().collect();
         self.cache.clear();
         self.order.clear();
-
-        if let Some(ref handler) = self.on_event {
-            for key in keys {
-                handler(ModelEvent::Unloaded { voice_key: key });
-            }
-        }
     }
 
      fn refresh_installed(&mut self, installed: &[String]) {
@@ -131,13 +108,8 @@ impl ModelPool {
     fn evict(&mut self, voice_key: &str) {
         self.cache.remove(voice_key);
         self.order.retain(|k| k != voice_key);
-
-        if let Some(ref handler) = self.on_event {
-            handler(ModelEvent::Unloaded {
-                voice_key: voice_key.to_string(),
-            });
-        }
     }
+
 
     fn evict_lru(&mut self) {
         if let Some(front) = self.order.front().cloned() {
@@ -284,83 +256,6 @@ mod tests {
         pool.refresh_installed(&["a".to_string(), "c".to_string()]);
         assert_eq!(pool.cache_size(), 2);
         assert_eq!(pool.cached_keys(), vec!["a", "c"]);
-    }
-
-    #[tokio::test]
-    async fn emit_loaded_event() {
-        let (factory, _) = MockFactory::new();
-        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let events_clone = events.clone();
-
-        let pool = ModelPool::new(4, None).with_event_handler(move |e| {
-            events_clone.lock().unwrap().push(e);
-        });
-
-        let mut pool = pool;
-        let _ = pool.get("voice-a", &factory).await.unwrap();
-
-        let evts = events.lock().unwrap();
-        assert_eq!(evts.len(), 1);
-        assert!(
-            matches!(&evts[0], ModelEvent::Loaded { voice_key } if voice_key == "voice-a")
-        );
-    }
-
-    #[tokio::test]
-    async fn emit_unloaded_event_on_evict() {
-        let (factory, _) = MockFactory::new();
-        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let events_clone = events.clone();
-
-        let pool = ModelPool::new(2, None).with_event_handler(move |e| {
-            events_clone.lock().unwrap().push(e);
-        });
-
-        let mut pool = pool;
-        let _ = pool.get("a", &factory).await.unwrap();
-        let _ = pool.get("b", &factory).await.unwrap();
-
-        // This should evict "a"
-        let _ = pool.get("c", &factory).await.unwrap();
-
-        let evts = events.lock().unwrap();
-        let loaded: Vec<_> = evts
-            .iter()
-            .filter(|e| matches!(e, ModelEvent::Loaded { .. }))
-            .collect();
-        let unloaded: Vec<_> = evts
-            .iter()
-            .filter(|e| matches!(e, ModelEvent::Unloaded { .. }))
-            .collect();
-        assert_eq!(loaded.len(), 3);
-        assert_eq!(unloaded.len(), 1);
-        assert!(
-            matches!(&unloaded[0], ModelEvent::Unloaded { voice_key } if voice_key == "a")
-        );
-    }
-
-    #[tokio::test]
-    async fn emit_unloaded_on_clear_cache() {
-        let (factory, _) = MockFactory::new();
-        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let events_clone = events.clone();
-
-        let pool = ModelPool::new(4, None).with_event_handler(move |e| {
-            events_clone.lock().unwrap().push(e);
-        });
-
-        let mut pool = pool;
-        let _ = pool.get("a", &factory).await.unwrap();
-        let _ = pool.get("b", &factory).await.unwrap();
-
-        pool.clear_cache();
-
-        let evts = events.lock().unwrap();
-        let unloaded: Vec<_> = evts
-            .iter()
-            .filter(|e| matches!(e, ModelEvent::Unloaded { .. }))
-            .collect();
-        assert_eq!(unloaded.len(), 2);
     }
 
     #[tokio::test]
