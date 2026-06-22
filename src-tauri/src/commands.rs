@@ -1,10 +1,10 @@
 // Tauri command handlers for IPC between frontend and backend.
 // Each command is a thin wrapper calling into domain modules or actor messages.
 
-use crate::actors::AppActors;
 use crate::actors::messages::*;
+use crate::actors::AppActors;
 use crate::catalog::{DownloadProgress, InstalledVoice, VoiceCatalog, VoiceCatalogOps};
-use crate::hotkey::{ShortcutConfig, load_hotkey, parse_shortcut, save_hotkey};
+use crate::hotkey::{load_hotkey, parse_shortcut, save_hotkey, ShortcutConfig};
 use crate::queue::QueueItem;
 use crate::voice_prefs::VoiceMapping;
 use serde::{Deserialize, Serialize};
@@ -12,16 +12,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
-pub(super)  struct AppState {
-    pub(super)  catalog: VoiceCatalog,
-    pub(super)  voice_mapping: Arc<tokio::sync::Mutex<VoiceMapping>>,
-    pub(super)  app_data_dir: PathBuf,
+pub(super) struct AppState {
+    pub(super) catalog: VoiceCatalog,
+    pub(super) voice_mapping: Arc<tokio::sync::Mutex<VoiceMapping>>,
+    pub(super) app_data_dir: PathBuf,
 }
 
 // ── Catalog commands ──────────────────────────────────────────────
 
 #[tauri::command]
-pub(super)  fn list_catalog_voices(state: tauri::State<AppState>) -> Vec<VoiceEntryDto> {
+pub(super) fn list_catalog_voices(state: tauri::State<AppState>) -> Vec<VoiceEntryDto> {
     state
         .catalog
         .list_available()
@@ -31,7 +31,7 @@ pub(super)  fn list_catalog_voices(state: tauri::State<AppState>) -> Vec<VoiceEn
 }
 
 #[tauri::command]
-pub(super)  fn list_installed_voices(state: tauri::State<AppState>) -> Vec<InstalledVoiceDto> {
+pub(super) fn list_installed_voices(state: tauri::State<AppState>) -> Vec<InstalledVoiceDto> {
     state
         .catalog
         .list_installed()
@@ -41,7 +41,7 @@ pub(super)  fn list_installed_voices(state: tauri::State<AppState>) -> Vec<Insta
 }
 
 #[tauri::command]
-pub(super)  async fn install_voice(
+pub(super) async fn install_voice(
     state: tauri::State<'_, AppState>,
     app: AppHandle,
     voice_key: String,
@@ -62,7 +62,7 @@ pub(super)  async fn install_voice(
 }
 
 #[tauri::command]
-pub(super)  fn uninstall_voice(
+pub(super) fn uninstall_voice(
     state: tauri::State<AppState>,
     app: AppHandle,
     voice_key: String,
@@ -77,7 +77,9 @@ pub(super)  fn uninstall_voice(
 // ── Queue commands (via actors) ───────────────────────────────────
 
 #[tauri::command]
-pub(super)  async fn queue_state(actors: tauri::State<'_, AppActors>) -> Result<QueueSnapshotDto, String> {
+pub(super) async fn queue_state(
+    actors: tauri::State<'_, AppActors>,
+) -> Result<QueueSnapshotDto, String> {
     actors
         .queue
         .send(GetQueueState)
@@ -87,7 +89,9 @@ pub(super)  async fn queue_state(actors: tauri::State<'_, AppActors>) -> Result<
 }
 
 #[tauri::command]
-pub(super)  async fn player_state(actors: tauri::State<'_, AppActors>) -> Result<PlayerSnapshotDto, String> {
+pub(super) async fn player_state(
+    actors: tauri::State<'_, AppActors>,
+) -> Result<PlayerSnapshotDto, String> {
     let auto_read = actors
         .player
         .send(GetAutoRead)
@@ -97,7 +101,7 @@ pub(super)  async fn player_state(actors: tauri::State<'_, AppActors>) -> Result
 }
 
 #[tauri::command]
-pub(super)  async fn queue_add(
+pub(super) async fn queue_add(
     actors: tauri::State<'_, AppActors>,
     text: String,
 ) -> Result<u64, String> {
@@ -110,7 +114,10 @@ pub(super)  async fn queue_add(
 }
 
 #[tauri::command]
-pub(super)  async fn queue_remove(actors: tauri::State<'_, AppActors>, id: u64) -> Result<(), String> {
+pub(super) async fn queue_remove(
+    actors: tauri::State<'_, AppActors>,
+    id: u64,
+) -> Result<(), String> {
     actors
         .queue
         .send(RemoveItem { id })
@@ -119,7 +126,7 @@ pub(super)  async fn queue_remove(actors: tauri::State<'_, AppActors>, id: u64) 
 }
 
 #[tauri::command]
-pub(super)  async fn queue_move(
+pub(super) async fn queue_move(
     actors: tauri::State<'_, AppActors>,
     id: u64,
     index: usize,
@@ -135,7 +142,7 @@ pub(super)  async fn queue_move(
 }
 
 #[tauri::command]
-pub(super)  async fn queue_clear(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+pub(super) async fn queue_clear(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
     actors
         .queue
         .send(ClearQueue)
@@ -144,7 +151,9 @@ pub(super)  async fn queue_clear(actors: tauri::State<'_, AppActors>) -> Result<
 }
 
 #[tauri::command]
-pub(super)  async fn queue_toggle_auto_read(actors: tauri::State<'_, AppActors>) -> Result<bool, String> {
+pub(super) async fn queue_toggle_auto_read(
+    actors: tauri::State<'_, AppActors>,
+) -> Result<bool, String> {
     actors
         .player
         .send(ToggleAutoRead)
@@ -153,7 +162,9 @@ pub(super)  async fn queue_toggle_auto_read(actors: tauri::State<'_, AppActors>)
 }
 
 #[tauri::command]
-pub(super)  async fn queue_toggle_overlay(actors: tauri::State<'_, AppActors>) -> Result<bool, String> {
+pub(super) async fn queue_toggle_overlay(
+    actors: tauri::State<'_, AppActors>,
+) -> Result<bool, String> {
     actors
         .queue
         .send(ToggleOverlay)
@@ -162,7 +173,7 @@ pub(super)  async fn queue_toggle_overlay(actors: tauri::State<'_, AppActors>) -
 }
 
 #[tauri::command]
-pub(super)  async fn playback_pause(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+pub(super) async fn playback_pause(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
     actors
         .player
         .send(PlaybackPause)
@@ -171,7 +182,7 @@ pub(super)  async fn playback_pause(actors: tauri::State<'_, AppActors>) -> Resu
 }
 
 #[tauri::command]
-pub(super)  async fn playback_resume(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+pub(super) async fn playback_resume(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
     actors
         .player
         .send(PlaybackResume)
@@ -180,7 +191,7 @@ pub(super)  async fn playback_resume(actors: tauri::State<'_, AppActors>) -> Res
 }
 
 #[tauri::command]
-pub(super)  async fn playback_stop(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+pub(super) async fn playback_stop(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
     actors
         .player
         .send(PlaybackStop)
@@ -189,7 +200,7 @@ pub(super)  async fn playback_stop(actors: tauri::State<'_, AppActors>) -> Resul
 }
 
 #[tauri::command]
-pub(super)  async fn playback_skip(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+pub(super) async fn playback_skip(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
     actors
         .player
         .send(PlaybackSkip)
@@ -198,7 +209,7 @@ pub(super)  async fn playback_skip(actors: tauri::State<'_, AppActors>) -> Resul
 }
 
 #[tauri::command]
-pub(super)  async fn playback_restart(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
+pub(super) async fn playback_restart(actors: tauri::State<'_, AppActors>) -> Result<(), String> {
     actors
         .player
         .send(PlaybackRestart)
@@ -207,7 +218,10 @@ pub(super)  async fn playback_restart(actors: tauri::State<'_, AppActors>) -> Re
 }
 
 #[tauri::command]
-pub(super)  async fn playback_replay(actors: tauri::State<'_, AppActors>, id: u64) -> Result<(), String> {
+pub(super) async fn playback_replay(
+    actors: tauri::State<'_, AppActors>,
+    id: u64,
+) -> Result<(), String> {
     actors
         .player
         .send(PlaybackReplay { id })
@@ -218,7 +232,7 @@ pub(super)  async fn playback_replay(actors: tauri::State<'_, AppActors>, id: u6
 // ── Voice mapping commands ────────────────────────────────────────
 
 #[tauri::command]
-pub(super)  async fn get_voice_preference(
+pub(super) async fn get_voice_preference(
     state: tauri::State<'_, AppState>,
 ) -> Result<VoiceMappingDto, String> {
     let mapping = state.voice_mapping.lock().await;
@@ -226,7 +240,7 @@ pub(super)  async fn get_voice_preference(
 }
 
 #[tauri::command]
-pub(super)  async fn set_voice_preference(
+pub(super) async fn set_voice_preference(
     state: tauri::State<'_, AppState>,
     language: String,
     voice_key: String,
@@ -238,7 +252,7 @@ pub(super)  async fn set_voice_preference(
 }
 
 #[tauri::command]
-pub(super)  async fn set_fallback_voice(
+pub(super) async fn set_fallback_voice(
     state: tauri::State<'_, AppState>,
     voice_key: Option<String>,
 ) -> Result<(), String> {
@@ -251,13 +265,13 @@ pub(super)  async fn set_fallback_voice(
 // ── Hotkey commands ───────────────────────────────────────────────
 
 #[tauri::command]
-pub(super)  fn get_hotkey(state: tauri::State<AppState>) -> Option<ShortcutConfig> {
+pub(super) fn get_hotkey(state: tauri::State<AppState>) -> Option<ShortcutConfig> {
     let path = state.app_data_dir.join("hotkey.txt");
     load_hotkey(&path)
 }
 
 #[tauri::command]
-pub(super)  fn save_hotkey_cmd(
+pub(super) fn save_hotkey_cmd(
     state: tauri::State<AppState>,
     app: AppHandle,
     shortcut: String,
@@ -275,35 +289,35 @@ pub(super)  fn save_hotkey_cmd(
     // Register new shortcut
     let shortcut_str = config.to_string_repr();
     if let Ok(shortcut) = shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
-        if let Err(e) = app.global_shortcut().on_shortcut(
-            shortcut,
-            move |_app, _shortcut, event| {
-                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    if let Ok(text) = _app.clipboard().read_text() {
-                        let text = text.to_string();
-                        if !text.is_empty() {
-                            let actors = _app.state::<AppActors>();
-                            let queue = actors.queue.clone();
-                            tauri::async_runtime::spawn(async move {
-                                match queue.send(AddText { text }).await {
-                                    Ok(Ok(id)) => {
-                                        log::info!("Added item {id} via hotkey");
+        if let Err(e) =
+            app.global_shortcut()
+                .on_shortcut(shortcut, move |_app, _shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Ok(text) = _app.clipboard().read_text() {
+                            let text = text.to_string();
+                            if !text.is_empty() {
+                                let actors = _app.state::<AppActors>();
+                                let queue = actors.queue.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    match queue.send(AddText { text }).await {
+                                        Ok(Ok(id)) => {
+                                            log::info!("Added item {id} via hotkey");
+                                        }
+                                        Ok(Err(e)) => {
+                                            log::error!("Failed to add text to queue: {e}");
+                                        }
+                                        Err(e) => {
+                                            log::error!("Actor mailbox error: {e}");
+                                        }
                                     }
-                                    Ok(Err(e)) => {
-                                        log::error!("Failed to add text to queue: {e}");
-                                    }
-                                    Err(e) => {
-                                        log::error!("Actor mailbox error: {e}");
-                                    }
-                                }
-                            });
+                                });
+                            }
+                        } else {
+                            log::warn!("Failed to read clipboard");
                         }
-                    } else {
-                        log::warn!("Failed to read clipboard");
                     }
-                }
-            },
-        ) {
+                })
+        {
             log::error!("Failed to register new shortcut: {e}");
         }
     } else {
@@ -319,36 +333,36 @@ pub(super)  fn save_hotkey_cmd(
 // ── Overlay commands ──────────────────────────────────────────────
 
 #[tauri::command]
-pub(super)  fn create_overlay_window(app: AppHandle) -> Result<(), String> {
+pub(super) fn create_overlay_window(app: AppHandle) -> Result<(), String> {
     crate::overlay::create_overlay(&app)
 }
 
 #[tauri::command]
-pub(super)  fn show_overlay_window(app: AppHandle) -> Result<(), String> {
+pub(super) fn show_overlay_window(app: AppHandle) -> Result<(), String> {
     crate::overlay::show_overlay(&app)
 }
 
 #[tauri::command]
-pub(super)  fn hide_overlay_window(app: AppHandle) -> Result<(), String> {
+pub(super) fn hide_overlay_window(app: AppHandle) -> Result<(), String> {
     crate::overlay::hide_overlay(&app)
 }
 
 #[tauri::command]
-pub(super)  fn toggle_overlay_window(app: AppHandle) -> Result<bool, String> {
+pub(super) fn toggle_overlay_window(app: AppHandle) -> Result<bool, String> {
     crate::overlay::toggle_overlay(&app)
 }
 
 // ── DTO types ─────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super)  struct VoiceEntryDto {
-     voice_key: String,
-     name: String,
-     language: String,
-     quality: String,
-     size_bytes: u64,
-     speed: Option<String>,
-     model_type: String,
+pub(super) struct VoiceEntryDto {
+    voice_key: String,
+    name: String,
+    language: String,
+    quality: String,
+    size_bytes: u64,
+    speed: Option<String>,
+    model_type: String,
 }
 
 impl From<crate::catalog::VoiceEntry> for VoiceEntryDto {
@@ -369,13 +383,13 @@ impl From<crate::catalog::VoiceEntry> for VoiceEntryDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super)  struct InstalledVoiceDto {
-     voice_key: String,
-     name: String,
-     language: String,
-     quality: String,
-     model_type: String,
-     model_path: String,
+pub(super) struct InstalledVoiceDto {
+    voice_key: String,
+    name: String,
+    language: String,
+    quality: String,
+    model_type: String,
+    model_path: String,
 }
 
 impl From<InstalledVoice> for InstalledVoiceDto {
@@ -396,7 +410,7 @@ impl From<InstalledVoice> for InstalledVoiceDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub(super)  enum QueueItemDto {
+pub(super) enum QueueItemDto {
     TextMessage {
         id: u64,
         text: String,
@@ -414,11 +428,7 @@ pub(super)  enum QueueItemDto {
 impl From<&QueueItem> for QueueItemDto {
     fn from(item: &QueueItem) -> Self {
         match item {
-            QueueItem::TextMessage {
-                id,
-                text,
-                status,
-            } => QueueItemDto::TextMessage {
+            QueueItem::TextMessage { id, text, status } => QueueItemDto::TextMessage {
                 id: *id,
                 text: text.clone(),
                 status: format!("{:?}", status).to_lowercase(),
@@ -442,20 +452,20 @@ impl From<&QueueItem> for QueueItemDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super)  struct QueueSnapshotDto {
-    pub(super)  items: Vec<QueueItemDto>,
-    pub(super)  show_overlay: bool,
+pub(super) struct QueueSnapshotDto {
+    pub(super) items: Vec<QueueItemDto>,
+    pub(super) show_overlay: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super)  struct PlayerSnapshotDto {
-     auto_read: bool,
+pub(super) struct PlayerSnapshotDto {
+    auto_read: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super)  struct VoiceMappingDto {
-     language_voice: std::collections::HashMap<String, String>,
-     fallback_voice_key: Option<String>,
+pub(super) struct VoiceMappingDto {
+    language_voice: std::collections::HashMap<String, String>,
+    fallback_voice_key: Option<String>,
 }
 
 impl From<&VoiceMapping> for VoiceMappingDto {

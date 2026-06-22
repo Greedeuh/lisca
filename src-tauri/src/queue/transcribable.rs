@@ -3,13 +3,10 @@
 
 use super::{Queue, QueueItem, SpeechStatus, TextMessageStatus};
 
-pub(crate)  trait Transcribable {
+pub(crate) trait Transcribable {
     fn next_pending_text_message(&self) -> Option<(usize, u64)>;
-    fn set_text_message_status(
-        &mut self,
-        id: u64,
-        status: TextMessageStatus,
-    ) -> Result<(), String>;
+    fn set_text_message_status(&mut self, id: u64, status: TextMessageStatus)
+        -> Result<(), String>;
     fn replace_with_speech(
         &mut self,
         id: u64,
@@ -47,9 +44,7 @@ impl Transcribable for Queue {
             .find(|item| item.id() == id)
             .ok_or_else(|| format!("item with id {id} not found"))?;
         match item {
-            QueueItem::TextMessage {
-                status: s, ..
-            } => {
+            QueueItem::TextMessage { status: s, .. } => {
                 *s = status;
             }
             _ => return Err("item is not a TextMessage".to_string()),
@@ -99,13 +94,8 @@ mod tests {
         let id = q.add_text("target".to_string()).unwrap();
         q.add_text("after".to_string()).unwrap();
 
-        q.replace_with_speech(
-            id,
-            None,
-            Some("en-us".to_string()),
-            Some("en".to_string()),
-        )
-        .unwrap();
+        q.replace_with_speech(id, None, Some("en-us".to_string()), Some("en".to_string()))
+            .unwrap();
 
         assert_eq!(q.items().len(), 3);
         assert_eq!(q.items()[0].id(), 1);
@@ -130,20 +120,15 @@ mod tests {
     fn replace_wrong_id_fails() {
         let mut q = Queue::new();
         q.add_text("hello".to_string()).unwrap();
-        assert!(q
-            .replace_with_speech(999, None, None, None)
-            .is_err());
+        assert!(q.replace_with_speech(999, None, None, None).is_err());
     }
 
     #[test]
     fn replace_non_text_message_fails() {
         let mut q = Queue::new();
         q.add_text("hello".to_string()).unwrap();
-        q.replace_with_speech(1, None, None, None)
-            .unwrap();
-        assert!(q
-            .replace_with_speech(1, None, None, None)
-            .is_err());
+        q.replace_with_speech(1, None, None, None).unwrap();
+        assert!(q.replace_with_speech(1, None, None, None).is_err());
     }
 
     #[test]

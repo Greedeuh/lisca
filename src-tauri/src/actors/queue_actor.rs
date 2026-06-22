@@ -8,7 +8,7 @@ use super::messages::*;
 use super::speech_player_actor::SpeechPlayerActor;
 use super::transcriber_actor::TranscriberActor;
 
-pub(crate)  struct QueueActor {
+pub(crate) struct QueueActor {
     queue: Queue,
     app_handle: AppHandle,
     player_addr: Option<Addr<SpeechPlayerActor>>,
@@ -16,7 +16,7 @@ pub(crate)  struct QueueActor {
 }
 
 impl QueueActor {
-    pub(super)  fn new(queue: Queue, app_handle: AppHandle) -> Self {
+    pub(super) fn new(queue: Queue, app_handle: AppHandle) -> Self {
         Self {
             queue,
             app_handle,
@@ -127,9 +127,7 @@ impl Handler<GetNextText> for QueueActor {
         let (_, id) = self.queue.next_pending_text_message()?;
         let item = self.queue.items().iter().find(|i| i.id() == id)?;
         match item {
-            crate::queue::QueueItem::TextMessage {
-                id, text, ..
-            } => Some(PendingTextItem {
+            crate::queue::QueueItem::TextMessage { id, text, .. } => Some(PendingTextItem {
                 id: *id,
                 text: text.clone(),
             }),
@@ -151,12 +149,8 @@ impl Handler<ReplaceWithSpeech> for QueueActor {
     type Result = Result<(), String>;
 
     fn handle(&mut self, msg: ReplaceWithSpeech, _: &mut Context<Self>) -> Self::Result {
-        self.queue.replace_with_speech(
-            msg.id,
-            msg.audio_data,
-            msg.voice_key,
-            msg.language,
-        )?;
+        self.queue
+            .replace_with_speech(msg.id, msg.audio_data, msg.voice_key, msg.language)?;
         self.emit_event("item_replaced");
         if let Some(ref addr) = self.player_addr {
             addr.do_send(SpeechReady);

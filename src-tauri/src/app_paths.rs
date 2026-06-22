@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 use tauri::Manager;
 
-pub(super)  struct AppPaths {
-    pub(super)  app_data_dir: PathBuf,
-    pub(super)  piper_models_dir: PathBuf,
-    pub(super)  kokoro_models_dir: PathBuf,
-    pub(super)  resource_dir: PathBuf,
+pub(super) struct AppPaths {
+    pub(super) app_data_dir: PathBuf,
+    pub(super) piper_models_dir: PathBuf,
+    pub(super) kokoro_models_dir: PathBuf,
+    pub(super) resource_dir: PathBuf,
 }
 
 impl AppPaths {
-    pub(super)  fn resolve(app_handle: &tauri::AppHandle) -> Self {
+    pub(super) fn resolve(app_handle: &tauri::AppHandle) -> Self {
         let app_data_dir = app_handle
             .path()
             .app_data_dir()

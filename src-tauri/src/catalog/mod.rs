@@ -1,22 +1,22 @@
 // Voice catalog: browse, install, uninstall Piper and Kokoro voices.
 // Unified interface over both backends with download progress reporting.
 
-mod piper;
+mod download;
 mod kokoro;
- mod download;
+mod piper;
 
- use piper::PiperCatalog;
- use kokoro::KokoroCatalog;
+use kokoro::KokoroCatalog;
+use piper::PiperCatalog;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
- struct CatalogFile {
-     voices: Vec<VoiceEntry>,
+struct CatalogFile {
+    voices: Vec<VoiceEntry>,
 }
 
- fn load_catalog(resource_dir: &Path) -> Result<Vec<VoiceEntry>, String> {
+fn load_catalog(resource_dir: &Path) -> Result<Vec<VoiceEntry>, String> {
     let catalog_path = resource_dir.join("catalog.json");
     let data = std::fs::read_to_string(&catalog_path)
         .map_err(|e| format!("failed to read catalog.json: {e}"))?;
@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super)  enum ModelType {
+pub(super) enum ModelType {
     #[serde(rename = "piper")]
     Piper,
     #[serde(rename = "kokoro")]
@@ -34,22 +34,22 @@ pub(super)  enum ModelType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super)  struct VoiceEntry {
-    pub(super)  voice_key: String,
-    pub(super)  name: String,
-    pub(super)  language: String,
-    pub(super)  quality: String,
-    pub(super)  size_bytes: u64,
-    pub(super)  speed: Option<String>,
-    pub(super)  model_type: ModelType,
-     checksum: Option<String>,
-     download_url: Option<String>,
-     config_url: Option<String>,
+pub(super) struct VoiceEntry {
+    pub(super) voice_key: String,
+    pub(super) name: String,
+    pub(super) language: String,
+    pub(super) quality: String,
+    pub(super) size_bytes: u64,
+    pub(super) speed: Option<String>,
+    pub(super) model_type: ModelType,
+    checksum: Option<String>,
+    download_url: Option<String>,
+    config_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
-pub(super)  enum DownloadProgress {
+pub(super) enum DownloadProgress {
     #[serde(rename = "downloading")]
     Downloading {
         voice_key: String,
@@ -61,29 +61,33 @@ pub(super)  enum DownloadProgress {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub(super)  struct InstalledVoice {
-    pub(super)  voice_key: String,
-    pub(super)  name: String,
-    pub(super)  language: String,
-    pub(super)  quality: String,
-    pub(super)  model_type: ModelType,
-    pub(super)  model_path: String,
+pub(super) struct InstalledVoice {
+    pub(super) voice_key: String,
+    pub(super) name: String,
+    pub(super) language: String,
+    pub(super) quality: String,
+    pub(super) model_type: ModelType,
+    pub(super) model_path: String,
 }
 
-pub(super)  trait VoiceCatalogOps {
+pub(super) trait VoiceCatalogOps {
     fn list_available(&self) -> Vec<VoiceEntry>;
     fn list_installed(&self) -> Vec<InstalledVoice>;
     fn uninstall(&self, voice_key: &str) -> Result<(), String>;
 }
 
-pub(super)  struct VoiceCatalog {
+pub(super) struct VoiceCatalog {
     piper: PiperCatalog,
     kokoro: KokoroCatalog,
     entries: Vec<VoiceEntry>,
 }
 
 impl VoiceCatalog {
-    pub(super)  fn new(piper_models_dir: PathBuf, kokoro_models_dir: PathBuf, resource_dir: &Path) -> Self {
+    pub(super) fn new(
+        piper_models_dir: PathBuf,
+        kokoro_models_dir: PathBuf,
+        resource_dir: &Path,
+    ) -> Self {
         let all_entries = load_catalog(resource_dir).unwrap_or_else(|e| {
             log::error!("Failed to load catalog: {e}");
             Vec::new()
@@ -105,7 +109,7 @@ impl VoiceCatalog {
         }
     }
 
-    pub(super)  async fn install<F>(
+    pub(super) async fn install<F>(
         &self,
         voice_key: &str,
         on_progress: F,
@@ -200,10 +204,7 @@ mod tests {
         let json = serde_json::to_string(&catalog).unwrap();
         std::fs::write(dir.path().join("catalog.json"), json).unwrap();
 
-        (
-            VoiceCatalog::new(piper_dir, kokoro_dir, dir.path()),
-            dir,
-        )
+        (VoiceCatalog::new(piper_dir, kokoro_dir, dir.path()), dir)
     }
 
     #[test]

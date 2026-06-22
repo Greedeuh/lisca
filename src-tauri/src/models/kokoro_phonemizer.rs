@@ -3,25 +3,25 @@ use std::path::Path;
 
 #[derive(serde::Deserialize)]
 pub(super) struct KokoroTokenizerConfig {
-     post_processor: PostProcessorConfig,
-     model: ModelConfig,
+    post_processor: PostProcessorConfig,
+    model: ModelConfig,
 }
 
 #[derive(serde::Deserialize)]
- struct PostProcessorConfig {
-     special_tokens: HashMap<String, SpecialToken>,
+struct PostProcessorConfig {
+    special_tokens: HashMap<String, SpecialToken>,
 }
 
 #[derive(serde::Deserialize)]
- struct SpecialToken {
+struct SpecialToken {
     #[allow(dead_code)]
-     id: String,
-     ids: Vec<i64>,
+    id: String,
+    ids: Vec<i64>,
 }
 
 #[derive(serde::Deserialize)]
- struct ModelConfig {
-     vocab: HashMap<String, i64>,
+struct ModelConfig {
+    vocab: HashMap<String, i64>,
 }
 
 impl KokoroTokenizerConfig {
@@ -29,8 +29,7 @@ impl KokoroTokenizerConfig {
         let config_path = resource_dir.join("kokoro_tokenizer.json");
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| format!("Read tokenizer config: {}", e))?;
-        serde_json::from_str(&config_str)
-            .map_err(|e| format!("Parse tokenizer config: {}", e))
+        serde_json::from_str(&config_str).map_err(|e| format!("Parse tokenizer config: {}", e))
     }
 
     pub(super) fn build_tokenizer(&self) -> (HashMap<char, i64>, i64) {

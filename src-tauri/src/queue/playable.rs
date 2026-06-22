@@ -3,7 +3,7 @@
 
 use super::{Queue, QueueItem, SpeechStatus};
 
-pub(crate)  trait Playable {
+pub(crate) trait Playable {
     fn next_to_play_speech(&self) -> Option<(usize, u64)>;
     fn set_speech_status(&mut self, id: u64, status: SpeechStatus) -> Result<(), String>;
 }
@@ -32,9 +32,7 @@ impl Playable for Queue {
             .find(|item| item.id() == id)
             .ok_or_else(|| format!("item with id {id} not found"))?;
         match item {
-            QueueItem::Speech {
-                status: s, ..
-            } => {
+            QueueItem::Speech { status: s, .. } => {
                 *s = status;
             }
             _ => return Err("item is not a Speech".to_string()),
@@ -54,10 +52,8 @@ mod tests {
         q.add_text("a".to_string()).unwrap();
         q.add_text("b".to_string()).unwrap();
 
-        q.replace_with_speech(1, None, None, None)
-            .unwrap();
-        q.replace_with_speech(2, None, None, None)
-            .unwrap();
+        q.replace_with_speech(1, None, None, None).unwrap();
+        q.replace_with_speech(2, None, None, None).unwrap();
 
         q.set_speech_status(1, SpeechStatus::Playing).unwrap();
 
@@ -76,10 +72,8 @@ mod tests {
         let mut q = Queue::new();
         q.add_text("a".to_string()).unwrap();
         q.add_text("b".to_string()).unwrap();
-        q.replace_with_speech(1, None, None, None)
-            .unwrap();
-        q.replace_with_speech(2, None, None, None)
-            .unwrap();
+        q.replace_with_speech(1, None, None, None).unwrap();
+        q.replace_with_speech(2, None, None, None).unwrap();
         q.set_speech_status(1, SpeechStatus::Played).unwrap();
         q.set_speech_status(2, SpeechStatus::Played).unwrap();
         assert_eq!(q.next_to_play_speech(), None);

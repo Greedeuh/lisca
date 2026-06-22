@@ -62,9 +62,15 @@ struct PiperInference {
     noise_w: f32,
 }
 
-fn default_noise_scale() -> f32 { 0.667 }
-fn default_length_scale() -> f32 { 1.0 }
-fn default_noise_w() -> f32 { 0.8 }
+fn default_noise_scale() -> f32 {
+    0.667
+}
+fn default_length_scale() -> f32 {
+    1.0
+}
+fn default_noise_w() -> f32 {
+    0.8
+}
 
 impl Default for PiperInference {
     fn default() -> Self {
@@ -76,14 +82,14 @@ impl Default for PiperInference {
     }
 }
 
-pub(crate)  struct PiperModel {
+pub(crate) struct PiperModel {
     session: ort::session::Session,
     phoneme_to_id: HashMap<char, i64>,
     config: PiperConfig,
 }
 
 impl PiperModel {
-     fn new(model_path: &Path, config_path: &Path, resource_dir: &Path) -> Result<Self, String> {
+    fn new(model_path: &Path, config_path: &Path, resource_dir: &Path) -> Result<Self, String> {
         if !model_path.exists() {
             return Err(format!("Model not found: {}", model_path.display()));
         }
@@ -91,10 +97,10 @@ impl PiperModel {
             return Err(format!("Config not found: {}", config_path.display()));
         }
 
-        let config_str = std::fs::read_to_string(config_path)
-            .map_err(|e| format!("Read config: {}", e))?;
-        let config: PiperConfig = serde_json::from_str(&config_str)
-            .map_err(|e| format!("Parse config: {}", e))?;
+        let config_str =
+            std::fs::read_to_string(config_path).map_err(|e| format!("Read config: {}", e))?;
+        let config: PiperConfig =
+            serde_json::from_str(&config_str).map_err(|e| format!("Parse config: {}", e))?;
 
         ensure_espeak_data(resource_dir, &config.espeak.voice);
 
@@ -195,12 +201,15 @@ impl Model for PiperModel {
             .map_err(|e| format!("Tensor input: {}", e))?;
         let t_lengths = ort::value::Tensor::from_array(([1], vec![seq_len]))
             .map_err(|e| format!("Tensor lengths: {}", e))?;
-        let t_scales = ort::value::Tensor::from_array(([3], vec![
-            self.config.inference.noise_scale,
-            length_scale,
-            self.config.inference.noise_w,
-        ]))
-            .map_err(|e| format!("Tensor scales: {}", e))?;
+        let t_scales = ort::value::Tensor::from_array((
+            [3],
+            vec![
+                self.config.inference.noise_scale,
+                length_scale,
+                self.config.inference.noise_w,
+            ],
+        ))
+        .map_err(|e| format!("Tensor scales: {}", e))?;
 
         let outputs = self
             .session
@@ -219,13 +228,13 @@ impl Model for PiperModel {
     }
 }
 
-pub(crate)  struct PiperFactory {
+pub(crate) struct PiperFactory {
     models_dir: PathBuf,
     resource_dir: PathBuf,
 }
 
 impl PiperFactory {
-    pub(crate)  fn new(models_dir: PathBuf, resource_dir: PathBuf) -> Self {
+    pub(crate) fn new(models_dir: PathBuf, resource_dir: PathBuf) -> Self {
         Self {
             models_dir,
             resource_dir,

@@ -2,7 +2,7 @@
 
 mod language;
 
-pub(super)  use language::detect_language_family;
+pub(super) use language::detect_language_family;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -10,13 +10,13 @@ use tokio::sync::Mutex;
 use crate::models::{Model, ModelFactory};
 
 /// Unified factory that delegates to Piper or Kokoro based on which has the voice installed.
-pub(super)  struct UnifiedFactory {
+pub(super) struct UnifiedFactory {
     piper: Arc<dyn ModelFactory>,
     kokoro: Arc<dyn ModelFactory>,
 }
 
 impl UnifiedFactory {
-    pub(super)  fn new(piper: Arc<dyn ModelFactory>, kokoro: Arc<dyn ModelFactory>) -> Self {
+    pub(super) fn new(piper: Arc<dyn ModelFactory>, kokoro: Arc<dyn ModelFactory>) -> Self {
         Self { piper, kokoro }
     }
 }
@@ -28,7 +28,10 @@ impl ModelFactory for UnifiedFactory {
         } else if self.kokoro.is_installed(voice_key) {
             self.kokoro.create(voice_key)
         } else {
-            Err(format!("voice '{}' not installed in any backend", voice_key))
+            Err(format!(
+                "voice '{}' not installed in any backend",
+                voice_key
+            ))
         }
     }
 

@@ -104,9 +104,7 @@ mod tests {
             44100
         }
         fn total_duration(&self) -> Option<Duration> {
-            Some(Duration::from_secs_f64(
-                self.data.len() as f64 / 44100.0,
-            ))
+            Some(Duration::from_secs_f64(self.data.len() as f64 / 44100.0))
         }
     }
 
@@ -133,6 +131,9 @@ mod tests {
         let source = make_source(vec![0.0; 100]);
         assert_eq!(source.channels(), 1);
         assert_eq!(source.sample_rate(), 44100);
-        assert_eq!(source.total_duration(), Some(Duration::from_secs_f64(100.0 / 44100.0)));
+        assert_eq!(
+            source.total_duration(),
+            Some(Duration::from_secs_f64(100.0 / 44100.0))
+        );
     }
 }

@@ -55,8 +55,14 @@ fn family_to_lang(code: &str) -> Option<Lang> {
     }
 }
 
-pub(crate)  fn detect_language_family(text: &str, installed_langs: &[String]) -> Option<&'static str> {
-    let langs: Vec<Lang> = installed_langs.iter().filter_map(|s| family_to_lang(s)).collect();
+pub(crate) fn detect_language_family(
+    text: &str,
+    installed_langs: &[String],
+) -> Option<&'static str> {
+    let langs: Vec<Lang> = installed_langs
+        .iter()
+        .filter_map(|s| family_to_lang(s))
+        .collect();
     if langs.is_empty() {
         return None;
     }
@@ -71,8 +77,8 @@ mod tests {
 
     fn all_langs() -> Vec<String> {
         vec![
-            "en", "fr", "de", "es", "it", "pt", "nl", "ru", "pl", "sv",
-            "da", "fi", "no", "cs", "hu", "tr", "el", "ro", "uk", "hi",
+            "en", "fr", "de", "es", "it", "pt", "nl", "ru", "pl", "sv", "da", "fi", "no", "cs",
+            "hu", "tr", "el", "ro", "uk", "hi",
         ]
         .into_iter()
         .map(String::from)
@@ -145,8 +151,10 @@ mod tests {
 
     #[test]
     fn family_to_lang_roundtrip() {
-        for code in &["en", "fr", "de", "es", "it", "pt", "nl", "ru", "pl", "sv",
-                       "da", "fi", "no", "cs", "hu", "tr", "el", "ro", "uk", "hi"] {
+        for code in &[
+            "en", "fr", "de", "es", "it", "pt", "nl", "ru", "pl", "sv", "da", "fi", "no", "cs",
+            "hu", "tr", "el", "ro", "uk", "hi",
+        ] {
             let lang = family_to_lang(code).unwrap();
             assert_eq!(lang_to_family(lang), Some(*code));
         }

@@ -2,26 +2,26 @@
 // Items are not persisted — only config is saved to disk.
 // Exposes consumer-specific traits: QueueControllable, Transcribable, Playable.
 
-mod playable;
 mod controllable;
+mod playable;
 mod transcribable;
 
-pub(super)  use controllable::QueueControllable;
-pub(super)  use playable::Playable;
-pub(super)  use transcribable::Transcribable;
+pub(super) use controllable::QueueControllable;
+pub(super) use playable::Playable;
+pub(super) use transcribable::Transcribable;
 
 use crate::persist::{load_json, save_json};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super)  enum TextMessageStatus {
+pub(super) enum TextMessageStatus {
     Pending,
     Processing,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super)  enum SpeechStatus {
+pub(super) enum SpeechStatus {
     ToPlay,
     Playing,
     Paused,
@@ -30,7 +30,7 @@ pub(super)  enum SpeechStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
-pub(super)  enum QueueItem {
+pub(super) enum QueueItem {
     TextMessage {
         id: u64,
         text: String,
@@ -47,7 +47,7 @@ pub(super)  enum QueueItem {
 }
 
 impl QueueItem {
-    pub(super)  fn id(&self) -> u64 {
+    pub(super) fn id(&self) -> u64 {
         match self {
             QueueItem::TextMessage { id, .. } => *id,
             QueueItem::Speech { id, .. } => *id,
@@ -56,9 +56,9 @@ impl QueueItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub(super)  struct QueueConfig {
-     max_items: usize,
-    pub(super)  show_overlay: bool,
+pub(super) struct QueueConfig {
+    max_items: usize,
+    pub(super) show_overlay: bool,
 }
 
 impl Default for QueueConfig {
@@ -70,9 +70,9 @@ impl Default for QueueConfig {
     }
 }
 
-pub(super)  struct Queue {
-     items: Vec<QueueItem>,
-     next_id: u64,
+pub(super) struct Queue {
+    items: Vec<QueueItem>,
+    next_id: u64,
     pub(super) config: QueueConfig,
     config_path: Option<PathBuf>,
 }
@@ -84,7 +84,7 @@ impl Default for Queue {
 }
 
 impl Queue {
-    pub(super)  fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             items: Vec::new(),
             next_id: 1,
@@ -93,17 +93,17 @@ impl Queue {
         }
     }
 
-    pub(super)  fn with_config(mut self, config: QueueConfig) -> Self {
+    pub(super) fn with_config(mut self, config: QueueConfig) -> Self {
         self.config = config;
         self
     }
 
-    pub(super)  fn with_config_path(mut self, path: PathBuf) -> Self {
+    pub(super) fn with_config_path(mut self, path: PathBuf) -> Self {
         self.config_path = Some(path);
         self
     }
 
-    pub(super)  fn save_config(&self) -> Result<(), String> {
+    pub(super) fn save_config(&self) -> Result<(), String> {
         let path = self
             .config_path
             .as_ref()
@@ -111,13 +111,17 @@ impl Queue {
         save_json(path, &self.config)
     }
 
-    pub(super)  fn load_config(path: &Path) -> QueueConfig {
+    pub(super) fn load_config(path: &Path) -> QueueConfig {
         load_json(path)
     }
 
-    pub(super)  fn snapshot_dto(&self) -> crate::commands::QueueSnapshotDto {
+    pub(super) fn snapshot_dto(&self) -> crate::commands::QueueSnapshotDto {
         crate::commands::QueueSnapshotDto {
-            items: self.items.iter().map(crate::commands::QueueItemDto::from).collect(),
+            items: self
+                .items
+                .iter()
+                .map(crate::commands::QueueItemDto::from)
+                .collect(),
             show_overlay: self.config.show_overlay,
         }
     }

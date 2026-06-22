@@ -14,8 +14,8 @@ use super::messages::*;
 use super::queue_actor::QueueActor;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
-pub(super)  struct PlayerConfig {
-    pub(super)  auto_read: bool,
+pub(super) struct PlayerConfig {
+    pub(super) auto_read: bool,
 }
 
 impl Default for PlayerConfig {
@@ -24,7 +24,7 @@ impl Default for PlayerConfig {
     }
 }
 
-pub(crate)  struct SpeechPlayerActor {
+pub(crate) struct SpeechPlayerActor {
     queue_addr: Addr<QueueActor>,
     app_handle: AppHandle,
     sink: Arc<Mutex<Option<rodio::Sink>>>,
@@ -36,7 +36,7 @@ pub(crate)  struct SpeechPlayerActor {
 }
 
 impl SpeechPlayerActor {
-    pub(super)  fn new(
+    pub(super) fn new(
         queue_addr: Addr<QueueActor>,
         app_handle: AppHandle,
         auto_read: bool,
@@ -53,12 +53,12 @@ impl SpeechPlayerActor {
         }
     }
 
-    pub(super)  fn with_config_path(mut self, path: std::path::PathBuf) -> Self {
+    pub(super) fn with_config_path(mut self, path: std::path::PathBuf) -> Self {
         self.config_path = Some(path);
         self
     }
 
-    pub(super)  fn load_config(path: &std::path::Path) -> PlayerConfig {
+    pub(super) fn load_config(path: &std::path::Path) -> PlayerConfig {
         load_json(path)
     }
 
@@ -132,7 +132,11 @@ impl Handler<PlayNext> for SpeechPlayerActor {
     type Result = ();
 
     fn handle(&mut self, _: PlayNext, ctx: &mut Context<Self>) {
-        log::debug!("PlayNext received auto_read:{}, stopped:{}", self.auto_read, self.stopped);
+        log::debug!(
+            "PlayNext received auto_read:{}, stopped:{}",
+            self.auto_read,
+            self.stopped
+        );
         if self.stopped {
             return;
         }
@@ -145,7 +149,6 @@ impl Handler<PlayNext> for SpeechPlayerActor {
             .map_or(true, |s| s.empty());
 
         log::debug!("PlayNext sink_empty: {}", sink_empty);
-
 
         if !sink_empty {
             return;
@@ -204,9 +207,7 @@ impl Handler<PlaybackComplete> for SpeechPlayerActor {
             return;
         }
         self.current_id = None;
-        self
-            .queue_addr
-            .do_send(SetItemCompleted { id: msg.id });
+        self.queue_addr.do_send(SetItemCompleted { id: msg.id });
         ctx.address().do_send(PlayNext);
     }
 }
@@ -241,7 +242,7 @@ impl Handler<PlaybackResume> for SpeechPlayerActor {
     fn handle(&mut self, _: PlaybackResume, ctx: &mut Context<Self>) {
         self.stopped = false;
 
-        if let Some(sink) = self.sink.lock().unwrap().as_ref() {            
+        if let Some(sink) = self.sink.lock().unwrap().as_ref() {
             sink.play();
             log::debug!("PlaybackResume: sink.empty(): {}", sink.empty());
 

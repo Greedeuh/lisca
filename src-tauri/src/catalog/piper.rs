@@ -5,21 +5,24 @@ use std::path::PathBuf;
 
 use super::{DownloadProgress, InstalledVoice, ModelType, VoiceCatalogOps, VoiceEntry};
 
-pub(super)  struct PiperCatalog {
+pub(super) struct PiperCatalog {
     models_dir: PathBuf,
     entries: Vec<VoiceEntry>,
 }
 
 impl PiperCatalog {
-    pub(super)  fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
-        Self { models_dir, entries }
+    pub(super) fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
+        Self {
+            models_dir,
+            entries,
+        }
     }
 
     fn find_entry(&self, voice_key: &str) -> Option<&VoiceEntry> {
         self.entries.iter().find(|v| v.voice_key == voice_key)
     }
 
-    pub(super)  async fn install<F>(
+    pub(super) async fn install<F>(
         &self,
         voice_key: &str,
         mut on_progress: F,
@@ -55,8 +58,7 @@ impl PiperCatalog {
         // Download config file
         if let Some(config_url) = &entry.config_url {
             log::info!("Downloading Piper config from {config_url}");
-            super::download::download_file(config_url, &config_path, &mut |_dl, _total| {})
-                .await?;
+            super::download::download_file(config_url, &config_path, &mut |_dl, _total| {}).await?;
         }
 
         on_progress(DownloadProgress::Complete {
@@ -99,9 +101,15 @@ impl VoiceCatalogOps for PiperCatalog {
                     let meta = self.find_entry(&voice_key);
                     voices.push(InstalledVoice {
                         voice_key: voice_key.clone(),
-                        name: meta.map(|e| e.name.clone()).unwrap_or_else(|| voice_key.clone()),
-                        language: meta.map(|e| e.language.clone()).unwrap_or_else(|| "unknown".into()),
-                        quality: meta.map(|e| e.quality.clone()).unwrap_or_else(|| "unknown".into()),
+                        name: meta
+                            .map(|e| e.name.clone())
+                            .unwrap_or_else(|| voice_key.clone()),
+                        language: meta
+                            .map(|e| e.language.clone())
+                            .unwrap_or_else(|| "unknown".into()),
+                        quality: meta
+                            .map(|e| e.quality.clone())
+                            .unwrap_or_else(|| "unknown".into()),
                         model_type: ModelType::Piper,
                         model_path: model_path.to_string_lossy().to_string(),
                     });

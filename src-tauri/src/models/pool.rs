@@ -13,7 +13,7 @@ struct CacheEntry {
     last_used: Instant,
 }
 
-pub(crate)  struct ModelPool {
+pub(crate) struct ModelPool {
     cache: HashMap<String, CacheEntry>,
     order: VecDeque<String>,
     max_size: usize,
@@ -21,7 +21,7 @@ pub(crate)  struct ModelPool {
 }
 
 impl ModelPool {
-    pub(crate)  fn new(max_size: usize, idle_timeout: Option<Duration>) -> Self {
+    pub(crate) fn new(max_size: usize, idle_timeout: Option<Duration>) -> Self {
         Self {
             cache: HashMap::new(),
             order: VecDeque::new(),
@@ -30,7 +30,7 @@ impl ModelPool {
         }
     }
 
-    pub(crate)  async fn get(
+    pub(crate) async fn get(
         &mut self,
         voice_key: &str,
         factory: &dyn ModelFactory,
@@ -61,7 +61,7 @@ impl ModelPool {
         Ok(model)
     }
 
-    pub(crate)  fn evict_expired(&mut self) {
+    pub(crate) fn evict_expired(&mut self) {
         if let Some(timeout) = self.idle_timeout {
             let now = Instant::now();
             let expired: Vec<String> = self
@@ -86,7 +86,6 @@ impl ModelPool {
         self.cache.remove(voice_key);
         self.order.retain(|k| k != voice_key);
     }
-
 
     fn evict_lru(&mut self) {
         if let Some(front) = self.order.front().cloned() {

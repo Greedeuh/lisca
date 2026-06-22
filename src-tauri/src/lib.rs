@@ -2,19 +2,19 @@
 // This crate re-exports all domain modules for the frontend and Tauri IPC layer.
 #![warn(unreachable_pub)]
 
- mod actors;
- mod app_paths;
- mod catalog;
- mod clipboard;
- mod commands;
- mod hotkey;
- mod models;
- mod overlay;
- mod persist;
- mod queue;
- mod tray;
- mod transcriber;
- mod voice_prefs;
+mod actors;
+mod app_paths;
+mod catalog;
+mod clipboard;
+mod commands;
+mod hotkey;
+mod models;
+mod overlay;
+mod persist;
+mod queue;
+mod transcriber;
+mod tray;
+mod voice_prefs;
 
 use actors::AppActors;
 use app_paths::AppPaths;
@@ -83,9 +83,7 @@ fn spawn_actix_system(
 
             let actors = AppActors::new(app_handle, &paths);
 
-            actors_tx
-                .send(actors)
-                .expect("failed to send actors");
+            actors_tx.send(actors).expect("failed to send actors");
 
             tokio::time::sleep(std::time::Duration::from_secs(u64::MAX)).await;
             Ok::<(), ()>(())
@@ -106,13 +104,10 @@ fn setup_app(
             }
             log::info!("App data dir: {}", app_data_dir.display());
 
-            let resource_dir = app
-                .path()
-                .resource_dir()
-                .unwrap_or_else(|e| {
-                    log::error!("Failed to resolve resource dir: {e}");
-                    app_data_dir.clone()
-                });
+            let resource_dir = app.path().resource_dir().unwrap_or_else(|e| {
+                log::error!("Failed to resolve resource dir: {e}");
+                app_data_dir.clone()
+            });
 
             AppPaths {
                 piper_models_dir: app_data_dir.join("piper_models"),
@@ -137,7 +132,9 @@ fn setup_app(
         .send(app.handle().clone())
         .expect("failed to send AppHandle to actix thread");
 
-    let actors = actors_rx.recv().expect("failed to receive actors from actix thread");
+    let actors = actors_rx
+        .recv()
+        .expect("failed to receive actors from actix thread");
 
     let hotkey_config = crate::hotkey::load_hotkey(&paths.app_data_dir.join("hotkey.txt"));
 
@@ -195,15 +192,12 @@ fn spawn_model_eviction(model_pool: Arc<tokio::sync::Mutex<ModelPool>>) {
 }
 
 fn setup_main_window(app: &tauri::App) -> Result<tauri::WebviewWindow, String> {
-    let main_window = WebviewWindowBuilder::new(
-        app.handle(),
-        "main",
-        WebviewUrl::App("index.html".into()),
-    )
-    .title("Lisca")
-    .inner_size(800.0, 600.0)
-    .build()
-    .map_err(|e| e.to_string())?;
+    let main_window =
+        WebviewWindowBuilder::new(app.handle(), "main", WebviewUrl::App("index.html".into()))
+            .title("Lisca")
+            .inner_size(800.0, 600.0)
+            .build()
+            .map_err(|e| e.to_string())?;
 
     {
         let win = main_window.clone();
@@ -221,7 +215,9 @@ fn setup_main_window(app: &tauri::App) -> Result<tauri::WebviewWindow, String> {
             let handle = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let actors = handle.state::<AppActors>();
-                if let Ok(has_playable) = actors.queue.send(actors::messages::HasPlayableItems).await {
+                if let Ok(has_playable) =
+                    actors.queue.send(actors::messages::HasPlayableItems).await
+                {
                     if has_playable {
                         if let Err(e) = overlay::show_overlay(&handle) {
                             log::warn!("Failed to show overlay: {e}");
@@ -253,33 +249,34 @@ fn register_global_shortcut(
         return;
     };
 
-    if let Err(e) = app_handle.global_shortcut().on_shortcut(
-        shortcut,
-        move |_app, _shortcut, event| {
-            if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                if let Some(text) = clipboard::auto_copy_and_read(&_app) {
-                    let actors = _app.state::<AppActors>();
-                    let queue = actors.queue.clone();
-                    tauri::async_runtime::spawn(async move {
-                        use actors::messages::AddText;
-                        match queue.send(AddText { text }).await {
-                            Ok(Ok(id)) => {
-                                log::info!("Added item {id} via hotkey");
+    if let Err(e) =
+        app_handle
+            .global_shortcut()
+            .on_shortcut(shortcut, move |_app, _shortcut, event| {
+                if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    if let Some(text) = clipboard::auto_copy_and_read(&_app) {
+                        let actors = _app.state::<AppActors>();
+                        let queue = actors.queue.clone();
+                        tauri::async_runtime::spawn(async move {
+                            use actors::messages::AddText;
+                            match queue.send(AddText { text }).await {
+                                Ok(Ok(id)) => {
+                                    log::info!("Added item {id} via hotkey");
+                                }
+                                Ok(Err(e)) => {
+                                    log::error!("Failed to add text to queue: {e}");
+                                }
+                                Err(e) => {
+                                    log::error!("Actor mailbox error: {e}");
+                                }
                             }
-                            Ok(Err(e)) => {
-                                log::error!("Failed to add text to queue: {e}");
-                            }
-                            Err(e) => {
-                                log::error!("Actor mailbox error: {e}");
-                            }
-                        }
-                    });
-                } else {
-                    log::warn!("No text selected or clipboard copy failed");
+                        });
+                    } else {
+                        log::warn!("No text selected or clipboard copy failed");
+                    }
                 }
-            }
-        },
-    ) {
+            })
+    {
         log::error!("Failed to register new shortcut: {e}");
     }
 }

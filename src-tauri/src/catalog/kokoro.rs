@@ -5,14 +5,14 @@ use std::path::PathBuf;
 
 use super::{InstalledVoice, ModelType, VoiceCatalogOps, VoiceEntry};
 
-pub(super)  struct KokoroCatalog {
+pub(super) struct KokoroCatalog {
     models_dir: PathBuf,
     shared_engine_path: PathBuf,
     entries: Vec<VoiceEntry>,
 }
 
 impl KokoroCatalog {
-    pub(super)  fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
+    pub(super) fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
         let shared_engine_path = models_dir.join("kokoro_engine.onnx");
         Self {
             models_dir,
@@ -26,12 +26,10 @@ impl KokoroCatalog {
     }
 
     fn download_url(path: &str) -> String {
-        format!(
-            "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/{path}"
-        )
+        format!("https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/{path}")
     }
 
-    pub(super)   async fn install<F>(
+    pub(super) async fn install<F>(
         &self,
         voice_key: &str,
         mut on_progress: F,
@@ -49,23 +47,24 @@ impl KokoroCatalog {
         if !self.shared_engine_path.exists() {
             let url = Self::download_url("onnx/model_q4.onnx");
             log::info!("Downloading Kokoro shared engine from {url}");
-            super::download::download_file(&url, &self.shared_engine_path, &mut |downloaded, total| {
-                on_progress(super::DownloadProgress::Downloading {
-                    voice_key: "kokoro_engine".to_string(),
-                    bytes_downloaded: downloaded,
-                    total_bytes: total,
-                });
-            })
+            super::download::download_file(
+                &url,
+                &self.shared_engine_path,
+                &mut |downloaded, total| {
+                    on_progress(super::DownloadProgress::Downloading {
+                        voice_key: "kokoro_engine".to_string(),
+                        bytes_downloaded: downloaded,
+                        total_bytes: total,
+                    });
+                },
+            )
             .await?;
         }
 
         // Download per-voice embedding
         let voice_path = self.models_dir.join(format!("{voice_key}.bin"));
         let fallback_url = Self::download_url(&format!("voices/{voice_key}.bin"));
-        let url = entry
-            .download_url
-            .as_deref()
-            .unwrap_or(&fallback_url);
+        let url = entry.download_url.as_deref().unwrap_or(&fallback_url);
         log::info!("Downloading Kokoro voice {voice_key} from {url}");
         super::download::download_file(url, &voice_path, &mut |downloaded, total| {
             on_progress(super::DownloadProgress::Downloading {
@@ -114,9 +113,15 @@ impl VoiceCatalogOps for KokoroCatalog {
                 let meta = self.find_entry(&voice_key);
                 voices.push(InstalledVoice {
                     voice_key: voice_key.clone(),
-                    name: meta.map(|e| e.name.clone()).unwrap_or_else(|| voice_key.clone()),
-                    language: meta.map(|e| e.language.clone()).unwrap_or_else(|| "unknown".into()),
-                    quality: meta.map(|e| e.quality.clone()).unwrap_or_else(|| "unknown".into()),
+                    name: meta
+                        .map(|e| e.name.clone())
+                        .unwrap_or_else(|| voice_key.clone()),
+                    language: meta
+                        .map(|e| e.language.clone())
+                        .unwrap_or_else(|| "unknown".into()),
+                    quality: meta
+                        .map(|e| e.quality.clone())
+                        .unwrap_or_else(|| "unknown".into()),
                     model_type: ModelType::Kokoro,
                     model_path: entry.path().to_string_lossy().to_string(),
                 });

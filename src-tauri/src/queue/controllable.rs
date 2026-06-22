@@ -3,7 +3,7 @@
 
 use super::{Queue, QueueItem};
 
-pub(crate)  trait QueueControllable {
+pub(crate) trait QueueControllable {
     fn items(&self) -> &[QueueItem];
     fn add_text(&mut self, text: String) -> Result<u64, String>;
     fn remove(&mut self, id: u64) -> Result<(), String>;
@@ -22,12 +22,11 @@ impl QueueControllable for Queue {
         }
         let id = self.next_id;
         self.next_id += 1;
-        self.items
-            .push(super::QueueItem::TextMessage {
-                id,
-                text,
-                status: super::TextMessageStatus::Pending,
-            });
+        self.items.push(super::QueueItem::TextMessage {
+            id,
+            text,
+            status: super::TextMessageStatus::Pending,
+        });
         Ok(id)
     }
 

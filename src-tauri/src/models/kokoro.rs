@@ -6,31 +6,36 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use misaki_rs::{G2P, Language};
+use misaki_rs::{Language, G2P};
 
-use super::{Model, ModelFactory};
 use super::kokoro_phonemizer::KokoroTokenizerConfig;
+use super::{Model, ModelFactory};
 
-pub(crate)  struct KokoroEngine {
+pub(crate) struct KokoroEngine {
     session: std::sync::Mutex<ort::session::Session>,
 }
 
 impl KokoroEngine {
-     fn new(model_path: &Path) -> Result<Self, String> {
+    fn new(model_path: &Path) -> Result<Self, String> {
         let session = ort::session::Session::builder()
             .map_err(|e| format!("failed to create ORT session builder: {e}"))?
             .commit_from_file(model_path)
             .map_err(|e| format!("failed to load shared model {}: {e}", model_path.display()))?;
-        Ok(Self { session: std::sync::Mutex::new(session) })
+        Ok(Self {
+            session: std::sync::Mutex::new(session),
+        })
     }
 
-     fn run_inputs(
+    fn run_inputs(
         &self,
         input_ids: ort::value::DynValue,
         style: ort::value::DynValue,
         speed: ort::value::DynValue,
     ) -> Result<Vec<f32>, String> {
-        let mut session = self.session.lock().map_err(|e| format!("lock error: {e}"))?;
+        let mut session = self
+            .session
+            .lock()
+            .map_err(|e| format!("lock error: {e}"))?;
         let outputs = session
             .run(ort::inputs![
                 "input_ids" => input_ids,
@@ -45,7 +50,7 @@ impl KokoroEngine {
     }
 }
 
-pub(crate)  struct KokoroModel {
+pub(crate) struct KokoroModel {
     engine: Arc<KokoroEngine>,
     vocab: HashMap<char, i64>,
     pad_token_id: i64,
@@ -54,7 +59,7 @@ pub(crate)  struct KokoroModel {
 }
 
 impl KokoroModel {
-     fn new(
+    fn new(
         engine: Arc<KokoroEngine>,
         voice_path: &Path,
         resource_dir: &Path,
@@ -133,7 +138,11 @@ impl Model for KokoroModel {
             return Err("No tokens generated from text".into());
         }
 
-        log::debug!("Tokens ({}): {:?}", tokens.len(), &tokens[..tokens.len().min(20)]);
+        log::debug!(
+            "Tokens ({}): {:?}",
+            tokens.len(),
+            &tokens[..tokens.len().min(20)]
+        );
 
         // Max context length is 510 (512 - 2 for pad tokens)
         let tokens = if tokens.len() > 510 {
@@ -161,16 +170,18 @@ impl Model for KokoroModel {
             .map_err(|e| format!("Tensor speed: {}", e))?;
 
         // Run inference and extract audio
-        let audio = self
-            .engine
-            .run_inputs(t_input_ids.into_dyn(), t_style.into_dyn(), t_speed.into_dyn())?;
+        let audio = self.engine.run_inputs(
+            t_input_ids.into_dyn(),
+            t_style.into_dyn(),
+            t_speed.into_dyn(),
+        )?;
 
         log::debug!("Kokoro output length: {}", audio.len());
         Ok(audio)
     }
 }
 
-pub(crate)  struct KokoroFactory {
+pub(crate) struct KokoroFactory {
     models_dir: PathBuf,
     shared_engine_path: PathBuf,
     resource_dir: PathBuf,
@@ -178,7 +189,11 @@ pub(crate)  struct KokoroFactory {
 }
 
 impl KokoroFactory {
-    pub(crate)  fn new(models_dir: PathBuf, shared_engine_path: PathBuf, resource_dir: PathBuf) -> Self {
+    pub(crate) fn new(
+        models_dir: PathBuf,
+        shared_engine_path: PathBuf,
+        resource_dir: PathBuf,
+    ) -> Self {
         Self {
             models_dir,
             shared_engine_path,
@@ -245,7 +260,11 @@ mod tests {
 
     #[test]
     fn kokoro_factory_create_fails_without_engine() {
-        let factory = KokoroFactory::new(PathBuf::from("/tmp"), PathBuf::from("unused.onnx"), PathBuf::from("/tmp"));
+        let factory = KokoroFactory::new(
+            PathBuf::from("/tmp"),
+            PathBuf::from("unused.onnx"),
+            PathBuf::from("/tmp"),
+        );
         match factory.create("voice-a") {
             Err(e) => assert!(e.contains("shared engine not found")),
             Ok(_) => panic!("expected error"),

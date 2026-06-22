@@ -1,4 +1,4 @@
-pub(super)  mod messages;
+pub(super) mod messages;
 
 mod queue_actor;
 mod speech_player_actor;
@@ -21,14 +21,14 @@ use crate::voice_prefs::VoiceMapping;
 use self::queue_actor::QueueActor;
 use self::transcriber_actor::TranscriberActor;
 
-pub(super)  struct AppActors {
-    pub(super)  queue: Addr<QueueActor>,
-    pub(super)  player: Addr<SpeechPlayerActor>,
-    pub(super)  voice_mapping: Arc<Mutex<VoiceMapping>>,
+pub(super) struct AppActors {
+    pub(super) queue: Addr<QueueActor>,
+    pub(super) player: Addr<SpeechPlayerActor>,
+    pub(super) voice_mapping: Arc<Mutex<VoiceMapping>>,
 }
 
 impl AppActors {
-    pub(super)  fn new(app_handle: tauri::AppHandle, paths: &AppPaths) -> Self {
+    pub(super) fn new(app_handle: tauri::AppHandle, paths: &AppPaths) -> Self {
         let queue_config_path = paths.app_data_dir.join("queue_config.json");
         let queue_config = Queue::load_config(&queue_config_path);
         let queue = Queue::new()
@@ -74,13 +74,10 @@ impl AppActors {
             app_handle.clone(),
         )
         .start();
-        let speech_player_actor = SpeechPlayerActor::new(
-            queue_actor.clone(),
-            app_handle,
-            player_config.auto_read,
-        )
-        .with_config_path(player_config_path)
-        .start();
+        let speech_player_actor =
+            SpeechPlayerActor::new(queue_actor.clone(), app_handle, player_config.auto_read)
+                .with_config_path(player_config_path)
+                .start();
 
         queue_actor.do_send(messages::SetPlayerAddr {
             addr: speech_player_actor.clone(),

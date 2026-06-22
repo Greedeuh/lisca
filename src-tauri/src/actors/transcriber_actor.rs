@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use actix::{Actor, ActorFutureExt, Addr, AsyncContext, AtomicResponse, Context, Handler, WrapFuture};
+use actix::{
+    Actor, ActorFutureExt, Addr, AsyncContext, AtomicResponse, Context, Handler, WrapFuture,
+};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex as TokioMutex;
 
@@ -12,7 +14,7 @@ use crate::voice_prefs::VoiceMapping;
 use super::messages::*;
 use super::queue_actor::QueueActor;
 
-pub(super)  struct TranscriberActor {
+pub(super) struct TranscriberActor {
     queue_addr: Addr<QueueActor>,
     model_pool: Arc<TokioMutex<ModelPool>>,
     factory: Arc<UnifiedFactory>,
@@ -22,7 +24,7 @@ pub(super)  struct TranscriberActor {
 }
 
 impl TranscriberActor {
-    pub(super)  fn new(
+    pub(super) fn new(
         queue_addr: Addr<QueueActor>,
         model_pool: Arc<TokioMutex<ModelPool>>,
         factory: Arc<UnifiedFactory>,
@@ -91,7 +93,8 @@ impl Handler<Transcribe> for TranscriberActor {
                     .map(|v| v.language)
                     .collect();
 
-                let language = detect_language_family(&text, &installed_langs).map(|s| s.to_string());
+                let language =
+                    detect_language_family(&text, &installed_langs).map(|s| s.to_string());
 
                 let voice_key = {
                     let mapping = voice_mapping.lock().await;
@@ -140,10 +143,7 @@ impl Handler<Transcribe> for TranscriberActor {
                     }
                     Err(e) => {
                         log::error!("Transcription error for item {id}: {e}");
-                        let _ = queue_addr
-                            .send(SetTranscriptionError {
-                                id                            })
-                            .await;
+                        let _ = queue_addr.send(SetTranscriptionError { id }).await;
                         let _ = app_handle.emit("transcription_error", (id, e));
                     }
                 }
