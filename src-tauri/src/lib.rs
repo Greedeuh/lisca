@@ -18,19 +18,12 @@ pub mod transcriber;
 pub mod voice_prefs;
 
 use actors::AppActors;
-use actors::queue_actor::QueueActor;
-use actors::speech_player_actor::SpeechPlayerActor;
-use actors::transcriber_actor::TranscriberActor;
-use actix::Actor;
 use app_paths::AppPaths;
 use catalog::VoiceCatalog;
 use commands::AppState;
-use models::{KokoroFactory, ModelPool, PiperFactory};
-use queue::Queue;
+use models::ModelPool;
 use std::sync::Arc;
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
-use transcriber::UnifiedFactory;
-use voice_prefs::VoiceMapping;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -89,70 +82,10 @@ fn spawn_actix_system(
             let app_handle = handle_rx.recv().expect("failed to receive AppHandle");
             let paths = AppPaths::resolve(&app_handle);
 
-            let queue_config_path = paths.app_data_dir.join("queue_config.json");
-            let queue_config = Queue::load_config(&queue_config_path);
-            let queue = Queue::new()
-                .with_config(queue_config)
-                .with_config_path(queue_config_path);
-
-            let player_config_path = paths.app_data_dir.join("player_config.json");
-            let player_config = SpeechPlayerActor::load_config(&player_config_path);
-
-            let voice_mapping_path = paths.app_data_dir.join("voice_mapping.json");
-            let voice_mapping = Arc::new(tokio::sync::Mutex::new(
-                VoiceMapping::load(&voice_mapping_path),
-            ));
-
-            let model_pool = Arc::new(tokio::sync::Mutex::new(ModelPool::new(
-                4,
-                Some(std::time::Duration::from_secs(300)),
-            )));
-
-            let piper_factory: Arc<dyn models::ModelFactory> =
-                Arc::new(PiperFactory::new(paths.piper_models_dir.clone(), paths.app_data_dir.clone()));
-            let shared_engine_path = paths.kokoro_models_dir.join("kokoro_engine.onnx");
-            let kokoro_factory: Arc<dyn models::ModelFactory> =
-                Arc::new(KokoroFactory::new(paths.kokoro_models_dir.clone(), shared_engine_path, paths.resource_dir.clone()));
-            let unified_factory = Arc::new(UnifiedFactory::new(piper_factory, kokoro_factory));
-
-            let catalog = Arc::new(VoiceCatalog::new(
-                paths.piper_models_dir.clone(),
-                paths.kokoro_models_dir.clone(),
-                &paths.resource_dir,
-            ));
-
-            let queue_actor = QueueActor::new(queue, app_handle.clone()).start();
-            let transcriber_actor = TranscriberActor::new(
-                queue_actor.clone(),
-                model_pool.clone(),
-                unified_factory.clone(),
-                voice_mapping.clone(),
-                catalog.clone(),
-                app_handle.clone(),
-            )
-            .start();
-            let speech_player_actor = SpeechPlayerActor::new(
-                queue_actor.clone(),
-                app_handle.clone(),
-                player_config.auto_read,
-            )
-            .with_config_path(player_config_path)
-            .start();
-
-            queue_actor.do_send(actors::messages::SetPlayerAddr {
-                addr: speech_player_actor.clone(),
-            });
-
-            queue_actor.do_send(actors::messages::SetTranscriberAddr {
-                addr: transcriber_actor.clone(),
-            });
+            let actors = AppActors::new(app_handle, &paths);
 
             actors_tx
-                .send(AppActors {
-                    queue: queue_actor,
-                    player: speech_player_actor,
-                    voice_mapping,
-                })
+                .send(actors)
                 .expect("failed to send actors");
 
             tokio::time::sleep(std::time::Duration::from_secs(u64::MAX)).await;
