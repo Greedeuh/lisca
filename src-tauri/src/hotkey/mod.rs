@@ -27,7 +27,6 @@ impl ShortcutConfig {
 pub(super)  enum ParseError {
     EmptyInput,
     NoKey,
-    UnknownModifier(String),
 }
 
 impl std::fmt::Display for ParseError {
@@ -35,7 +34,6 @@ impl std::fmt::Display for ParseError {
         match self {
             ParseError::EmptyInput => write!(f, "shortcut string is empty"),
             ParseError::NoKey => write!(f, "no key specified (only modifiers)"),
-            ParseError::UnknownModifier(m) => write!(f, "unknown modifier: {m}"),
         }
     }
 }
