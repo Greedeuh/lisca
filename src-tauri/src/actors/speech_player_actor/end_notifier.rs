@@ -39,7 +39,7 @@ where
             Some(sample) => Some(sample),
             None => {
                 self.done = true;
-                let _ = self.addr.do_send(PlaybackComplete { id: self.id });
+                self.addr.do_send(PlaybackComplete { id: self.id });
                 None
             }
         }

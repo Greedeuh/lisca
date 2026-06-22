@@ -146,7 +146,7 @@ impl Handler<PlayNext> for SpeechPlayerActor {
             .lock()
             .unwrap()
             .as_ref()
-            .map_or(true, |s| s.empty());
+            .is_none_or(|s| s.empty());
 
         log::debug!("PlayNext sink_empty: {}", sink_empty);
 
@@ -230,7 +230,7 @@ impl Handler<PlaybackPause> for SpeechPlayerActor {
             sink.pause();
         }
         if let Some(id) = self.current_id {
-            let _ = self.queue_addr.do_send(SetSpeechPaused { id });
+            self.queue_addr.do_send(SetSpeechPaused { id });
         }
         self.app_handle.emit("playback_paused", ()).ok();
     }
@@ -252,7 +252,7 @@ impl Handler<PlaybackResume> for SpeechPlayerActor {
             }
         }
         if let Some(id) = self.current_id {
-            let _ = self.queue_addr.do_send(SetSpeechResumed { id });
+            self.queue_addr.do_send(SetSpeechResumed { id });
         }
         self.app_handle.emit("playback_resumed", ()).ok();
     }
@@ -267,7 +267,7 @@ impl Handler<PlaybackStop> for SpeechPlayerActor {
             sink.clear();
         }
         if let Some(id) = self.current_id {
-            let _ = self.queue_addr.do_send(SetSpeechStopped { id });
+            self.queue_addr.do_send(SetSpeechStopped { id });
             self.current_id = None;
         }
         self.stopped = true;

@@ -254,7 +254,7 @@ fn register_global_shortcut(
             .global_shortcut()
             .on_shortcut(shortcut, move |_app, _shortcut, event| {
                 if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    if let Some(text) = clipboard::auto_copy_and_read(&_app) {
+                    if let Some(text) = clipboard::auto_copy_and_read(_app) {
                         let actors = _app.state::<AppActors>();
                         let queue = actors.queue.clone();
                         tauri::async_runtime::spawn(async move {
