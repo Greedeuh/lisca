@@ -179,12 +179,6 @@ pub struct SetCurrentId {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct AutoReadChanged {
-    pub value: bool,
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
 pub struct SetPlayerAddr {
     pub addr: Addr<SpeechPlayerActor>,
 }

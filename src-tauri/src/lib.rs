@@ -1,5 +1,6 @@
 // Lisca — Tauri v2 desktop app for text-to-speech.
 // This crate re-exports all domain modules for the frontend and Tauri IPC layer.
+#![warn(unreachable_pub)]
 
 pub mod actors;
 pub mod app_paths;
