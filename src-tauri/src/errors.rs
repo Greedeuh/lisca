@@ -7,7 +7,7 @@ use std::fmt;
 // ── Queue errors ────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QueueError {
+ enum QueueError {
     Full,
     NotFound(u64),
     WrongItemType,
@@ -34,7 +34,7 @@ impl From<QueueError> for String {
 // ── Transcriber errors ──────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TranscriberError {
+ enum TranscriberError {
     SynthesisFailed(String),
     QueueError(QueueError),
 }
@@ -57,7 +57,7 @@ impl From<QueueError> for TranscriberError {
 // ── Model errors ────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ModelError {
+ enum ModelError {
     NotFound(String),
     LoadFailed(String),
     NotInitialized(String),
@@ -78,7 +78,7 @@ impl fmt::Display for ModelError {
 // ── Catalog errors ──────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CatalogError {
+ enum CatalogError {
     VoiceNotFound(String),
     DownloadFailed(String),
     InstallFailed(String),
@@ -99,7 +99,7 @@ impl fmt::Display for CatalogError {
 // ── Persist errors ──────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PersistError {
+ enum PersistError {
     IoError(String),
     SerializationError(String),
 }
@@ -116,7 +116,7 @@ impl fmt::Display for PersistError {
 // ── Overlay errors ──────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OverlayError {
+ enum OverlayError {
     WindowNotFound,
     WindowCreationFailed(String),
     OperationFailed(String),
@@ -137,7 +137,7 @@ impl fmt::Display for OverlayError {
 // ── Hotkey errors ───────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HotkeyError {
+ enum HotkeyError {
     ParseError(String),
     RegistrationFailed(String),
     IoError(String),
@@ -156,7 +156,7 @@ impl fmt::Display for HotkeyError {
 // ── Clipboard errors ────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ClipboardError {
+ enum ClipboardError {
     ReadFailed(String),
     NotInitialized,
 }

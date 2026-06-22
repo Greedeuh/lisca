@@ -55,7 +55,7 @@ fn family_to_lang(code: &str) -> Option<Lang> {
     }
 }
 
-pub fn detect_language_family(text: &str, installed_langs: &[String]) -> Option<&'static str> {
+pub(crate)  fn detect_language_family(text: &str, installed_langs: &[String]) -> Option<&'static str> {
     let langs: Vec<Lang> = installed_langs.iter().filter_map(|s| family_to_lang(s)).collect();
     if langs.is_empty() {
         return None;

@@ -5,19 +5,19 @@ mod kokoro_phonemizer;
 mod piper;
 mod pool;
 
-pub use kokoro::{KokoroEngine, KokoroFactory, KokoroModel};
-pub use piper::{PiperFactory, PiperModel};
-pub use pool::{ModelEvent, ModelPool};
+pub(super)  use kokoro::{KokoroEngine, KokoroFactory, KokoroModel};
+pub(super)  use piper::{PiperFactory, PiperModel};
+pub(super)  use pool::{ModelEvent, ModelPool};
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub trait Model: Send {
+pub(super)  trait Model: Send {
     fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, String>;
     fn sample_rate(&self) -> u32;
 }
 
-pub trait ModelFactory: Send + Sync {
+pub(super)  trait ModelFactory: Send + Sync {
     fn create(&self, voice_key: &str) -> Result<Arc<Mutex<dyn Model>>, String>;
     fn is_installed(&self, voice_key: &str) -> bool;
     fn installed_voices(&self) -> Vec<String>;

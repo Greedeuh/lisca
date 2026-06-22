@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::path::Path;
 
-pub fn save_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+pub(super)  fn save_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -14,7 +14,7 @@ pub fn save_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
     Ok(())
 }
 
-pub fn load_json<T: DeserializeOwned + Default>(path: &Path) -> T {
+pub(super)  fn load_json<T: DeserializeOwned + Default>(path: &Path) -> T {
     if !path.exists() {
         return T::default();
     }

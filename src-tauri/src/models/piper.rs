@@ -93,14 +93,14 @@ impl Default for PiperAudio {
     }
 }
 
-pub struct PiperModel {
+pub(crate)  struct PiperModel {
     session: ort::session::Session,
     phoneme_to_id: HashMap<char, i64>,
     config: PiperConfig,
 }
 
 impl PiperModel {
-    pub fn new(model_path: &Path, config_path: &Path, resource_dir: &Path) -> Result<Self, String> {
+     fn new(model_path: &Path, config_path: &Path, resource_dir: &Path) -> Result<Self, String> {
         if !model_path.exists() {
             return Err(format!("Model not found: {}", model_path.display()));
         }
@@ -240,13 +240,13 @@ impl Model for PiperModel {
     }
 }
 
-pub struct PiperFactory {
+pub(crate)  struct PiperFactory {
     models_dir: PathBuf,
     resource_dir: PathBuf,
 }
 
 impl PiperFactory {
-    pub fn new(models_dir: PathBuf, resource_dir: PathBuf) -> Self {
+    pub(crate)  fn new(models_dir: PathBuf, resource_dir: PathBuf) -> Self {
         Self {
             models_dir,
             resource_dir,

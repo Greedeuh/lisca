@@ -8,7 +8,7 @@ use super::messages::*;
 use super::speech_player_actor::SpeechPlayerActor;
 use super::transcriber_actor::TranscriberActor;
 
-pub struct QueueActor {
+pub(crate)  struct QueueActor {
     queue: Queue,
     app_handle: AppHandle,
     player_addr: Option<Addr<SpeechPlayerActor>>,
@@ -16,7 +16,7 @@ pub struct QueueActor {
 }
 
 impl QueueActor {
-    pub fn new(queue: Queue, app_handle: AppHandle) -> Self {
+    pub(super)  fn new(queue: Queue, app_handle: AppHandle) -> Self {
         Self {
             queue,
             app_handle,
@@ -25,11 +25,11 @@ impl QueueActor {
         }
     }
 
-    pub fn set_player_addr(&mut self, addr: Addr<SpeechPlayerActor>) {
+     fn set_player_addr(&mut self, addr: Addr<SpeechPlayerActor>) {
         self.player_addr = Some(addr);
     }
 
-    pub fn set_transcriber_addr(&mut self, addr: Addr<TranscriberActor>) {
+     fn set_transcriber_addr(&mut self, addr: Addr<TranscriberActor>) {
         self.transcriber_addr = Some(addr);
     }
 

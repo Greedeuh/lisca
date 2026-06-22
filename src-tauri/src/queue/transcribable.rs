@@ -3,7 +3,7 @@
 
 use super::{Queue, QueueEvent, QueueItem, SpeechStatus, TextMessageStatus};
 
-pub trait Transcribable {
+pub(crate)  trait Transcribable {
     fn next_pending_text_message(&self) -> Option<(usize, u64)>;
     fn set_text_message_status(
         &mut self,

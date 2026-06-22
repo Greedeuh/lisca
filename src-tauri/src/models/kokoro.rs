@@ -11,12 +11,12 @@ use misaki_rs::{G2P, Language};
 use super::{Model, ModelFactory};
 use super::kokoro_phonemizer::KokoroTokenizerConfig;
 
-pub struct KokoroEngine {
+pub(crate)  struct KokoroEngine {
     session: std::sync::Mutex<ort::session::Session>,
 }
 
 impl KokoroEngine {
-    pub fn new(model_path: &Path) -> Result<Self, String> {
+     fn new(model_path: &Path) -> Result<Self, String> {
         let session = ort::session::Session::builder()
             .map_err(|e| format!("failed to create ORT session builder: {e}"))?
             .commit_from_file(model_path)
@@ -24,7 +24,7 @@ impl KokoroEngine {
         Ok(Self { session: std::sync::Mutex::new(session) })
     }
 
-    pub fn run_inputs(
+     fn run_inputs(
         &self,
         input_ids: ort::value::DynValue,
         style: ort::value::DynValue,
@@ -45,7 +45,7 @@ impl KokoroEngine {
     }
 }
 
-pub struct KokoroModel {
+pub(crate)  struct KokoroModel {
     engine: Arc<KokoroEngine>,
     vocab: HashMap<char, i64>,
     pad_token_id: i64,
@@ -55,7 +55,7 @@ pub struct KokoroModel {
 }
 
 impl KokoroModel {
-    pub fn new(
+     fn new(
         engine: Arc<KokoroEngine>,
         voice_path: &Path,
         resource_dir: &Path,
@@ -177,7 +177,7 @@ impl Model for KokoroModel {
     }
 }
 
-pub struct KokoroFactory {
+pub(crate)  struct KokoroFactory {
     models_dir: PathBuf,
     shared_engine_path: PathBuf,
     resource_dir: PathBuf,
@@ -186,7 +186,7 @@ pub struct KokoroFactory {
 }
 
 impl KokoroFactory {
-    pub fn new(models_dir: PathBuf, shared_engine_path: PathBuf, resource_dir: PathBuf) -> Self {
+    pub(crate)  fn new(models_dir: PathBuf, shared_engine_path: PathBuf, resource_dir: PathBuf) -> Self {
         Self {
             models_dir,
             shared_engine_path,
@@ -196,7 +196,7 @@ impl KokoroFactory {
         }
     }
 
-    pub fn with_shared_engine(self, engine: Arc<KokoroEngine>) -> Self {
+     fn with_shared_engine(self, engine: Arc<KokoroEngine>) -> Self {
         *self.shared_engine.lock().unwrap() = Some(engine);
         self
     }

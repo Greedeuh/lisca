@@ -3,7 +3,7 @@
 
 use super::{Queue, QueueConfig, QueueEvent, QueueItem};
 
-pub trait QueueControllable {
+pub(crate)  trait QueueControllable {
     fn items(&self) -> &[QueueItem];
     fn is_empty(&self) -> bool;
     fn config(&self) -> &QueueConfig;

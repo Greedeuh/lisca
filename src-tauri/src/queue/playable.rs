@@ -3,7 +3,7 @@
 
 use super::{Queue, QueueEvent, QueueItem, SpeechStatus};
 
-pub trait Playable {
+pub(crate)  trait Playable {
     fn next_to_play_speech(&self) -> Option<(usize, u64)>;
     fn set_speech_status(&mut self, id: u64, status: SpeechStatus) -> Result<(), String>;
 }

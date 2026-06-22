@@ -3,25 +3,25 @@ use std::path::Path;
 
 #[derive(serde::Deserialize)]
 pub(super) struct KokoroTokenizerConfig {
-    pub post_processor: PostProcessorConfig,
-    pub model: ModelConfig,
+     post_processor: PostProcessorConfig,
+     model: ModelConfig,
 }
 
 #[derive(serde::Deserialize)]
-pub(super) struct PostProcessorConfig {
-    pub special_tokens: HashMap<String, SpecialToken>,
+ struct PostProcessorConfig {
+     special_tokens: HashMap<String, SpecialToken>,
 }
 
 #[derive(serde::Deserialize)]
-pub(super) struct SpecialToken {
+ struct SpecialToken {
     #[allow(dead_code)]
-    pub id: String,
-    pub ids: Vec<i64>,
+     id: String,
+     ids: Vec<i64>,
 }
 
 #[derive(serde::Deserialize)]
-pub(super) struct ModelConfig {
-    pub vocab: HashMap<String, i64>,
+ struct ModelConfig {
+     vocab: HashMap<String, i64>,
 }
 
 impl KokoroTokenizerConfig {

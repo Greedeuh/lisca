@@ -5,14 +5,14 @@ use std::path::PathBuf;
 
 use super::{InstalledVoice, ModelType, VoiceCatalogOps, VoiceEntry};
 
-pub struct KokoroCatalog {
+pub(super)  struct KokoroCatalog {
     models_dir: PathBuf,
     shared_engine_path: PathBuf,
     entries: Vec<VoiceEntry>,
 }
 
 impl KokoroCatalog {
-    pub fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
+    pub(super)  fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
         let shared_engine_path = models_dir.join("kokoro_engine.onnx");
         Self {
             models_dir,
@@ -31,11 +31,11 @@ impl KokoroCatalog {
         )
     }
 
-    pub fn is_shared_engine_installed(&self) -> bool {
+     fn is_shared_engine_installed(&self) -> bool {
         self.shared_engine_path.exists()
     }
 
-    pub async fn install<F>(
+    pub(super)   async fn install<F>(
         &self,
         voice_key: &str,
         mut on_progress: F,

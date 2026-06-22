@@ -8,7 +8,7 @@ use tokio::sync::Mutex;
 
 use super::{Model, ModelFactory};
 
-pub enum ModelEvent {
+pub(crate)  enum ModelEvent {
     Loaded { voice_key: String },
     Unloaded { voice_key: String },
 }
@@ -18,7 +18,7 @@ struct CacheEntry {
     last_used: Instant,
 }
 
-pub struct ModelPool {
+pub(crate)  struct ModelPool {
     cache: HashMap<String, CacheEntry>,
     order: VecDeque<String>,
     max_size: usize,
@@ -27,7 +27,7 @@ pub struct ModelPool {
 }
 
 impl ModelPool {
-    pub fn new(max_size: usize, idle_timeout: Option<Duration>) -> Self {
+    pub(crate)  fn new(max_size: usize, idle_timeout: Option<Duration>) -> Self {
         Self {
             cache: HashMap::new(),
             order: VecDeque::new(),
@@ -37,7 +37,7 @@ impl ModelPool {
         }
     }
 
-    pub fn with_event_handler<F>(mut self, handler: F) -> Self
+     fn with_event_handler<F>(mut self, handler: F) -> Self
     where
         F: Fn(ModelEvent) + Send + Sync + 'static,
     {
@@ -45,7 +45,7 @@ impl ModelPool {
         self
     }
 
-    pub async fn get(
+    pub(crate)  async fn get(
         &mut self,
         voice_key: &str,
         factory: &dyn ModelFactory,
@@ -82,7 +82,7 @@ impl ModelPool {
         Ok(model)
     }
 
-    pub fn clear_cache(&mut self) {
+     fn clear_cache(&mut self) {
         let keys: Vec<String> = self.cache.keys().cloned().collect();
         self.cache.clear();
         self.order.clear();
@@ -94,7 +94,7 @@ impl ModelPool {
         }
     }
 
-    pub fn refresh_installed(&mut self, installed: &[String]) {
+     fn refresh_installed(&mut self, installed: &[String]) {
         let to_evict: Vec<String> = self
             .cache
             .keys()
@@ -107,7 +107,7 @@ impl ModelPool {
         }
     }
 
-    pub fn evict_expired(&mut self) {
+    pub(crate)  fn evict_expired(&mut self) {
         if let Some(timeout) = self.idle_timeout {
             let now = Instant::now();
             let expired: Vec<String> = self
@@ -145,11 +145,11 @@ impl ModelPool {
         }
     }
 
-    pub fn cached_keys(&self) -> Vec<&str> {
+     fn cached_keys(&self) -> Vec<&str> {
         self.order.iter().map(|s| s.as_str()).collect()
     }
 
-    pub fn cache_size(&self) -> usize {
+     fn cache_size(&self) -> usize {
         self.cache.len()
     }
 }

@@ -7,13 +7,13 @@ use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct VoiceMapping {
-    pub language_voice: HashMap<String, String>,
-    pub fallback_voice_key: Option<String>,
+pub(super)  struct VoiceMapping {
+    pub(super)  language_voice: HashMap<String, String>,
+    pub(super)  fallback_voice_key: Option<String>,
 }
 
 impl VoiceMapping {
-    pub fn resolve(&self, language: Option<&str>) -> Option<&str> {
+    pub(super)  fn resolve(&self, language: Option<&str>) -> Option<&str> {
         match language {
             Some(lang) => self
                 .language_voice
@@ -24,11 +24,11 @@ impl VoiceMapping {
         }
     }
 
-    pub fn save(&self, path: &Path) -> Result<(), String> {
+    pub(super)  fn save(&self, path: &Path) -> Result<(), String> {
         save_json(path, self)
     }
 
-    pub fn load(path: &Path) -> Self {
+    pub(super)  fn load(path: &Path) -> Self {
         load_json(path)
     }
 }

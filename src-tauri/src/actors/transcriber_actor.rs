@@ -12,7 +12,7 @@ use crate::voice_prefs::VoiceMapping;
 use super::messages::*;
 use super::queue_actor::QueueActor;
 
-pub struct TranscriberActor {
+pub(super)  struct TranscriberActor {
     queue_addr: Addr<QueueActor>,
     model_pool: Arc<TokioMutex<ModelPool>>,
     factory: Arc<UnifiedFactory>,
@@ -22,7 +22,7 @@ pub struct TranscriberActor {
 }
 
 impl TranscriberActor {
-    pub fn new(
+    pub(super)  fn new(
         queue_addr: Addr<QueueActor>,
         model_pool: Arc<TokioMutex<ModelPool>>,
         factory: Arc<UnifiedFactory>,

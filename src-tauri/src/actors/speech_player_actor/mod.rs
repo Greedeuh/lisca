@@ -14,8 +14,8 @@ use super::messages::*;
 use super::queue_actor::QueueActor;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
-pub struct PlayerConfig {
-    pub auto_read: bool,
+pub(super)  struct PlayerConfig {
+    pub(super)  auto_read: bool,
 }
 
 impl Default for PlayerConfig {
@@ -24,7 +24,7 @@ impl Default for PlayerConfig {
     }
 }
 
-pub struct SpeechPlayerActor {
+pub(crate)  struct SpeechPlayerActor {
     queue_addr: Addr<QueueActor>,
     app_handle: AppHandle,
     sink: Arc<Mutex<Option<rodio::Sink>>>,
@@ -36,7 +36,7 @@ pub struct SpeechPlayerActor {
 }
 
 impl SpeechPlayerActor {
-    pub fn new(
+    pub(super)  fn new(
         queue_addr: Addr<QueueActor>,
         app_handle: AppHandle,
         auto_read: bool,
@@ -53,12 +53,12 @@ impl SpeechPlayerActor {
         }
     }
 
-    pub fn with_config_path(mut self, path: std::path::PathBuf) -> Self {
+    pub(super)  fn with_config_path(mut self, path: std::path::PathBuf) -> Self {
         self.config_path = Some(path);
         self
     }
 
-    pub fn load_config(path: &std::path::Path) -> PlayerConfig {
+    pub(super)  fn load_config(path: &std::path::Path) -> PlayerConfig {
         load_json(path)
     }
 

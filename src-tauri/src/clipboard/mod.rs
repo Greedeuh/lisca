@@ -5,14 +5,14 @@ use enigo::{Direction::{Click, Press, Release}, Enigo, Key, Keyboard, Settings};
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
-pub fn read_text(app: &AppHandle) -> Result<String, String> {
+ fn read_text(app: &AppHandle) -> Result<String, String> {
     app.clipboard()
         .read_text()
         .map_err(|e| format!("Clipboard read failed: {}", e))
         .map(|s| s.to_string())
 }
 
-pub fn write_text(app: &AppHandle, text: &str) -> Result<(), String> {
+ fn write_text(app: &AppHandle, text: &str) -> Result<(), String> {
     app.clipboard()
         .write_text(text)
         .map_err(|e| format!("Clipboard write failed: {}", e))
@@ -34,7 +34,7 @@ fn simulate_copy() -> Result<(), String> {
     Ok(())
 }
 
-pub fn auto_copy_and_read(app: &AppHandle) -> Option<String> {
+pub(super)  fn auto_copy_and_read(app: &AppHandle) -> Option<String> {
     let original = read_text(app).ok();
 
     if let Err(e) = simulate_copy() {

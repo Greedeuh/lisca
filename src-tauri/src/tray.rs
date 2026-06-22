@@ -9,7 +9,7 @@ use tauri::{
     AppHandle, Manager,
 };
 
-pub const TRAY_ID: &str = "main-tray";
+ const TRAY_ID: &str = "main-tray";
 
 fn show_main_window(app: &AppHandle) {
     if let Err(e) = overlay::hide_overlay(app) {
@@ -27,7 +27,7 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-pub fn create_tray(app: &AppHandle) -> Result<(), String> {
+pub(super)  fn create_tray(app: &AppHandle) -> Result<(), String> {
     let show_item = MenuItem::with_id(app, "show", "Show", true, None::<&str>)
         .map_err(|e| e.to_string())?;
     let overlay_item = MenuItem::with_id(app, "toggle_overlay", "Show/Hide Overlay", true, None::<&str>)

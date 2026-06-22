@@ -1,4 +1,4 @@
-pub mod messages;
+pub(super)  mod messages;
 
 mod queue_actor;
 mod speech_player_actor;
@@ -21,14 +21,14 @@ use crate::voice_prefs::VoiceMapping;
 use self::queue_actor::QueueActor;
 use self::transcriber_actor::TranscriberActor;
 
-pub struct AppActors {
-    pub queue: Addr<QueueActor>,
-    pub player: Addr<SpeechPlayerActor>,
-    pub voice_mapping: Arc<Mutex<VoiceMapping>>,
+pub(super)  struct AppActors {
+    pub(super)  queue: Addr<QueueActor>,
+    pub(super)  player: Addr<SpeechPlayerActor>,
+    pub(super)  voice_mapping: Arc<Mutex<VoiceMapping>>,
 }
 
 impl AppActors {
-    pub fn new(app_handle: tauri::AppHandle, paths: &AppPaths) -> Self {
+    pub(super)  fn new(app_handle: tauri::AppHandle, paths: &AppPaths) -> Self {
         let queue_config_path = paths.app_data_dir.join("queue_config.json");
         let queue_config = Queue::load_config(&queue_config_path);
         let queue = Queue::new()

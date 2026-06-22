@@ -5,13 +5,13 @@ use std::path::PathBuf;
 
 use super::{DownloadProgress, InstalledVoice, ModelType, VoiceCatalogOps, VoiceEntry};
 
-pub struct PiperCatalog {
+pub(super)  struct PiperCatalog {
     models_dir: PathBuf,
     entries: Vec<VoiceEntry>,
 }
 
 impl PiperCatalog {
-    pub fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
+    pub(super)  fn new(models_dir: PathBuf, entries: Vec<VoiceEntry>) -> Self {
         Self { models_dir, entries }
     }
 
@@ -19,7 +19,7 @@ impl PiperCatalog {
         self.entries.iter().find(|v| v.voice_key == voice_key)
     }
 
-    pub async fn install<F>(
+    pub(super)  async fn install<F>(
         &self,
         voice_key: &str,
         mut on_progress: F,
@@ -73,7 +73,7 @@ impl PiperCatalog {
         })
     }
 
-    pub fn verify_checksum(&self, voice_key: &str, expected: &str) -> Result<bool, String> {
+     fn verify_checksum(&self, voice_key: &str, expected: &str) -> Result<bool, String> {
         let model_path = self
             .models_dir
             .join(voice_key)

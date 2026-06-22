@@ -6,17 +6,17 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ShortcutConfig {
-    pub modifiers: Vec<String>,
-    pub key: String,
+pub(super)  struct ShortcutConfig {
+     modifiers: Vec<String>,
+     key: String,
 }
 
 impl ShortcutConfig {
-    pub fn new(modifiers: Vec<String>, key: String) -> Self {
+     fn new(modifiers: Vec<String>, key: String) -> Self {
         Self { modifiers, key }
     }
 
-    pub fn to_string_repr(&self) -> String {
+    pub(super)  fn to_string_repr(&self) -> String {
         let mut parts = self.modifiers.clone();
         parts.push(self.key.clone());
         parts.join("+")
@@ -24,7 +24,7 @@ impl ShortcutConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ParseError {
+pub(super)  enum ParseError {
     EmptyInput,
     NoKey,
     UnknownModifier(String),
@@ -42,7 +42,7 @@ impl std::fmt::Display for ParseError {
 
 const VALID_MODIFIERS: &[&str] = &["Control", "Alt", "Shift", "Super", "Command"];
 
-pub fn parse_shortcut(input: &str) -> Result<ShortcutConfig, ParseError> {
+pub(super)  fn parse_shortcut(input: &str) -> Result<ShortcutConfig, ParseError> {
     let input = input.trim();
     if input.is_empty() {
         return Err(ParseError::EmptyInput);
@@ -72,14 +72,14 @@ pub fn parse_shortcut(input: &str) -> Result<ShortcutConfig, ParseError> {
     }
 }
 
-pub fn save_hotkey(path: &Path, config: &ShortcutConfig) -> Result<(), String> {
+pub(super)  fn save_hotkey(path: &Path, config: &ShortcutConfig) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     std::fs::write(path, config.to_string_repr()).map_err(|e| e.to_string())
 }
 
-pub fn load_hotkey(path: &Path) -> Option<ShortcutConfig> {
+pub(super)  fn load_hotkey(path: &Path) -> Option<ShortcutConfig> {
     let data = std::fs::read_to_string(path).ok()?;
     let data = data.trim();
     if data.is_empty() {

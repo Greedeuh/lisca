@@ -3,20 +3,20 @@
 
 mod piper;
 mod kokoro;
-pub(crate) mod download;
+ mod download;
 
-pub use piper::PiperCatalog;
-pub use kokoro::KokoroCatalog;
+ use piper::PiperCatalog;
+ use kokoro::KokoroCatalog;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CatalogFile {
-    pub voices: Vec<VoiceEntry>,
+ struct CatalogFile {
+     voices: Vec<VoiceEntry>,
 }
 
-pub fn load_catalog(resource_dir: &Path) -> Result<Vec<VoiceEntry>, String> {
+ fn load_catalog(resource_dir: &Path) -> Result<Vec<VoiceEntry>, String> {
     let catalog_path = resource_dir.join("catalog.json");
     let data = std::fs::read_to_string(&catalog_path)
         .map_err(|e| format!("failed to read catalog.json: {e}"))?;
@@ -26,7 +26,7 @@ pub fn load_catalog(resource_dir: &Path) -> Result<Vec<VoiceEntry>, String> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ModelType {
+pub(super)  enum ModelType {
     #[serde(rename = "piper")]
     Piper,
     #[serde(rename = "kokoro")]
@@ -34,22 +34,22 @@ pub enum ModelType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct VoiceEntry {
-    pub voice_key: String,
-    pub name: String,
-    pub language: String,
-    pub quality: String,
-    pub size_bytes: u64,
-    pub speed: Option<String>,
-    pub model_type: ModelType,
-    pub checksum: Option<String>,
-    pub download_url: Option<String>,
-    pub config_url: Option<String>,
+pub(super)  struct VoiceEntry {
+    pub(super)  voice_key: String,
+    pub(super)  name: String,
+    pub(super)  language: String,
+    pub(super)  quality: String,
+    pub(super)  size_bytes: u64,
+    pub(super)  speed: Option<String>,
+    pub(super)  model_type: ModelType,
+     checksum: Option<String>,
+     download_url: Option<String>,
+     config_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
-pub enum DownloadProgress {
+pub(super)  enum DownloadProgress {
     #[serde(rename = "downloading")]
     Downloading {
         voice_key: String,
@@ -63,29 +63,29 @@ pub enum DownloadProgress {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct InstalledVoice {
-    pub voice_key: String,
-    pub name: String,
-    pub language: String,
-    pub quality: String,
-    pub model_type: ModelType,
-    pub model_path: String,
+pub(super)  struct InstalledVoice {
+    pub(super)  voice_key: String,
+    pub(super)  name: String,
+    pub(super)  language: String,
+    pub(super)  quality: String,
+    pub(super)  model_type: ModelType,
+    pub(super)  model_path: String,
 }
 
-pub trait VoiceCatalogOps {
+pub(super)  trait VoiceCatalogOps {
     fn list_available(&self) -> Vec<VoiceEntry>;
     fn list_installed(&self) -> Vec<InstalledVoice>;
     fn uninstall(&self, voice_key: &str) -> Result<(), String>;
 }
 
-pub struct VoiceCatalog {
+pub(super)  struct VoiceCatalog {
     piper: PiperCatalog,
     kokoro: KokoroCatalog,
     entries: Vec<VoiceEntry>,
 }
 
 impl VoiceCatalog {
-    pub fn new(piper_models_dir: PathBuf, kokoro_models_dir: PathBuf, resource_dir: &Path) -> Self {
+    pub(super)  fn new(piper_models_dir: PathBuf, kokoro_models_dir: PathBuf, resource_dir: &Path) -> Self {
         let all_entries = load_catalog(resource_dir).unwrap_or_else(|e| {
             log::error!("Failed to load catalog: {e}");
             Vec::new()
@@ -107,7 +107,7 @@ impl VoiceCatalog {
         }
     }
 
-    pub async fn install<F>(
+    pub(super)  async fn install<F>(
         &self,
         voice_key: &str,
         on_progress: F,

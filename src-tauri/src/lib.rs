@@ -2,20 +2,20 @@
 // This crate re-exports all domain modules for the frontend and Tauri IPC layer.
 #![warn(unreachable_pub)]
 
-pub mod actors;
-pub mod app_paths;
-pub mod catalog;
-pub mod clipboard;
-pub mod commands;
-pub mod errors;
-pub mod hotkey;
-pub mod models;
-pub mod overlay;
-pub mod persist;
-pub mod queue;
-pub mod tray;
-pub mod transcriber;
-pub mod voice_prefs;
+ mod actors;
+ mod app_paths;
+ mod catalog;
+ mod clipboard;
+ mod commands;
+ mod errors;
+ mod hotkey;
+ mod models;
+ mod overlay;
+ mod persist;
+ mod queue;
+ mod tray;
+ mod transcriber;
+ mod voice_prefs;
 
 use actors::AppActors;
 use app_paths::AppPaths;

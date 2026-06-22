@@ -8,183 +8,183 @@ use super::transcriber_actor::TranscriberActor;
 
 #[derive(Message)]
 #[rtype(result = "Result<u64, String>")]
-pub struct AddText {
-    pub text: String,
+pub(crate)  struct AddText {
+    pub(crate)  text: String,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct RemoveItem {
-    pub id: u64,
+pub(crate)  struct RemoveItem {
+    pub(crate)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct MoveItem {
-    pub id: u64,
-    pub new_index: usize,
+pub(crate)  struct MoveItem {
+    pub(crate)  id: u64,
+    pub(crate)  new_index: usize,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct ClearQueue;
+pub(crate)  struct ClearQueue;
 
 #[derive(Message)]
 #[rtype(result = "Result<QueueSnapshotDto, ()>")]
-pub struct GetQueueState;
+pub(crate)  struct GetQueueState;
 
 #[derive(Message)]
 #[rtype(result = "bool")]
-pub struct HasPlayableItems;
+pub(crate)  struct HasPlayableItems;
 
 #[derive(Message)]
 #[rtype(result = "bool")]
-pub struct ToggleAutoRead;
+pub(crate)  struct ToggleAutoRead;
 
 #[derive(Message)]
 #[rtype(result = "bool")]
-pub struct ToggleOverlay;
+pub(crate)  struct ToggleOverlay;
 
 #[derive(Message)]
 #[rtype(result = "Option<PendingTextItem>")]
-pub struct GetNextText;
+pub(super)  struct GetNextText;
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct MarkProcessing {
-    pub id: u64,
+pub(super)  struct MarkProcessing {
+    pub(super)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct ReplaceWithSpeech {
-    pub id: u64,
-    pub audio_data: Option<Vec<f32>>,
-    pub voice_key: Option<String>,
-    pub language: Option<String>,
+pub(super)  struct ReplaceWithSpeech {
+    pub(super)  id: u64,
+    pub(super)  audio_data: Option<Vec<f32>>,
+    pub(super)  voice_key: Option<String>,
+    pub(super)  language: Option<String>,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct SetTranscriptionError {
-    pub id: u64,
-    pub error: String,
+pub(super)  struct SetTranscriptionError {
+    pub(super)  id: u64,
+    pub(super)  error: String,
 }
 
 #[derive(Message)]
 #[rtype(result = "Option<PendingSpeechItem>")]
-pub struct GetNextSpeech;
+pub(super)  struct GetNextSpeech;
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct SetItemCompleted {
-    pub id: u64,
+pub(super)  struct SetItemCompleted {
+    pub(super)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct SkipItem {
-    pub id: u64,
+pub(super)  struct SkipItem {
+    pub(super)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct SetSpeechPaused {
-    pub id: u64,
+pub(super)  struct SetSpeechPaused {
+    pub(super)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct SetSpeechResumed {
-    pub id: u64,
+pub(super)  struct SetSpeechResumed {
+    pub(super)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct SetSpeechStopped {
-    pub id: u64,
+pub(super)  struct SetSpeechStopped {
+    pub(super)  id: u64,
 }
 
 #[derive(Clone, Debug)]
-pub struct PendingTextItem {
-    pub id: u64,
-    pub text: String,
+pub(super)  struct PendingTextItem {
+    pub(super)  id: u64,
+    pub(super)  text: String,
 }
 
 #[derive(Clone, Debug)]
-pub struct PendingSpeechItem {
-    pub id: u64,
-    pub audio_data: Option<Vec<f32>>,
+pub(super)  struct PendingSpeechItem {
+    pub(super)  id: u64,
+    pub(super)  audio_data: Option<Vec<f32>>,
 }
 
 // ── Queue event notifications (sent to peer actors) ────────────────
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct TextAdded;
+pub(super)  struct TextAdded;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct SpeechReady;
+pub(super)  struct SpeechReady;
 
 // ── SpeechPlayerActor messages ─────────────────────────────────────
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub(crate) struct PlaybackComplete {
-    pub id: u64,
+pub(super)  struct PlaybackComplete {
+    pub(super)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "bool")]
-pub struct GetAutoRead;
+pub(crate)  struct GetAutoRead;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct PlaybackPause;
+pub(crate)  struct PlaybackPause;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct PlaybackResume;
+pub(crate)  struct PlaybackResume;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct PlaybackStop;
+pub(crate)  struct PlaybackStop;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct PlaybackSkip;
+pub(crate)  struct PlaybackSkip;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct PlaybackRestart;
+pub(crate)  struct PlaybackRestart;
 
 #[derive(Message)]
 #[rtype(result = "Result<(), String>")]
-pub struct ReplayItem {
-    pub id: u64,
+pub(super)  struct ReplayItem {
+    pub(super)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct PlaybackReplay {
-    pub id: u64,
+pub(crate)  struct PlaybackReplay {
+    pub(crate)  id: u64,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct SetCurrentId {
-    pub id: Option<u64>,
+pub(super)  struct SetCurrentId {
+    pub(super)  id: Option<u64>,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct SetPlayerAddr {
-    pub addr: Addr<SpeechPlayerActor>,
+pub(super)  struct SetPlayerAddr {
+    pub(super)  addr: Addr<SpeechPlayerActor>,
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct SetTranscriberAddr {
-    pub addr: Addr<TranscriberActor>,
+pub(super)  struct SetTranscriberAddr {
+    pub(super)  addr: Addr<TranscriberActor>,
 }
