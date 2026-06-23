@@ -82,7 +82,7 @@ impl Default for PiperInference {
     }
 }
 
- struct PiperModel {
+struct PiperModel {
     session: ort::session::Session,
     phoneme_to_id: HashMap<char, i64>,
     config: PiperConfig,

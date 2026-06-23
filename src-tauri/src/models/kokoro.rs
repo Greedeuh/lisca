@@ -11,7 +11,7 @@ use misaki_rs::{Language, G2P};
 use super::kokoro_phonemizer::KokoroTokenizerConfig;
 use super::{Model, ModelFactory};
 
- struct KokoroEngine {
+struct KokoroEngine {
     session: std::sync::Mutex<ort::session::Session>,
 }
 
@@ -50,7 +50,7 @@ impl KokoroEngine {
     }
 }
 
- struct KokoroModel {
+struct KokoroModel {
     engine: Arc<KokoroEngine>,
     vocab: HashMap<char, i64>,
     pad_token_id: i64,

@@ -141,12 +141,7 @@ impl Handler<PlayNext> for SpeechPlayerActor {
             return;
         }
 
-        let sink_empty = self
-            .sink
-            .lock()
-            .unwrap()
-            .as_ref()
-            .is_none_or(|s| s.empty());
+        let sink_empty = self.sink.lock().unwrap().as_ref().is_none_or(|s| s.empty());
 
         log::debug!("PlayNext sink_empty: {}", sink_empty);
 
