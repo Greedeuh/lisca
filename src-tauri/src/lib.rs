@@ -20,7 +20,6 @@ use actors::AppActors;
 use app_paths::AppPaths;
 use catalog::VoiceCatalog;
 use commands::AppState;
-use models::ModelPool;
 use std::sync::Arc;
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -66,6 +65,8 @@ pub fn run() {
             commands::playback_skip,
             commands::playback_restart,
             commands::playback_replay,
+            commands::get_idle_timeout,
+            commands::set_idle_timeout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -138,17 +139,13 @@ fn setup_app(
 
     let hotkey_config = crate::hotkey::load_hotkey(&paths.app_data_dir.join("hotkey.txt"));
 
-    let model_pool = Arc::new(tokio::sync::Mutex::new(ModelPool::new(
-        4,
-        Some(std::time::Duration::from_secs(300)),
-    )));
-
     let state = AppState {
         catalog,
         voice_mapping: actors.voice_mapping.clone(),
         app_data_dir: paths.app_data_dir,
     };
 
+    let model_pool = actors.model_pool.clone();
     app.manage(actors);
     app.manage(state);
 
@@ -180,7 +177,7 @@ fn setup_overlay_listener(app: &tauri::App) {
     });
 }
 
-fn spawn_model_eviction(model_pool: Arc<tokio::sync::Mutex<ModelPool>>) {
+fn spawn_model_eviction(model_pool: Arc<tokio::sync::Mutex<crate::models::ModelPool>>) {
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {

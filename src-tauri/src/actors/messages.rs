@@ -187,3 +187,15 @@ pub(super) struct SetPlayerAddr {
 pub(super) struct SetTranscriberAddr {
     pub(super) addr: Addr<TranscriberActor>,
 }
+
+// ── TranscriberActor messages ─────────────────────────────────────
+
+#[derive(Message)]
+#[rtype(result = "u64")]
+pub(crate) struct GetIdleTimeout;
+
+#[derive(Message)]
+#[rtype(result = "Result<(), String>")]
+pub(crate) struct SetIdleTimeout {
+    pub(crate) secs: u64,
+}

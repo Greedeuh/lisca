@@ -24,7 +24,9 @@ use self::transcriber_actor::TranscriberActor;
 pub(super) struct AppActors {
     pub(super) queue: Addr<QueueActor>,
     pub(super) player: Addr<SpeechPlayerActor>,
+    pub(super) transcriber: Addr<TranscriberActor>,
     pub(super) voice_mapping: Arc<Mutex<VoiceMapping>>,
+    pub(super) model_pool: Arc<Mutex<crate::models::ModelPool>>,
 }
 
 impl AppActors {
@@ -41,10 +43,20 @@ impl AppActors {
         let voice_mapping_path = paths.app_data_dir.join("voice_mapping.json");
         let voice_mapping = Arc::new(Mutex::new(VoiceMapping::load(&voice_mapping_path)));
 
-        let model_pool = Arc::new(Mutex::new(models::ModelPool::new(
-            4,
-            Some(std::time::Duration::from_secs(300)),
-        )));
+        let model_pool = Arc::new(Mutex::new(
+            models::ModelPool::new(4, None).with_config_path(
+                paths.app_data_dir.join("pool_config.json"),
+            ),
+        ));
+
+        let idle_timeout_secs = {
+            let pool = model_pool.clone();
+            let guard = pool.try_lock();
+            match guard {
+                Ok(p) => p.idle_timeout_secs(),
+                Err(_) => 300,
+            }
+        };
 
         let piper_factory: Arc<dyn ModelFactory> = Arc::new(models::PiperFactory::new(
             paths.piper_models_dir.clone(),
@@ -67,11 +79,12 @@ impl AppActors {
         let queue_actor = QueueActor::new(queue, app_handle.clone()).start();
         let transcriber_actor = TranscriberActor::new(
             queue_actor.clone(),
-            model_pool,
+            model_pool.clone(),
             unified_factory,
             voice_mapping.clone(),
             catalog,
             app_handle.clone(),
+            idle_timeout_secs,
         )
         .start();
         let speech_player_actor =
@@ -90,7 +103,9 @@ impl AppActors {
         AppActors {
             queue: queue_actor,
             player: speech_player_actor,
+            transcriber: transcriber_actor,
             voice_mapping,
+            model_pool,
         }
     }
 }

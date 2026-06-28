@@ -2,11 +2,27 @@
 // Models are keyed by voice_key and created on-demand via ModelFactory.
 
 use std::collections::{HashMap, VecDeque};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
+use crate::persist::{load_json, save_json};
+
 use super::{Model, ModelFactory};
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+struct PoolConfig {
+    idle_timeout_secs: u64,
+}
+
+impl Default for PoolConfig {
+    fn default() -> Self {
+        Self {
+            idle_timeout_secs: 300,
+        }
+    }
+}
 
 struct CacheEntry {
     model: Arc<Mutex<dyn Model>>,
@@ -18,6 +34,7 @@ pub(crate) struct ModelPool {
     order: VecDeque<String>,
     max_size: usize,
     idle_timeout: Option<Duration>,
+    config_path: Option<PathBuf>,
 }
 
 impl ModelPool {
@@ -27,6 +44,32 @@ impl ModelPool {
             order: VecDeque::new(),
             max_size,
             idle_timeout,
+            config_path: None,
+        }
+    }
+
+    pub(crate) fn with_config_path(mut self, path: PathBuf) -> Self {
+        let config: PoolConfig = load_json(&path);
+        self.idle_timeout = Some(Duration::from_secs(config.idle_timeout_secs));
+        self.config_path = Some(path);
+        self
+    }
+
+    pub(crate) fn idle_timeout_secs(&self) -> u64 {
+        self.idle_timeout
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn set_idle_timeout(&mut self, timeout: Option<Duration>) {
+        self.idle_timeout = timeout;
+        if let Some(ref path) = self.config_path {
+            let config = PoolConfig {
+                idle_timeout_secs: timeout.map(|d| d.as_secs()).unwrap_or(0),
+            };
+            if let Err(e) = save_json(path, &config) {
+                log::error!("Failed to save pool config: {e}");
+            }
         }
     }
 
@@ -48,6 +91,7 @@ impl ModelPool {
 
         log::debug!("Creating model for voice: {voice_key}");
         let model = factory.create(voice_key)?;
+        log::info!("Model loaded: {voice_key}");
 
         self.cache.insert(
             voice_key.to_string(),
@@ -76,6 +120,9 @@ impl ModelPool {
                 .cloned()
                 .collect();
 
+            if !expired.is_empty() {
+                log::info!("Evicting {} idle model(s) (timeout: {}s)", expired.len(), timeout.as_secs());
+            }
             for key in expired {
                 self.evict(&key);
             }
@@ -83,6 +130,7 @@ impl ModelPool {
     }
 
     fn evict(&mut self, voice_key: &str) {
+        log::info!("Model unloaded: {voice_key}");
         self.cache.remove(voice_key);
         self.order.retain(|k| k != voice_key);
     }

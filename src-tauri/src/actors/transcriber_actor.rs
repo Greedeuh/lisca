@@ -14,23 +14,25 @@ use crate::voice_prefs::VoiceMapping;
 use super::messages::*;
 use super::queue_actor::QueueActor;
 
-pub(super) struct TranscriberActor {
+pub(crate) struct TranscriberActor {
     queue_addr: Addr<QueueActor>,
     model_pool: Arc<TokioMutex<ModelPool>>,
     factory: Arc<UnifiedFactory>,
     voice_mapping: Arc<TokioMutex<VoiceMapping>>,
     catalog: Arc<VoiceCatalog>,
     app_handle: AppHandle,
+    idle_timeout_secs: u64,
 }
 
 impl TranscriberActor {
-    pub(super) fn new(
+    pub(crate) fn new(
         queue_addr: Addr<QueueActor>,
         model_pool: Arc<TokioMutex<ModelPool>>,
         factory: Arc<UnifiedFactory>,
         voice_mapping: Arc<TokioMutex<VoiceMapping>>,
         catalog: Arc<VoiceCatalog>,
         app_handle: AppHandle,
+        idle_timeout_secs: u64,
     ) -> Self {
         Self {
             queue_addr,
@@ -39,6 +41,7 @@ impl TranscriberActor {
             voice_mapping,
             catalog,
             app_handle,
+            idle_timeout_secs,
         }
     }
 }
@@ -161,5 +164,35 @@ impl Handler<TextAdded> for TranscriberActor {
 
     fn handle(&mut self, _: TextAdded, _ctx: &mut Context<Self>) {
         _ctx.address().do_send(Transcribe);
+    }
+}
+
+impl Handler<GetIdleTimeout> for TranscriberActor {
+    type Result = u64;
+
+    fn handle(&mut self, _: GetIdleTimeout, _ctx: &mut Context<Self>) -> u64 {
+        self.idle_timeout_secs
+    }
+}
+
+impl Handler<SetIdleTimeout> for TranscriberActor {
+    type Result = Result<(), String>;
+
+    fn handle(&mut self, msg: SetIdleTimeout, _ctx: &mut Context<Self>) -> Result<(), String> {
+        self.idle_timeout_secs = msg.secs;
+        let timeout = if msg.secs > 0 {
+            Some(std::time::Duration::from_secs(msg.secs))
+        } else {
+            None
+        };
+
+        let model_pool = self.model_pool.clone();
+        tokio::task::spawn_local(async move {
+            let mut pool = model_pool.lock().await;
+            pool.set_idle_timeout(timeout);
+        });
+
+        let _ = self.app_handle.emit("config_changed", ());
+        Ok(())
     }
 }

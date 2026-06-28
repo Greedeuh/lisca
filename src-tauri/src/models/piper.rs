@@ -164,27 +164,6 @@ impl PiperModel {
         ids.push(eos);
         ids
     }
-
-    #[allow(dead_code)]
-    fn warmup(&mut self) -> Result<(), String> {
-        let t_input = ort::value::Tensor::from_array(([1, 1], vec![0i64]))
-            .map_err(|e| format!("Warmup tensor: {}", e))?;
-        let t_lengths = ort::value::Tensor::from_array(([1], vec![1i64]))
-            .map_err(|e| format!("Warmup tensor: {}", e))?;
-        let t_scales = ort::value::Tensor::from_array(([3], vec![0.667f32, 1.0, 0.8]))
-            .map_err(|e| format!("Warmup tensor: {}", e))?;
-
-        let _outputs = self
-            .session
-            .run(ort::inputs![
-                "input" => t_input.into_dyn(),
-                "input_lengths" => t_lengths.into_dyn(),
-                "scales" => t_scales.into_dyn(),
-            ])
-            .map_err(|e| format!("Warmup inference: {}", e))?;
-
-        Ok(())
-    }
 }
 
 impl Model for PiperModel {

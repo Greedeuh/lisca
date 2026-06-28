@@ -101,6 +101,14 @@ export function queueToggleOverlay(): Promise<boolean> {
   return invoke("queue_toggle_overlay");
 }
 
+export function getIdleTimeout(): Promise<number> {
+  return invoke("get_idle_timeout");
+}
+
+export function setIdleTimeout(secs: number): Promise<void> {
+  return invoke("set_idle_timeout", { secs });
+}
+
 export function playbackPause(): Promise<void> {
   return invoke("playback_pause");
 }

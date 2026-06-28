@@ -352,6 +352,31 @@ pub(super) fn toggle_overlay_window(app: AppHandle) -> Result<bool, String> {
     crate::overlay::toggle_overlay(&app)
 }
 
+// ── Transcriber commands ──────────────────────────────────────────
+
+#[tauri::command]
+pub(super) async fn get_idle_timeout(
+    actors: tauri::State<'_, AppActors>,
+) -> Result<u64, String> {
+    actors
+        .transcriber
+        .send(GetIdleTimeout)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub(super) async fn set_idle_timeout(
+    actors: tauri::State<'_, AppActors>,
+    secs: u64,
+) -> Result<(), String> {
+    actors
+        .transcriber
+        .send(SetIdleTimeout { secs })
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 // ── DTO types ─────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
